@@ -2,7 +2,7 @@
   "categories": {
     "1": {
       "name": "NonApikey",
-      "folder": "1-no-api",
+      "folder": "No Apikey",
       "items": {
         "1": {
           "label": "TronBlow 🟢",
@@ -64,7 +64,7 @@
 
     "2": {
       "name": "Apikey",
-      "folder": "2-api",
+      "folder": "Apikey",
       "items": {
         "1": {
           "label": "LightQuest [ Only level 10 ] 🟢",
@@ -151,7 +151,7 @@
 
     "3": {
       "name": "Telegram / MiniApp",
-      "folder": "3-app",
+      "folder": "MiniApp",
       "items": {
         "1": {
           "label": "Watch Ad Gamerle Vipfaucet MiniappFaucet&Crypto 🟢",
@@ -288,7 +288,7 @@
 
     "4": {
       "name": "Tools / GetInidata",
-      "folder": "4-tools",
+      "folder": "Tools",
       "items": {
         "1": {
           "label": "Get PHPSESSID 🟢",
