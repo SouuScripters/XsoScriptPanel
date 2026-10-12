@@ -79,81 +79,71 @@
           "runner": "python3"
         },
         "10": {
-          "label": "Pitasks 🔴",
-          "file": "Pitasks.py",
-          "runner": "python3"
-        },
-        "11": {
           "label": "LimeFaucet 🟢",
           "file": "lime.php",
           "runner": "php"
         },
-        "12": {
+        "11": {
           "label": "NeedBux 🟢",
           "file": "NeedBux.php",
           "runner": "php"
         },
-        "13": {
+        "12": {
           "label": "FireFaucet 🟢",
           "file": "FireFaucet.php",
           "runner": "php"
         },
-        "14": {
+        "13": {
           "label": "Earnbitmoon 🟢",
           "file": "Earnbitmoon.php",
           "runner": "php"
         },
-        "15": {
+        "14": {
           "label": "BullyDAO 🔴",
           "file": "Dao.py",
           "runner": "python"
         },
-        "16": {
+        "15": {
           "label": "PayubVideo 🟡",
           "file": "Payub.php",
           "runner": "php"
         },
-        "17": {
+        "16": {
           "label": "BuxFaucet 🟢",
           "file": "buxfaucet.php",
           "runner": "php"
         },
-        "18": {
+        "17": {
           "label": "Coinadster 🟡",
           "file": "coinadster.php",
           "runner": "php"
         },
-        "19": {
+        "18": {
           "label": "TRXMiner 🟢",
           "file": "trxminer.py",
           "runner": "python3"
         },
-        "20": {
-          "label": "Bigbtc 🟡",
-          "file": "bigbtcwin.py",
-          "runner": "python3"
-        },
-        "21": {
+        "19": {
           "label": "DRFaucet 🟢",
           "file": "DrFaucet.py",
           "runner": "python3"
         },
-        "22": {
+        "20": {
           "label": "GainLTC 🟢",
           "file": "GainLTC.py",
           "runner": "python3"
         },
-        "23": {
+        "21": {
           "label": "Coming Soon",
           "file": "FaucetPepe.php",
           "runner": "php"
         },
-        "24": {
+        "22": {
           "label": "Coming Soon 🔵",
           "file": "ComingSoon4.php",
           "runner": "php"
         },
-        "25": {
+        "23": {
           "label": "Coming Soon 🔵",
           "file": "ComingSoon5.php",
           "runner": "php"
