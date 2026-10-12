@@ -89,7 +89,7 @@
           "runner": "php"
         },
         "12": {
-          "label": "FireFaucet 🟢",
+          "label": "FireFaucet 🔴",
           "file": "FireFaucet.php",
           "runner": "php"
         },
