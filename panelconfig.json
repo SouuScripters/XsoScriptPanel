@@ -4,7 +4,7 @@
       "name": "NonApikey ",
       "items": {
         "1": {
-          "label": "TronBlow 🟢",
+          "label": "TronBlow 🔴",
           "file": "Tronblow.php",
           "runner": "php"
         },
