@@ -4,7 +4,7 @@
       "name": "NonApikey ",
       "items": {
         "1": {
-          "label": "TronBlow 🔴",
+          "label": "TronBlow 🟢",
           "file": "Tronblow.php",
           "runner": "php"
         },
@@ -257,6 +257,16 @@
           "label": "Btc Faucet 🟢",
           "file": "btcFaucet.py",
           "runner": "python3"
+        },
+        "22": {
+          "label": "Coming Soon 🔵",
+          "file": "ComingSoon1.php",
+          "runner": "php"
+        },
+        "23": {
+          "label": "Coming Soon 🔵",
+          "file": "ComingSoon2.php",
+          "runner": "php"
         }
       }
     },
