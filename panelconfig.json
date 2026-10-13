@@ -79,7 +79,7 @@
           "runner": "python3"
         },
         "10": {
-          "label": "LimeFaucet 🟢",
+          "label": "LimeFaucet 🔴",
           "file": "lime.php",
           "runner": "php"
         },
