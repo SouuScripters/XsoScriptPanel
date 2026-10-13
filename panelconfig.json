@@ -19,7 +19,7 @@
           "runner": "php"
         },
         "4": {
-          "label": "Aruble 🟢",
+          "label": "Aruble 🟡",
           "file": "aruble.php",
           "runner": "php"
         },
@@ -79,7 +79,7 @@
           "runner": "python3"
         },
         "10": {
-          "label": "LimeFaucet 🟢",
+          "label": "LimeFaucet 🔴",
           "file": "lime.php",
           "runner": "php"
         },
@@ -109,7 +109,7 @@
           "runner": "php"
         },
         "16": {
-          "label": "BuxFaucet 🟢",
+          "label": "BuxFaucet 🔴",
           "file": "buxfaucet.php",
           "runner": "php"
         },
