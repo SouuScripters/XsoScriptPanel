@@ -2,10 +2,14 @@
 <?php
 /**
  * ═══════════════════════════════════════════════════════════════
- *  LIMEFAUCET.com Auto Claim Bot v2.4 (Clean UI)
+ *  LIMEFAUCET.com Auto Claim Bot v2.5 (Clean UI + Coin Picker)
  *  - Auto login via email
  *  - Rotation captcha solver via Waryono lime API
+ *  - NEW: fetch /api/config → supported_currencies + turnstile key
+ *  - NEW: pick & change preferred_currency via /api/auth/change-currency
+ *  - NEW: handle force_currency_change flag from /api/auth/me
  *  - FIX: paksa identity encoding (no compression, no zstd)
+ *  - FIX: detect SPA HTML fallback on login (biar ga salah parse)
  *  - FIX: safe debug preview (hex fallback)
  * ═══════════════════════════════════════════════════════════════
  */
@@ -43,6 +47,9 @@ $STATE = [
     'faucet_status' => 'checking',
 ];
 
+// fallback list kalau /api/config gak kejangkau
+$SUPPORTED_CURRENCIES = ['DOGE','LTC','BCH','DASH','TRX','USDT','BNB','SOL','XRP','POL','ADA','TON','XLM'];
+
 function slog(string $msg, string $level = 'INFO'): void {
     global $STATE;
     $ts = date('H:i:s');
@@ -51,6 +58,7 @@ function slog(string $msg, string $level = 'INFO'): void {
         'INFO'=>GRY."● INFO  ".RST, 'CLAIM'=>MAG."◉ CLAIM ".RST, 'SOLVE'=>CYN."◉ SOLVER".RST,
         'VERIFY'=>VIO."◉ VERIFY".RST, 'CAP'=>YEL."◉ CAPTCHA".RST, 'WAIT'=>ORG."◉ WAIT  ".RST,
         'AUTH'=>GRN."● AUTH  ".RST, 'LOGIN'=>CYN."◉ LOGIN ".RST, 'DEBUG'=>GRY."● DEBUG ".RST,
+        'COIN'=>VIO."◉ COIN  ".RST, 'CFG'=>GRY."● CONFIG".RST,
     ];
     $tag = $tags[strtoupper($level)] ?? $tags['INFO'];
     $STATE['logs'][] = GRY."[{$ts}] ".RST.$tag." ".WHT.$msg.RST;
@@ -61,25 +69,19 @@ function fmt_dur(int $s): string {
     return sprintf('%02d:%02d:%02d', floor($s/3600), floor(($s%3600)/60), $s%60);
 }
 
-// Helper: safe preview untuk body yang mungkin invalid UTF-8
 function safe_preview($data, int $max = 130): string {
     if (is_array($data)) {
         $s = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
-        if ($s === false) {
-            $s = '[json_encode failed: ' . json_last_error_msg() . ']';
-        }
+        if ($s === false) $s = '[json_encode failed: '.json_last_error_msg().']';
     } else {
         $s = (string) $data;
     }
-    // kalau ada karakter non-printable, ubah jadi hex
     $has_binary = false;
     for ($i = 0; $i < strlen($s) && $i < 32; $i++) {
         $o = ord($s[$i]);
         if ($o < 0x20 && $o !== 0x09 && $o !== 0x0A && $o !== 0x0D) { $has_binary = true; break; }
     }
-    if ($has_binary) {
-        $s = 'HEX: ' . bin2hex(substr($s, 0, 40));
-    }
+    if ($has_binary) $s = 'HEX: '.bin2hex(substr($s, 0, 40));
     return substr($s, 0, $max);
 }
 
@@ -96,7 +98,7 @@ function render(): void {
 
     echo "\n".$top."\n";
     echo $line(BOLD.WHT."LIMEFAUCET AUTO CLAIM".RST)."\n";
-    echo $line(DIM."─────── SOUU ENGINE ───────".RST)."\n";
+    echo $line(DIM."─────── SOUU ENGINE v2.5 ───────".RST)."\n";
     echo $mid."\n";
 
     $hs_color=GRN; $hs_label='ONLINE';
@@ -106,7 +108,7 @@ function render(): void {
 
     echo $line(VIO."FAUCET".RST)."\n";
     echo $line("├─ Status   : ".$hs_color.$hs_label.RST)."\n";
-    echo $line("└─ Currency : ".CYN.$STATE['currency'].RST)."\n";
+    echo $line("└─ Currency : ".YEL.$STATE['currency'].RST)."\n";
     echo $mid."\n";
 
     echo $line(VIO."CAPTCHA".RST)."\n";
@@ -158,7 +160,7 @@ const WARYONO_IN    = 'https://api.waryono.my.id/in.php';
 const WARYONO_RES   = 'https://api.waryono.my.id/res.php';
 const POLL_INTERVAL = 3;
 const POLL_TIMEOUT  = 180;
-const DEBUG         = true;   // ← aktifkan biar keliatan raw response
+const DEBUG         = true;
 
 const UA = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36';
 
@@ -169,8 +171,9 @@ function load_config(): ?array {
     if (!file_exists($CONFIG_FILE)) return null;
     $c = json_decode((string) file_get_contents($CONFIG_FILE), true);
     if (!is_array($c) || empty($c['email'])) return null;
-    $c['apikey'] = $c['apikey'] ?? '';
-    $c['token']  = $c['token']  ?? '';
+    $c['apikey']   = $c['apikey']   ?? '';
+    $c['token']    = $c['token']    ?? '';
+    $c['currency'] = $c['currency'] ?? '';
     return $c;
 }
 function save_config(array $c): void {
@@ -190,7 +193,7 @@ function base_headers(string $token = '', bool $json = true): array {
         'accept: */*',
         'accept-language: id-ID,id;q=0.9,en;q=0.8',
         'origin: '.BASE_URL,
-        'referer: '.BASE_URL.'/faucet',
+        'referer: '.BASE_URL.'/dashboard',
         'sec-ch-ua: "Chromium";v="127", "Not)A;Brand";v="99"',
         'sec-ch-ua-mobile: ?1',
         'sec-ch-ua-platform: "Android"',
@@ -198,7 +201,7 @@ function base_headers(string $token = '', bool $json = true): array {
         'sec-fetch-mode: cors',
         'sec-fetch-dest: empty',
         'user-agent: '.UA,
-        'accept-encoding: identity',   // ← paksa NO compression
+        'accept-encoding: identity',
     ];
     if ($json) $h[] = 'content-type: application/json';
     if ($token) $h[] = 'cookie: lf_token='.$token;
@@ -216,7 +219,7 @@ function http_req(string $method, string $url, ?string $body, array $headers, in
         CURLOPT_HTTPHEADER     => $headers,
         CURLOPT_CUSTOMREQUEST  => strtoupper($method),
         CURLOPT_HEADER         => true,
-        CURLOPT_ENCODING       => 'identity',   // ← paksa no decode
+        CURLOPT_ENCODING       => 'identity',
     ]);
     if ($body !== null) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
@@ -270,6 +273,58 @@ function api_post(string $path, array $payload, string $token, bool $empty_body 
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  SITE CONFIG (/api/config)
+// ═══════════════════════════════════════════════════════════════
+function fetch_site_config(string $token): ?array {
+    $c = api_get('/api/config', $token);
+    if (!is_array($c) || isset($c['_error'])) return null;
+    if (!isset($c['supported_currencies']) || !is_array($c['supported_currencies'])) return null;
+    return $c;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHANGE CURRENCY (/api/auth/change-currency)
+// ═══════════════════════════════════════════════════════════════
+function change_currency(string $token, string $currency): bool {
+    $currency = strtoupper($currency);
+    $r = api_post('/api/auth/change-currency', ['currency' => $currency], $token);
+    if (($r['success'] ?? false) === true) {
+        slog("Currency set → ".($r['preferred_currency'] ?? $currency), 'COIN');
+        return true;
+    }
+    slog("Change currency gagal: ".safe_preview($r), 'ERR');
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CURRENCY PICKER
+// ═══════════════════════════════════════════════════════════════
+function pick_currency(array $available, ?string $preselect = null): ?string {
+    echo "\n".CYN."  Supported currencies:".RST."\n";
+    $cols = 4; $i = 0;
+    $row = [];
+    foreach ($available as $cur) {
+        $mark = ($preselect && $cur === $preselect) ? GRN."*".RST : " ";
+        $row[] = YEL.sprintf('%2d.', $i+1).RST." {$cur}{$mark}";
+        $i++;
+        if (count($row) >= $cols) { echo "   ".implode("   ", $row)."\n"; $row = []; }
+    }
+    if (!empty($row)) echo "   ".implode("   ", $row)."\n";
+
+    while (true) {
+        $in = read_line("\n".YEL."  Pick number or symbol (enter=keep".($preselect?" {$preselect}":" LTC")."): ".RST);
+        if ($in === '') return $preselect;
+        if (is_numeric($in)) {
+            $idx = (int)$in - 1;
+            if (isset($available[$idx])) return $available[$idx];
+        }
+        $up = strtoupper($in);
+        if (in_array($up, $available, true)) return $up;
+        echo RED."  ✗ Gak valid, coba lagi.\n".RST;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  LOGIN via EMAIL
 // ═══════════════════════════════════════════════════════════════
 function login_with_email(string $email): ?string {
@@ -285,6 +340,12 @@ function login_with_email(string $email): ?string {
     if ($r['error']) { slog("Login error: {$r['error']}", 'ERR'); return null; }
     if ($r['code'] !== 200) { slog("Login HTTP {$r['code']}", 'ERR'); return null; }
 
+    // deteksi SPA fallback (kadang Cloudflare balikin index.html)
+    $ct = '';
+    if (preg_match('/content-type:\s*([^\r\n;]+)/i', $r['headers'], $cm)) $ct = strtolower(trim($cm[1]));
+    $looks_html = ($ct === 'text/html') || (stripos(substr($r['body'],0,200), '<!DOCTYPE') !== false);
+
+    // Set-Cookie dulu (paling reliable)
     if (preg_match('/Set-Cookie:\s*lf_token=([^;\r\n]+)/i', $r['headers'], $m)) {
         $token = trim($m[1]);
         if (strlen($token) > 30) {
@@ -293,6 +354,7 @@ function login_with_email(string $email): ?string {
         }
     }
 
+    // fallback body token
     $j = json_decode($r['body'], true);
     if (is_array($j)) {
         foreach (['token','lf_token','access_token'] as $k) {
@@ -303,7 +365,11 @@ function login_with_email(string $email): ?string {
         }
     }
 
-    slog("Login: token gak ketemu", 'ERR');
+    if ($looks_html) {
+        slog("Login: server balikin HTML (SPA fallback) — cek Cloudflare / WAF / rate-limit", 'ERR');
+    } else {
+        slog("Login: token gak ketemu", 'ERR');
+    }
     if (DEBUG) slog("Login raw: ".safe_preview($r['body']), 'DEBUG');
     return null;
 }
@@ -376,7 +442,6 @@ function waryono_solve_lime(string $apikey, string $base64, float $x, float $y, 
 //  ROTATION CAPTCHA FULL FLOW
 // ═══════════════════════════════════════════════════════════════
 function solve_rotation_captcha(string $token, string $apikey): ?array {
-    // STEP 1: request challenge (empty body)
     $ch = api_post('rotation-captcha/challenge', [], $token, true);
 
     if (!isset($ch['session_id']) || !isset($ch['challenge'])) {
@@ -397,7 +462,6 @@ function solve_rotation_captcha(string $token, string $apikey): ?array {
 
     if (!$img_path) { slog("No image path", 'ERR'); return null; }
 
-    // STEP 2: download image
     $img_url = str_starts_with($img_path, 'http') ? $img_path : BASE_URL.$img_path;
     $img_h = base_headers($token, false);
     $img_h[] = 'accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8';
@@ -423,11 +487,9 @@ function solve_rotation_captcha(string $token, string $apikey): ?array {
     $img_b64 = base64_encode($img_bytes);
     slog("Image OK (".strlen($img_bytes)." bytes)", 'CAP');
 
-    // STEP 3: solve
     $angle = waryono_solve_lime($apikey, $img_b64, $cx, $cy, $cr);
     if ($angle === null) return null;
 
-    // STEP 4: verify
     $verify = api_post('rotation-captcha/verify', [
         'session_id' => $session_id,
         'angle'      => $angle,
@@ -458,7 +520,7 @@ function setup(): array {
         }
     }
     $apikey = read_line(YEL."Waryono API key: ".RST);
-    return ['email' => $email, 'apikey' => $apikey, 'token' => ''];
+    return ['email' => $email, 'apikey' => $apikey, 'token' => '', 'currency' => ''];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -470,7 +532,9 @@ $config = load_config();
 if ($config) {
     echo GRN."  ✓ Config found\n".RST;
     echo DIM."    Email  : {$config['email']}\n".RST;
-    echo DIM."    APIKey : ".substr($config['apikey'], 0, 12)."...\n\n".RST;
+    echo DIM."    APIKey : ".substr($config['apikey'], 0, 12)."...\n".RST;
+    if (!empty($config['currency'])) echo DIM."    Coin   : {$config['currency']}\n".RST;
+    echo "\n";
     $ans = read_line(YEL."  Use saved? (y/n): ".RST);
     if (strtolower($ans) === 'n') $config = setup();
 } else {
@@ -488,14 +552,74 @@ save_config($config);
 $STATE['email'] = $config['email'];
 slog("Session OK", 'AUTH');
 
+// ── Fetch site config, ambil supported_currencies ────────────────
+$site_cfg = fetch_site_config($token);
+if ($site_cfg) {
+    $SUPPORTED_CURRENCIES = $site_cfg['supported_currencies'];
+    $force_change = $site_cfg['force_currency_change'] ?? false;
+    slog("Config loaded (".count($SUPPORTED_CURRENCIES)." coins)", 'CFG');
+    if (isset($site_cfg['turnstile_site_key'])) {
+        slog("Turnstile key: ".substr($site_cfg['turnstile_site_key'],0,20)."...", 'CFG');
+    }
+    clear_render();
+} else {
+    slog("Config fetch gagal, pakai fallback list", 'WARN');
+    $force_change = false;
+    clear_render();
+}
+
+// ── Ambil user info ──────────────────────────────────────────────
 $me = api_get('/api/auth/me', $token);
+$current_currency = null;
 if (isset($me['user'])) {
     $STATE['user']        = 'u'.$me['user']['id'];
     $STATE['balance_usd'] = (float)($me['user']['balance_usd'] ?? 0);
     $STATE['currency']    = $me['user']['preferred_currency'] ?? 'LTC';
-}
-clear_render();
+    $current_currency     = $STATE['currency'];
 
+    // handle force_currency_change flag
+    if (!empty($me['force_currency_change'])) {
+        slog("Server minta ganti coin (force_currency_change)", 'WARN');
+    }
+}
+
+// ── Tentukan coin pilihan ────────────────────────────────────────
+$wanted = $config['currency'] ?? '';
+if ($wanted === '' || !in_array($wanted, $SUPPORTED_CURRENCIES, true)) {
+    // tanya user
+    clear_render();
+    $picked = pick_currency($SUPPORTED_CURRENCIES, $current_currency);
+    if ($picked) {
+        $wanted = $picked;
+        $config['currency'] = $wanted;
+        save_config($config);
+    }
+}
+
+// Kalau beda sama yang aktif di server, change
+if ($wanted && $wanted !== $current_currency) {
+    slog("Switching coin {$current_currency} → {$wanted}", 'COIN');
+    clear_render();
+    if (change_currency($token, $wanted)) {
+        $STATE['currency'] = $wanted;
+        // refresh me
+        $me = api_get('/api/auth/me', $token);
+        if (isset($me['user'])) {
+            $STATE['balance_usd'] = (float)($me['user']['balance_usd'] ?? 0);
+            $STATE['currency']    = $me['user']['preferred_currency'] ?? $wanted;
+        }
+    } else {
+        slog("Gagal switch, tetep pakai {$current_currency}", 'WARN');
+    }
+    clear_render();
+} else if ($wanted) {
+    slog("Coin aktif: {$wanted}", 'COIN');
+    clear_render();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════════
 while (true) {
     if ((time() - $STATE['runtime_start']) >= $STATE['max_runtime']) {
         slog("Max runtime reached", 'WARN'); clear_render(); break;
@@ -504,7 +628,7 @@ while (true) {
         slog("Max failures reached", 'ERR'); clear_render(); break;
     }
 
-    // refresh token kalau expired
+    // refresh session / re-login kalau 401
     $me_check = api_get('/api/auth/me', $token);
     if (isset($me_check['_code']) && $me_check['_code'] == 401) {
         slog("Token expired, re-login...", 'WARN'); clear_render();
@@ -512,9 +636,13 @@ while (true) {
         if (!$token) { slog("Re-login failed", 'ERR'); clear_render(); exit(1); }
         $config['token'] = $token;
         save_config($config);
+        // re-apply coin kalau perlu
+        if (!empty($config['currency'])) {
+            change_currency($token, $config['currency']);
+        }
     } elseif (isset($me_check['user'])) {
         $STATE['balance_usd'] = (float)($me_check['user']['balance_usd'] ?? 0);
-        $STATE['currency']    = $me_check['user']['preferred_currency'] ?? 'LTC';
+        $STATE['currency']    = $me_check['user']['preferred_currency'] ?? $STATE['currency'];
     }
 
     $info = api_get('info', $token);
@@ -559,7 +687,7 @@ while (true) {
     $status = $claim['payout_status'] ?? 'unknown';
     if ($status === 'success') {
         $reward = (float)($claim['reward_crypto'] ?? 0);
-        $cur    = $claim['currency'] ?? 'LTC';
+        $cur    = $claim['currency'] ?? $STATE['currency'];
         $STATE['claims']++;
         $STATE['rewards'] += $reward;
         $STATE['currency'] = $cur;
@@ -577,6 +705,7 @@ while (true) {
     $me2 = api_get('/api/auth/me', $token);
     if (isset($me2['user'])) {
         $STATE['balance_usd'] = (float)($me2['user']['balance_usd'] ?? 0);
+        $STATE['currency']    = $me2['user']['preferred_currency'] ?? $STATE['currency'];
     }
     clear_render();
 
