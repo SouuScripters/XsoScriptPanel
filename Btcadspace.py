@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+BTCadSpace Bot - Single Account, Cookie Auth + YouTube Videos
+Fixed by MoneyMaker_w
+Butuh: pip install curl_cffi
+"""
 
-import json, time, re, sys, os, hashlib, random, threading
+import json, time, re, sys, os, random, threading
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
 from urllib.parse import urlparse
 
 try:
@@ -17,48 +21,62 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════
 HOST              = "https://btcadspace.com"
 
-# ── Waryono.my.id (menggantikan tertuyul) ──
 WARYONO_IN        = "https://api.waryono.my.id/in.php"
 WARYONO_RES       = "https://api.waryono.my.id/res.php"
 WARYONO_BALANCE   = "https://api.waryono.my.id/balance.php"
 
 TURNSTILE_SITEKEY = "0x4AAAAAAAB-TZt_lwYtViEL"
+
 AVISO_API         = "https://aviso.bz/api/v1"
 AVISO_API_KEY     = "ak_87e52f3d03d99fbb11505fc3ec24b881dddfb42e"
 
 CONFIG_FILE       = "config.json"
-SESSION_DIR       = "sessions_btcadspace"
-DEBUG_HTML_DIR    = "debug_html"
 
 MAX_RETRY         = 3
-FARM_COOLDOWN     = 300
-FAUCET_COOLDOWN   = 5
+FAUCET_COOLDOWN   = 300
+DEBUG_COOKIE      = False
 
-DEF_UA = ("Mozilla/5.0 (Linux; Android 15; CPH2505 Build/UKQ1.230924.001) "
-          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.199 "
-          "Mobile Safari/537.36")
+DEF_UA = ("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+          "(KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36")
 
-BLK="\033[0;30m"; RED="\033[0;31m"; GRN="\033[0;32m"; YEL="\033[0;33m"
-BLU="\033[0;34m"; MAG="\033[0;35m"; CYN="\033[0;36m"; WHT="\033[0;37m"
-RST="\033[0m"; BOLD="\033[1m"
+# ═══════════════════════════════════════════════════════════════
+# NEON COLORS
+# ═══════════════════════════════════════════════════════════════
+RST   = "\033[0m"
+BOLD  = "\033[1m"
+DIM   = "\033[2m"
+
+# Neon (bright ANSI)
+NEON_PINK     = "\033[38;5;205m"   # hot pink
+NEON_CYAN     = "\033[38;5;51m"    # bright cyan
+NEON_GREEN    = "\033[38;5;46m"    # neon green
+NEON_YELLOW   = "\033[38;5;226m"   # bright yellow
+NEON_ORANGE   = "\033[38;5;208m"   # orange
+NEON_PURPLE   = "\033[38;5;141m"   # light purple
+NEON_BLUE     = "\033[38;5;45m"    # electric blue
+NEON_RED      = "\033[38;5;196m"   # bright red
+NEON_WHITE    = "\033[38;5;231m"   # pure white
+NEON_MAGENTA  = "\033[38;5;201m"   # magenta
+
+# Aliases
+GRN = NEON_GREEN
+RED = NEON_RED
+YEL = NEON_YELLOW
+CYN = NEON_CYAN
+WHT = NEON_WHITE
+MAG = NEON_MAGENTA
+BLU = NEON_BLUE
+PINK = NEON_PINK
+ORG = NEON_ORANGE
+PUR = NEON_PURPLE
+
 CLR = "\r\033[2K"
 
 _HARD_ERR = object()
 
-LIMITED_FAUCET = {}
-
 # ═══════════════════════════════════════════════════════════════
 # UTILS
 # ═══════════════════════════════════════════════════════════════
-
-def _mark_faucet_limited(username):
-    LIMITED_FAUCET[username] = True
-
-
-def _is_faucet_limited(username):
-    return LIMITED_FAUCET.get(username, False)
-
-
 def clear():
     os.system('clear' if os.name == 'posix' else 'cls')
 
@@ -74,14 +92,19 @@ def mask_email(email):
 
 def log(msg, tag="i", end="\n"):
     icons = {
-        "i":  f"{CYN}»{RST}", "ok": f"{GRN}✓{RST}", "er": f"{RED}✗{RST}",
-        "wr": f"{YEL}⚠{RST}", "in": f"{BLU}●{RST}", "cf": f"{CYN}◇{RST}",
-        "bi": f"{GRN}₹{RST}", "bt": f"{MAG}◆{RST}", "ip": f"{MAG}⊕{RST}",
-        "wd": f"{YEL}⇩{RST}",
+        "i":  f"{NEON_CYAN}»{RST}",
+        "ok": f"{NEON_GREEN}✓{RST}",
+        "er": f"{NEON_RED}✗{RST}",
+        "wr": f"{NEON_YELLOW}⚠{RST}",
+        "in": f"{NEON_BLUE}●{RST}",
+        "bi": f"{NEON_GREEN}₹{RST}",
+        "yt": f"{NEON_PINK}▶{RST}",
+        "sf": f"{NEON_PURPLE}◆{RST}",
+        "fa": f"{NEON_ORANGE}⛲{RST}",
     }
-    icon = icons.get(tag, f"{CYN}»{RST}")
+    icon = icons.get(tag, f"{NEON_CYAN}»{RST}")
     ts = datetime.now().strftime("%H:%M:%S")
-    sys.stdout.write(CLR + f"{WHT}[{ts}]{RST} {icon} {msg}")
+    sys.stdout.write(CLR + f"{NEON_PURPLE}[{ts}]{RST} {icon} {msg}")
     if end:
         sys.stdout.write(end)
     sys.stdout.flush()
@@ -90,8 +113,6 @@ def log(msg, tag="i", end="\n"):
 def tmr(seconds, label="Countdown"):
     symbols   = list(reversed(['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘']))
     spinners  = ['⣾⣽','⣽⣻','⣻⢿','⢿⡿','⡿⣟','⣟⣯','⣯⣷','⣷⣾']
-    spinners1 = ['▁⣾','▂⣽','▃⣻','▄⢿','▅⡿','▆⣟','▇⣯','█⣷','▇⣾','▆⣽',
-                 '▅⣻','▄⢿','▃⡿','▂⣟','▁⣯']
     dots      = ['▪', '▪▪', '▪▪▪', '▪▪▪▪']
     total = int(seconds)
     if total < 1:
@@ -105,14 +126,16 @@ def tmr(seconds, label="Countdown"):
         mm, ss = divmod(remaining, 60)
         symbol = symbols[i % len(symbols)]
         sp     = spinners[i % len(spinners)]
-        sp1    = spinners1[i % len(spinners1)]
         dot    = dots[elapsed % len(dots)]
         i += 1
-        c1 = random.randint(1, 7); c2 = random.randint(1, 7)
+        # Neon color cycling
+        cols = [NEON_CYAN, NEON_PINK, NEON_GREEN, NEON_YELLOW, NEON_PURPLE, NEON_BLUE]
+        c1 = cols[i % len(cols)]
+        c2 = cols[(i + 3) % len(cols)]
         sys.stdout.write(
-            f"{CLR} \033[1;3{c1}m {sp}\033[1;37m {label} "
-            f"\033[1;31m{mm:02d}:{ss:02d}\033[1;3{c2}m {symbol} {sp1}"
-            f"\033[1;37m {pct}%\033[1;33m {dot}")
+            f"{CLR} {c1}{BOLD}{sp}{RST} {NEON_WHITE}{label} "
+            f"{NEON_RED}{mm:02d}:{ss:02d}{RST} {c2}{symbol}"
+            f" {NEON_WHITE}{pct}%{RST} {NEON_YELLOW}{dot}{RST}")
         sys.stdout.flush()
         if remaining <= 0:
             break
@@ -147,63 +170,78 @@ def parse_proxy(raw):
     return None
 
 
-def get_ipv6(proxy_raw=None):
-    proxy_dict = parse_proxy(proxy_raw)
-    for _ in range(2):
-        try:
-            r = requests.get("https://api6.ipify.org?format=json",
-                             impersonate="chrome110", timeout=8,
-                             proxies=proxy_dict)
-            j = r.json()
-            if j.get("ip") and ":" in j["ip"]:
-                return j["ip"]
-        except Exception:
-            pass
-    return None
+def parse_cookie_string(raw):
+    out = {}
+    if not raw:
+        return out
+    if isinstance(raw, dict):
+        return {k: str(v) for k, v in raw.items()}
 
+    raw = raw.strip()
 
-def show_ip_banner(proxy_raw=None):
-    ipv6 = get_ipv6(proxy_raw)
-    if ipv6:
-        print(f"{WHT}IP v6 : {MAG}{ipv6}{RST}")
-    else:
-        print(f"{WHT}IP v6 : {YEL}-{RST}")
+    if "\t" in raw and "=" not in raw.split("\n")[0]:
+        for line in raw.split("\n"):
+            parts = line.strip().split("\t")
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                out[parts[0].strip()] = parts[1].strip()
+        if out:
+            return out
+
+    raw = raw.replace("\n", ";").replace("\r", "")
+    for pair in raw.split(";"):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        k, v = pair.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k:
+            out[k] = v
+    return out
 
 
 # ═══════════════════════════════════════════════════════════════
-# SESSION
+# SESSION / REQUEST
 # ═══════════════════════════════════════════════════════════════
-
-def session_path(username):
-    os.makedirs(SESSION_DIR, exist_ok=True)
-    h = hashlib.md5(username.lower().strip().encode()).hexdigest()[:16]
-    return os.path.join(SESSION_DIR, f"cookies_{h}.json")
-
-
-def load_session(username, proxy_raw=None):
-    s = requests.Session(impersonate="chrome110")
+def build_session(cookies_dict, proxy_raw=None):
+    try:
+        s = requests.Session(impersonate="chrome124")
+    except Exception:
+        s = requests.Session(impersonate="chrome120")
     s.verify = False
+
     proxy_dict = parse_proxy(proxy_raw)
     if proxy_dict:
         s.proxies = proxy_dict
-    p = session_path(username)
-    if os.path.exists(p):
+
+    for k, v in (cookies_dict or {}).items():
         try:
-            with open(p) as f:
-                cookies = json.load(f)
-            for k, v in cookies.items():
-                s.cookies.set(k, v, domain=".btcadspace.com")
+            if k in ("cf_clearance", "remember_token"):
+                s.cookies.set(k, v, domain="btcadspace.com", secure=True)
+            else:
+                s.cookies.set(k, v, domain="btcadspace.com")
         except Exception:
-            pass
+            try:
+                s.cookies.set(k, v)
+            except Exception:
+                pass
     return s
 
 
-def save_session(username, sess):
-    try:
-        with open(session_path(username), "w") as f:
-            json.dump(sess.cookies.get_dict(), f, indent=2)
-    except Exception:
-        pass
+def base_headers():
+    return {
+        "user-agent": DEF_UA,
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "accept-language": "id-ID,id;q=0.9,en;q=0.8",
+        "sec-ch-ua": '"Chromium";v="127", "Not)A;Brand";v="99", "Microsoft Edge Simulate";v="127", "Lemur";v="127"',
+        "sec-ch-ua-mobile": "?1",
+        "sec-ch-ua-platform": '"Android"',
+        "upgrade-insecure-requests": "1",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-user": "?1",
+        "sec-fetch-dest": "document",
+    }
 
 
 def safe_request(sess, url, method='GET', data=None, headers=None,
@@ -224,61 +262,17 @@ def safe_request(sess, url, method='GET', data=None, headers=None,
             msg = str(e)
             if "proxy" in msg.lower() or "unsupported" in msg.lower():
                 sys.stdout.write(CLR)
-                print(f"{RED}✗ ERROR PROXY: {msg}{RST}")
+                print(f"{NEON_RED}✗ ERROR PROXY: {msg}{RST}")
                 sys.stdout.flush()
                 raise
-            sys.stdout.write(CLR + f"{YEL}⚠ [NET] gagal (#{attempt}): {msg[:70]}, retry 8s...{RST}")
+            sys.stdout.write(CLR + f"{NEON_YELLOW}⚠ [NET] gagal (#{attempt}): {msg[:70]}, retry 8s...{RST}")
             sys.stdout.flush()
             time.sleep(8)
-
-
-def dump_debug_html(username, tag, html):
-    return  # disabled
-    try:
-        os.makedirs(DEBUG_HTML_DIR, exist_ok=True)
-        h = hashlib.md5(username.lower().strip().encode()).hexdigest()[:8]
-        path = os.path.join(DEBUG_HTML_DIR, f"{h}_{tag}.html")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html or "")
-    except Exception:
-        pass
-
-
-# ═══════════════════════════════════════════════════════════════
-# SPINNER RENDER (bg)
-# ═══════════════════════════════════════════════════════════════
-
-_SYMBOLS   = list(reversed(['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘']))
-_SPINNERS  = ['⣾⣽','⣽⣻','⣻⢿','⢿⡿','⡿⣟','⣟⣯','⣯⣷','⣷⣾']
-_SPINNERS1 = ['▁⣾','▂⣽','▃⣻','▄⢿','▅⡿','▆⣟','▇⣯','█⣷','▇⣾','▆⣽',
-              '▅⣻','▄⢿','▃⡿','▂⣟','▁⣯']
-_DOTS      = ['▪', '▪▪', '▪▪▪', '▪▪▪▪']
-
-
-def _render_spinner(label, elapsed, total, i):
-    remaining = max(0, total - elapsed)
-    pct = round(((total - remaining) / total) * 100) if total > 0 else 100
-    mm, ss = divmod(elapsed, 60)
-    symbol = _SYMBOLS[i % len(_SYMBOLS)]
-    sp     = _SPINNERS[i % len(_SPINNERS)]
-    sp1    = _SPINNERS1[i % len(_SPINNERS1)]
-    dot    = _DOTS[(elapsed // 1) % len(_DOTS)]
-    c1 = random.randint(1, 7); c2 = random.randint(1, 7)
-    sys.stdout.write(
-        f"{CLR} \033[1;3{c1}m {sp}\033[1;37m {label} "
-        f"\033[1;31m{mm:02d}:{ss:02d}\033[1;3{c2}m {symbol} {sp1}"
-        f"\033[1;37m {pct}%\033[1;33m {dot}")
-    sys.stdout.flush()
-
-
-def _clear_line():
-    sys.stdout.write(CLR); sys.stdout.flush()
 
 
 # ═══════════════════════════════════════════════════════════════
 # WARYONO SOLVER
 # ═══════════════════════════════════════════════════════════════
-
 WARYONO_ERRORS = {
     "ERROR_WRONG_USER_KEY":        "API key salah",
     "ERROR_BANNED":                "Akun diblokir",
@@ -295,14 +289,14 @@ WARYONO_ERRORS = {
 _TRANSIENT_ERR_KEYS = ("UNSOLVABLE", "TIMEOUT", "CAPCHA_NOT_READY", "NO_SLOT")
 
 
-def _is_transient_err(msg: str) -> bool:
+def _is_transient_err(msg):
     if not msg:
         return False
     up = msg.upper()
     return any(k in up for k in _TRANSIENT_ERR_KEYS)
 
 
-def _classify_waryono_error(msg: str) -> str:
+def _classify_waryono_error(msg):
     if not msg:
         return ""
     m = msg.upper()
@@ -334,7 +328,7 @@ def _solve_waryono_common(apikey, label, submit_fn, parse_fn,
                     WARYONO_RES,
                     params={"apikey": apikey, "action": "get",
                             "id": task_id, "json": 1},
-                    impersonate="chrome110", timeout=10)
+                    impersonate="chrome124", timeout=10)
                 state["data"] = pr.json()
             except Exception:
                 state["data"] = None
@@ -352,7 +346,14 @@ def _solve_waryono_common(apikey, label, submit_fn, parse_fn,
             elapsed = int(time.time() - start)
             if elapsed > timeout:
                 break
-            _render_spinner(label, elapsed, timeout, i)
+            remaining = max(0, timeout - elapsed)
+            pct = round(((timeout - remaining) / timeout) * 100)
+            mm, ss = divmod(elapsed, 60)
+            sp = ['⣾⣽','⣽⣻','⣻⢿','⢿⡿','⡿⣟','⣟⣯','⣯⣷','⣷⣾'][i % 8]
+            cols = [NEON_CYAN, NEON_PINK, NEON_GREEN, NEON_YELLOW, NEON_PURPLE, NEON_BLUE]
+            c = cols[i % len(cols)]
+            sys.stdout.write(f"{CLR} {c}{BOLD}{sp}{RST} {NEON_WHITE}{label} {NEON_RED}{mm:02d}:{ss:02d}{RST} {NEON_GREEN}{pct}%{RST}")
+            sys.stdout.flush()
             i += 1
             if state["done"] and state["data"] is not None:
                 state["done"] = False
@@ -365,7 +366,7 @@ def _solve_waryono_common(apikey, label, submit_fn, parse_fn,
             time.sleep(0.1)
     finally:
         stop_flag["stop"] = True
-        _clear_line()
+        sys.stdout.write(CLR); sys.stdout.flush()
 
     if result and result[0] == "ok":
         log(f"Solved ({result[2]}s)", "ok")
@@ -426,7 +427,7 @@ def solve_turnstile(apikey, sitekey, pageurl, label="[CAPTCHA]"):
                 "domain":  domain,
                 "sitekey": sitekey,
                 "json":    1,
-            }, impersonate="chrome110", timeout=20)
+            }, impersonate="chrome124", timeout=20)
             d = r.json()
         except Exception:
             return None
@@ -448,7 +449,7 @@ def _submit_antibot(apikey, main_b64, options_b64, method="antibot"):
     try:
         payload = {
             "apikey":  apikey,
-            "methods": method,      # "antibot"
+            "methods": method,
             "main":    main_b64,
             "json":    1,
         }
@@ -456,7 +457,7 @@ def _submit_antibot(apikey, main_b64, options_b64, method="antibot"):
             payload[f"param{i}"] = opt
 
         r = requests.post(WARYONO_IN, json=payload,
-                          impersonate="chrome110", timeout=20)
+                          impersonate="chrome124", timeout=20)
         d = r.json()
     except Exception:
         return None
@@ -500,7 +501,6 @@ def solve_antibot(apikey, main_b64, options_b64, label="[ANTIBOT]"):
 # ═══════════════════════════════════════════════════════════════
 # HTML PARSERS
 # ═══════════════════════════════════════════════════════════════
-
 def parse_csrf(html):
     for pat in [r'name="csrf_token"\s+value="([^"]+)"',
                 r'<meta\s+name="csrf-token"\s+content="([^"]+)"']:
@@ -545,17 +545,6 @@ def parse_balance(html):
         if v is not None:
             return v
     m = re.search(r'<span\s+id="balance"[^>]*>\s*([\d,\.]+)', html, re.I)
-    if m:
-        v = _to_int(m.group(1))
-        if v is not None:
-            return v
-    m = re.search(r'class="[^"]*\bbalance\b[^"]*"[^>]*>\s*([\d,\.]+)', html, re.I)
-    if m:
-        v = _to_int(m.group(1))
-        if v is not None:
-            return v
-    m = re.search(r'[Bb]alance[^\d]{0,80}?([\d,]{2,}(?:\.\d+)?)\s*(?:Coins?|coins?)',
-                  html, re.DOTALL)
     if m:
         v = _to_int(m.group(1))
         if v is not None:
@@ -653,146 +642,55 @@ def is_logged_in(html):
     return ('logout' in h) and ('/login' not in h or 'name="password"' not in h)
 
 
-def parse_withdraw_form(html):
-    result = {
-        "action": "/ajax/makeWithdrawal",
-        "csrf": None, "address": None, "currency_name": None,
-        "amount_name": None, "options": [], "amount_min": None,
-        "amount_max": None,
-    }
-    if not html:
-        return result
-
-    modal_m = re.search(
-        r'<div[^>]*id="withdrawModal"[^>]*>(.*?)(?:<div[^>]*id="[^"]*Modal"|<div[^>]*class="[^"]*graybg)',
-        html, re.S)
-    if not modal_m:
-        fm_m = re.search(
-            r'<form[^>]*id="makeWithdrawForm"[^>]*>(.*?)</form>',
-            html, re.S)
-        inner = fm_m.group(1) if fm_m else ""
-    else:
-        inner_full = modal_m.group(1)
-        fm_m = re.search(
-            r'<form[^>]*id="makeWithdrawForm"[^>]*>(.*?)</form>',
-            inner_full, re.S)
-        inner = fm_m.group(1) if fm_m else inner_full
-
-    if not inner:
-        return result
-
-    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', inner)
-    if m:
-        result["csrf"] = m.group(1)
-
-    m = re.search(r'<input[^>]*name="address"[^>]*>', inner)
-    if m:
-        result["address"] = "address"
-
-    sm = re.search(r'<select[^>]*name="([^"]+)"[^>]*>(.*?)</select>',
-                   inner, re.S)
-    if sm:
-        result["currency_name"] = sm.group(1)
-        for opt in re.finditer(
-                r'<option[^>]*value="([^"]*)"[^>]*>([^<]*)</option>',
-                sm.group(2)):
-            result["options"].append({
-                "value": opt.group(1),
-                "label": re.sub(r'\s+', ' ', opt.group(2)).strip(),
-            })
-
-    m = re.search(r'<input[^>]*name="amount"[^>]*>', inner)
-    if m:
-        tag = m.group(0)
-        result["amount_name"] = "amount"
-        mm = re.search(r'min="(\d+)"', tag)
-        if mm:
-            result["amount_min"] = int(mm.group(1))
-        mm = re.search(r'max="(\d+)"', tag)
-        if mm:
-            result["amount_max"] = int(mm.group(1))
-
-    return result
-
-
 # ═══════════════════════════════════════════════════════════════
-# LOGIN / ACCOUNT
+# ACCOUNT CHECK / BALANCE
 # ═══════════════════════════════════════════════════════════════
-
-def do_login(sess, apikey, username, password):
-    log(f"Login: {mask_email(username)}", "in")
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "accept-language": "en-PH,en-US;q=0.9,en;q=0.8"}
-    for _ in range(MAX_RETRY):
-        html, code, _ = safe_request(sess, f"{HOST}/login", headers=base_hdr)
-        csrf = parse_csrf(html)
-        if not csrf:
-            time.sleep(3); continue
-        sitekey = parse_sitekey(html) or TURNSTILE_SITEKEY
-        token = solve_turnstile(apikey, sitekey, f"{HOST}/login", "[LOGIN]")
-        if token is _HARD_ERR:
-            return False
-        if not token:
-            time.sleep(3); continue
-        post_hdr = {"content-type": "application/x-www-form-urlencoded",
-                    "user-agent": DEF_UA, "referer": f"{HOST}/login", "origin": HOST}
-        body = {"csrf_token": csrf, "username": username, "password": password,
-                "2fa": "", "remember": "1", "cf-turnstile-response": token}
-        resp, code, final_url = safe_request(
-            sess, f"{HOST}/login", method="POST", headers=post_hdr, data=body)
-        if "/account" in final_url or is_logged_in(resp):
-            log("Login berhasil!", "ok")
-            save_session(username, sess)
-            return True
-        time.sleep(3)
-    log("Login gagal", "er")
-    return False
-
-
-def ensure_logged_in(sess, apikey, username, password):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+def check_session(sess):
     try:
-        html, _, final_url = safe_request(sess, f"{HOST}/account", headers=base_hdr)
-    except Exception:
-        return False
-    if "/login" not in final_url and is_logged_in(html):
-        return True
-    # Kalau mode no-apikey (YouTube), skip login captcha
-    if not apikey:
-        return False
-    return do_login(sess, apikey, username, password)
+        html, code, final_url = safe_request(
+            sess, f"{HOST}/account", headers=base_headers())
+    except Exception as e:
+        log(f"[DEBUG] Request error: {e}", "er")
+        return False, None
+
+    if DEBUG_COOKIE:
+        print(f"\n{NEON_WHITE}[DEBUG] code={code}{RST}")
+        print(f"{NEON_WHITE}[DEBUG] final_url={final_url}{RST}")
+        print(f"{NEON_WHITE}[DEBUG] html_len={len(html) if html else 0}{RST}")
+        if html:
+            low = html.lower()
+            if "just a moment" in low or "challenge-platform" in low or "cf-chl" in low:
+                print(f"{NEON_RED}[DEBUG] ⚠ Cloudflare challenge detected{RST}")
+            elif 'name="password"' in low and "/login" in final_url:
+                print(f"{NEON_YELLOW}[DEBUG] ⚠ Redirect /login — cookie expired{RST}")
+            elif "logout" in low:
+                print(f"{NEON_GREEN}[DEBUG] ✓ Session OK{RST}")
+        print()
+
+    if "/login" in final_url or not is_logged_in(html):
+        return False, html
+    return True, html
 
 
-def get_balance(sess, username=None, debug=False):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-    last_html = None
+def get_balance(sess):
     for _ in range(3):
         try:
-            html, _, _ = safe_request(sess, f"{HOST}/account", headers=base_hdr)
-            last_html = html
+            html, _, _ = safe_request(
+                sess, f"{HOST}/account", headers=base_headers())
             bal = parse_balance(html)
             if bal is not None:
                 return bal
         except Exception:
             pass
         time.sleep(1)
-    if debug and last_html and username:
-        dump_debug_html(username, "account_parse_fail", last_html)
     return None
 
 
 # ═══════════════════════════════════════════════════════════════
 # FAUCET
 # ═══════════════════════════════════════════════════════════════
-
-def do_faucet(sess, apikey, username=None):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-
-    html, _, _ = safe_request(sess, f"{HOST}/faucet", headers=base_hdr)
+def do_faucet(sess, apikey):
+    html, _, _ = safe_request(sess, f"{HOST}/faucet", headers=base_headers())
     if not is_logged_in(html):
         return -1
 
@@ -811,7 +709,7 @@ def do_faucet(sess, apikey, username=None):
     if len(options) > 4:
         options, rel_ids = options[:4], rel_ids[:4]
 
-    log(f"[FAUCET] {GRN}{len(options)}{RST} pilihan antibot", "in")
+    log(f"[FAUCET] {NEON_GREEN}{len(options)}{RST} pilihan antibot", "fa")
     ans = solve_antibot(apikey, main_b64, options, "[FAUCET-AB]")
     if ans is _HARD_ERR:
         return -3
@@ -833,15 +731,13 @@ def do_faucet(sess, apikey, username=None):
             selected_rels.append(rel_ids[idx - 1])
         elif 0 <= idx < len(options):
             selected_rels.append(rel_ids[idx])
-        else:
-            log(f"[FAUCET] index {idx} out of range", "wr")
 
     if not selected_rels:
         log(f"[FAUCET] antibot index tidak valid: {ans}", "er")
         return 0
 
     antibotlinks = " ".join(selected_rels)
-    log(f"[FAUCET] antibot → {antibotlinks.strip()}", "in")
+    log(f"[FAUCET] antibot → {antibotlinks.strip()}", "fa")
 
     token = solve_turnstile(apikey, sitekey, f"{HOST}/faucet", "[FAUCET-CF]")
     if token is _HARD_ERR:
@@ -850,24 +746,25 @@ def do_faucet(sess, apikey, username=None):
         log("[FAUCET] captcha gagal", "er")
         return 0
 
-    post_hdr = {"content-type": "application/x-www-form-urlencoded",
-                "user-agent": DEF_UA, "referer": f"{HOST}/faucet", "origin": HOST}
+    post_hdr = {
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": DEF_UA,
+        "referer": f"{HOST}/faucet",
+        "origin": HOST,
+    }
     body = {"csrf_token": csrf, "antibotlinks": antibotlinks,
             "cf-turnstile-response": token}
 
     resp, code, final_url = safe_request(sess, f"{HOST}/faucet",
                                          method="POST", headers=post_hdr,
                                          data=body)
-    if username:
-        dump_debug_html(username, "faucet_response", resp)
 
     ntype, nmsg = parse_notyf(resp)
     if ntype:
         msg_l = nmsg.lower()
-        if ("maximum daily" in msg_l or "reached the maximum" in msg_l
-                or "reached maximum" in msg_l or "daily limit" in msg_l
-                or "limit reached" in msg_l):
-            log("[FAUCET] ⚠ Limit harian tercapai, skip akun", "wr")
+        if any(k in msg_l for k in ("maximum daily", "reached the maximum",
+                                     "reached maximum", "daily limit", "limit reached")):
+            log("[FAUCET] ⚠ Limit harian tercapai", "wr")
             return -2
         if ntype == "success" or "added to your balance" in msg_l:
             log(f"[FAUCET] {nmsg}", "ok")
@@ -879,11 +776,10 @@ def do_faucet(sess, apikey, username=None):
     if "has been added to your balance" in body_l:
         return 1
 
-    limit_kws = ("maximum daily", "reached the maximum", "reached maximum",
-                 "daily limit", "limit reached")
-    for kw in limit_kws:
+    for kw in ("maximum daily", "reached the maximum", "reached maximum",
+               "daily limit", "limit reached"):
         if kw in body_l:
-            log("[FAUCET] ⚠ Limit harian tercapai, skip akun", "wr")
+            log("[FAUCET] ⚠ Limit harian tercapai", "wr")
             return -2
 
     for kw in ("too early", "invalid", "error", "captcha failed"):
@@ -896,12 +792,9 @@ def do_faucet(sess, apikey, username=None):
 # ═══════════════════════════════════════════════════════════════
 # SURF / PTC
 # ═══════════════════════════════════════════════════════════════
-
 def get_surf_ads(sess):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
     try:
-        html, _, _ = safe_request(sess, f"{HOST}/surf", headers=base_hdr)
+        html, _, _ = safe_request(sess, f"{HOST}/surf", headers=base_headers())
     except Exception:
         return []
     if not is_logged_in(html):
@@ -910,11 +803,9 @@ def get_surf_ads(sess):
 
 
 def claim_one_surf(sess, apikey, ad):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-    uid = ad["uid"]; coins = ad["coins"]; duration = ad["duration"]
+    uid = ad["uid"]; duration = ad["duration"]
     try:
-        html, _, _ = safe_request(sess, f"{HOST}/surf/{uid}", headers=base_hdr)
+        html, _, _ = safe_request(sess, f"{HOST}/surf/{uid}", headers=base_headers())
     except Exception as e:
         log(f"[SURF] View error: {e}", "er")
         return False
@@ -933,13 +824,13 @@ def claim_one_surf(sess, apikey, ad):
     c_param = ad_id + str(random.randint(1, 9999))
     try:
         safe_request(sess, f"{HOST}/surf/{uid}/{c_param}",
-                     headers={**base_hdr, "referer": f"{HOST}/surf/{uid}"},
+                     headers={**base_headers(), "referer": f"{HOST}/surf/{uid}"},
                      allow_redirects=False)
     except Exception:
         pass
     tmr(count, "[SURF] View")
     try:
-        html, _, _ = safe_request(sess, f"{HOST}/surf/{uid}", headers=base_hdr)
+        html, _, _ = safe_request(sess, f"{HOST}/surf/{uid}", headers=base_headers())
     except Exception:
         return False
     csrf = parse_csrf(html) or csrf
@@ -950,9 +841,13 @@ def claim_one_surf(sess, apikey, ad):
     if not token:
         log("[SURF] captcha gagal", "er")
         return False
-    ajax_hdr = {"content-type": "application/x-www-form-urlencoded",
-                "user-agent": DEF_UA, "referer": f"{HOST}/surf/{uid}",
-                "origin": HOST, "x-requested-with": "XMLHttpRequest"}
+    ajax_hdr = {
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": DEF_UA,
+        "referer": f"{HOST}/surf/{uid}",
+        "origin": HOST,
+        "x-requested-with": "XMLHttpRequest",
+    }
     body = {"csrf_token": csrf, "uid": uid, "c": c_param,
             "cf-turnstile-response": token}
     try:
@@ -971,33 +866,43 @@ def claim_one_surf(sess, apikey, ad):
 
 
 # ═══════════════════════════════════════════════════════════════
-# AVISO (YouTube) — NO API KEY NEEDED
+# AVISO / YOUTUBE
 # ═══════════════════════════════════════════════════════════════
-
 def aviso_headers():
-    return {'Accept': '*/*', 'Accept-Language': 'en',
-            'Content-Type': 'application/json', 'Origin': HOST, 'Referer': HOST,
-            'User-Agent': DEF_UA, 'X-Api-Key': AVISO_API_KEY,
-            'X-Requested-With': 'mark.via.gp',
-            'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Dest': 'empty'}
+    return {
+        'Accept': '*/*',
+        'Accept-Language': 'en',
+        'Content-Type': 'application/json',
+        'Origin': HOST,
+        'Referer': HOST,
+        'User-Agent': DEF_UA,
+        'X-Api-Key': AVISO_API_KEY,
+        'X-Requested-With': 'mark.via.gp',
+        'Sec-Fetch-Site': 'cross-site',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+    }
 
 
-def aviso_identify(sess, user_hash):
+def aviso_identify(user_hash):
     if not user_hash:
         return None
-    payload = {"hash": user_hash, "ip": None, "userAgent": DEF_UA,
-               "fingerprint": {
-                   "fp": "8661a494702c33f967373004765326f5",
-                   "hashFont": "2f48d5374924fd0ce9bb54863fb00708",
-                   "langs": "en-PH, en-US", "timezone": "Asia/Manila",
-                   "platform": "Linux aarch64",
-                   "gpu": "Qualcomm~Adreno (TM) 619",
-                   "screen": "360x804", "memory": 8, "cpuCores": 8}}
+    payload = {
+        "hash": user_hash, "ip": None, "userAgent": DEF_UA,
+        "fingerprint": {
+            "fp": "8661a494702c33f967373004765326f5",
+            "hashFont": "2f48d5374924fd0ce9bb54863fb00708",
+            "langs": "en-PH, en-US",
+            "timezone": "Asia/Manila",
+            "platform": "Linux aarch64",
+            "gpu": "Qualcomm~Adreno (TM) 619",
+            "screen": "360x804", "memory": 8, "cpuCores": 8,
+        }
+    }
     try:
         r = requests.post(f"{AVISO_API}/youtube/tasks/identify", json=payload,
                           headers=aviso_headers(), timeout=15, verify=False,
-                          impersonate="chrome110")
+                          impersonate="chrome124")
         if r.status_code == 200:
             return r.json().get("id")
     except Exception:
@@ -1011,7 +916,7 @@ def aviso_tasks_page(user_hash, offset=0, limit=100):
                          params={"hash": user_hash, "platform": "Linux aarch64",
                                  "offset": offset, "limit": limit},
                          headers=aviso_headers(), timeout=20, verify=False,
-                         impersonate="chrome110")
+                         impersonate="chrome124")
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -1025,7 +930,7 @@ def aviso_start(user_hash, task_id, task_type):
                           json={"taskId": task_id, "hash": user_hash,
                                 "type": task_type, "platform": "Linux aarch64"},
                           headers=aviso_headers(), timeout=15, verify=False,
-                          impersonate="chrome110")
+                          impersonate="chrome124")
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -1040,7 +945,7 @@ def aviso_timer(attempt_id, action, watched=None):
     try:
         r = requests.post(f"{AVISO_API}/youtube/tasks/timer-status", json=p,
                           headers=aviso_headers(), timeout=15, verify=False,
-                          impersonate="chrome110")
+                          impersonate="chrome124")
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -1053,7 +958,7 @@ def aviso_complete(attempt_id):
         r = requests.post(f"{AVISO_API}/youtube/tasks/complete",
                           json={"attemptId": attempt_id},
                           headers=aviso_headers(), timeout=15, verify=False,
-                          impersonate="chrome110")
+                          impersonate="chrome124")
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -1064,7 +969,8 @@ def aviso_complete(attempt_id):
 def claim_one_video(sess, user_hash, task):
     if task.get("inProgress"):
         return False
-    tid = task["id"]; ttype = task["type"]
+    tid = task["id"]
+    ttype = task["type"]
     duration = int(task.get("duration", 10)) if ttype == "ads" else 5
     start = aviso_start(user_hash, tid, ttype)
     if not start:
@@ -1105,325 +1011,105 @@ def claim_one_video(sess, user_hash, task):
     return False
 
 
-# ═══════════════════════════════════════════════════════════════
-# WITHDRAW
-# ═══════════════════════════════════════════════════════════════
-
-def fetch_withdraw_form(sess, username=None):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+def do_youtube(sess, username=None):
+    """Return: dict stats atau None kalau gagal."""
     try:
-        html, code, _ = safe_request(sess, f"{HOST}/account", headers=base_hdr)
+        yt_html, _, _ = safe_request(sess, f"{HOST}/ytvideos",
+                                     headers={"user-agent": DEF_UA})
     except Exception:
         return None
-    if code != 200 or not is_logged_in(html):
+    user_hash = parse_user_hash(yt_html)
+    if not user_hash:
+        log("[YT] user_hash gak ketemu", "wr")
         return None
-    form = parse_withdraw_form(html)
-    form["_html"] = html
-    if not form.get("csrf"):
+
+    aviso_id = aviso_identify(user_hash)
+    if not aviso_id:
+        log("[YT] aviso identify gagal", "wr")
         return None
-    return form
 
+    data = aviso_tasks_page(user_hash, 0, 100)
+    if not data:
+        log("[YT] gak ada tasks", "wr")
+        return None
 
-def do_withdraw(sess, apikey, coin_value, amount, address):
-    form = fetch_withdraw_form(sess)
-    if not form:
-        return ("err", "form withdraw gak ketemu")
+    all_tasks = []
+    for t in ("ads", "like", "sub"):
+        for task in data.get(t, []):
+            if task.get("inProgress"):
+                continue
+            task["type"] = t
+            all_tasks.append(task)
 
-    csrf = form.get("csrf")
-    if not csrf:
-        return ("err", "csrf token hilang")
-    if not form.get("currency_name"):
-        return ("err", "select currency gak ketemu")
-    if not form.get("amount_name"):
-        return ("err", "input amount gak ketemu")
+    if not all_tasks:
+        log("[YT] 0 task tersedia", "wr")
+        return {"total": 0, "ok": 0}
 
-    valid_values = [o["value"] for o in form["options"]]
-    if coin_value not in valid_values:
-        return ("err", f"coin '{coin_value}' gak ada di opsi web")
-
-    amin = form.get("amount_min") or 0
-    if amount < amin:
-        return ("err", f"amount {amount} < min {amin}")
-
-    post_hdr = {
-        "content-type": "application/x-www-form-urlencoded",
-        "user-agent": DEF_UA,
-        "referer": f"{HOST}/account",
-        "origin": HOST,
-        "x-requested-with": "XMLHttpRequest",
-        "accept": "*/*",
-    }
-
-    body = {
-        "csrf_token": csrf,
-        "address": address,
-        "currency": coin_value,
-        "amount": str(int(amount)),
-    }
-
-    try:
-        resp, code, _ = safe_request(
-            sess, f"{HOST}/ajax/makeWithdrawal",
-            method="POST", headers=post_hdr, data=body)
-    except Exception as e:
-        return ("err", f"POST: {e}")
-
-    try:
-        data = json.loads(resp)
-    except Exception:
-        snippet = re.sub(r'\s+', ' ', (resp or "")[:200])
-        return ("err", f"response non-JSON: {snippet}")
-
-    status = data.get("status")
-    notify = data.get("notify", {}) or {}
-    if status == 200 and notify.get("success"):
-        new_bal_str = data.get("balance", "")
-        new_bal = None
-        m = re.search(r'([\d,]+)', new_bal_str)
-        if m:
-            try:
-                new_bal = int(m.group(1).replace(",", ""))
-            except Exception:
-                pass
-        msg = notify.get("success", "")
-        return ("ok", new_bal, amount, msg)
-
-    err_msg = notify.get("error") or notify.get("danger") or \
-              notify.get("warning") or str(data)[:120]
-    return ("err", err_msg)
-
-
-def fetch_history(sess, username=None, limit=20):
-    base_hdr = {"user-agent": DEF_UA,
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-    try:
-        html, code, _ = safe_request(sess, f"{HOST}/account", headers=base_hdr)
-    except Exception:
-        return []
-    if code != 200 or not is_logged_in(html):
-        return []
-
-    tm = re.search(
-        r'<table[^>]*id="lastWithdrawals"[^>]*>(.*?)</table>',
-        html, re.S)
-    if not tm:
-        return []
-    inner = tm.group(1)
-
-    results = []
-    rows = re.findall(r'<tr>(.*?)</tr>', inner, re.S)
-    for row in rows:
-        tds = re.findall(r'<td>(.*?)</td>', row, re.S)
-        if len(tds) < 4:
-            continue
-
-        def _clean(s):
-            return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', s)).strip()
-
-        gateway = _clean(tds[0])
-        amount = _clean(tds[1])
-
-        badge_m = re.search(
-            r'<span[^>]*class="[^"]*badge[^"]*bg-(\w+)[^"]*"[^>]*>([^<]+)</span>',
-            tds[2])
-        status_class = badge_m.group(1).lower() if badge_m else ""
-        status = badge_m.group(2).strip() if badge_m else _clean(tds[2])
-
-        dt_m = re.search(r'datetime="([^"]+)"', tds[3])
-        dt = dt_m.group(1) if dt_m else _clean(tds[3])
-
-        results.append({
-            "gateway": gateway,
-            "amount": amount,
-            "status": status,
-            "status_class": status_class,
-            "time": dt,
-        })
-    return results[:limit]
-
-
-# ═══════════════════════════════════════════════════════════════
-# DISPLAY HELPERS
-# ═══════════════════════════════════════════════════════════════
-
-def print_history(items, title="History Withdrawals"):
-    if not items:
-        print(f"{YEL}  ⚠ Belum ada history withdrawal.{RST}")
-        return
-
-    ansi = re.compile(r'\033\[[0-9;]*m')
-
-    def _short_time(s):
-        if not s:
-            return "?"
-        s = re.sub(r',\s*\d{4}', '', s)
-        months = {
-            'January': 'Jan', 'February': 'Feb', 'March': 'Mar',
-            'April': 'Apr', 'May': 'May', 'June': 'Jun',
-            'July': 'Jul', 'August': 'Aug', 'September': 'Sep',
-            'October': 'Oct', 'November': 'Nov', 'December': 'Dec',
-        }
-        for full, abbr in months.items():
-            s = s.replace(full, abbr)
-        s = re.sub(r'\s+', ' ', s).strip()
-        return s
-
-    W_ID   = 3
-    W_GATE = 9
-    W_AMT  = 11
-    W_STAT = 12
-    W_TIME = 12
-    dashes = W_ID + W_GATE + W_AMT + W_STAT + W_TIME + 8
-
-    print(f"\n{WHT}  {BOLD}{title}{RST}  {WHT}({len(items)}){RST}")
-    print(f"{WHT}  ╭{'─' * dashes}╮{RST}")
-    print(
-        f"{WHT}  │{RST} "
-        f"{BOLD}{'ID':<{W_ID}}{RST} "
-        f"{BOLD}{'GATEWAY':<{W_GATE}}{RST} "
-        f"{BOLD}{'AMOUNT':>{W_AMT}}{RST} "
-        f"{BOLD}{'STATUS':<{W_STAT}}{RST} "
-        f"{BOLD}{'TIME':<{W_TIME}}{RST} "
-        f"{WHT}│{RST}"
-    )
-    print(f"{WHT}  ├{'─' * dashes}┤{RST}")
-
-    for i, it in enumerate(items, 1):
-        sc = it.get("status_class", "")
-        if sc == "success":
-            color, icon = GRN, "✓"
-        elif sc in ("warning", "info"):
-            color, icon = YEL, "!"
-        elif sc in ("danger", "dark"):
-            color, icon = RED, "✗"
+    log(f"[YT] {NEON_GREEN}{len(all_tasks)}{RST} task tersedia", "yt")
+    total_ok = 0
+    for i, task in enumerate(all_tasks, 1):
+        log(f"[YT] [{i}/{len(all_tasks)}] [{NEON_PINK}{task['type']}{RST}] "
+            f"{task.get('title', '-')[:35]}", "yt")
+        try:
+            r = claim_one_video(sess, user_hash, task)
+        except Exception as e:
+            log(f"[YT] err: {e}", "er"); r = False
+        if r:
+            total_ok += 1
+            log(f"[YT] ✓ {task['type']} ok", "ok")
         else:
-            color, icon = WHT, "?"
+            log(f"[YT] ✗ gagal: {task['type']}", "er")
+        time.sleep(2)
 
-        status_str   = f"{icon} {it.get('status', '?')}"
-        status_clean = ansi.sub('', status_str)
-
-        gateway = str(it.get("gateway", "?"))[:W_GATE]
-        amount  = str(it.get("amount", "?"))[:W_AMT]
-        time_s  = _short_time(it.get("time", "?"))[:W_TIME]
-
-        c_id     = f"{i:<{W_ID}}"
-        c_gw     = f"{gateway:<{W_GATE}}"
-        c_amt    = f"{amount:>{W_AMT}}"
-        c_status = status_str + " " * max(0, W_STAT - len(status_clean))
-        c_time   = f"{time_s:<{W_TIME}}"
-
-        content_visible = (
-            c_id + " " + c_gw + " " + c_amt + " " +
-            c_status + " " + c_time
-        )
-        pad = max(0, dashes - len(content_visible))
-
-        content_colored = (
-            f"{c_id} "
-            f"{CYN}{c_gw}{RST} "
-            f"{YEL}{c_amt}{RST} "
-            f"{color}{status_str}{RST}"
-            f"{' ' * max(0, W_STAT - len(status_clean))} "
-            f"{WHT}{c_time}{RST}"
-        )
-
-        print(f"{WHT}  │{RST} {content_colored}{' ' * pad} {WHT}│{RST}")
-
-    print(f"{WHT}  ╰{'─' * dashes}╯{RST}")
-
-
-def print_balance_box(username, balance, is_error=False):
-    ansi = re.compile(r'\033\[[0-9;]*m')
-
-    if is_error:
-        line1 = f"✗ {username}"
-        line2 = "Login gagal / error"
-        box_color = RED
-        color1 = f"{RED}{BOLD}"
-        color2 = f"{RED}"
-    else:
-        line1 = f"✓ {username}"
-        if balance is not None:
-            line2 = f"Balance : {balance} coins"
-        else:
-            line2 = "Balance : ?"
-        box_color = GRN
-        color1 = f"{GRN}{BOLD}"
-        color2 = f"{WHT}"
-
-    w1 = len(ansi.sub('', line1))
-    w2 = len(ansi.sub('', line2))
-    inner = max(w1, w2) + 2
-
-    print(f"{box_color}  ╭{'─' * inner}╮{RST}")
-    print(f"{box_color}  │{RST} {color1}{line1}{RST}{' ' * (inner - w1 - 1)}{box_color}│{RST}")
-    print(f"{box_color}  │{RST} {color2}{line2}{RST}{' ' * (inner - w2 - 1)}{box_color}│{RST}")
-    print(f"{box_color}  ╰{'─' * inner}╯{RST}")
-
-
-def banner_main():
-    print(f"{WHT}═══════════════════════════════════════════════{RST}")
-    print(f"{YEL}       BOT BTCADSPACE.XYZ MULTI AKUN{RST}")
-    print(f"{WHT}═══════════════════════════════════════════════{RST}")
-
-
-def banner_account(idx, username, proxy_raw=None, show_ip=True):
-    print(f"{WHT}═══════════════════════════════════════════════{RST}")
-    tag = f" {WHT}(UTAMA){RST}" if idx == 0 else ""
-    print(f"{WHT}Akun : {CYN}{mask_email(username)}{RST}{tag}")
-    if show_ip:
-        show_ip_banner(proxy_raw)
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-
-def print_success_banner(reward_text, new_bal, diff, unit="coins"):
-    line1 = f"✓ {reward_text}"
-    if new_bal is not None:
-        if diff is not None and diff > 0:
-            line2 = f"New Balance : {new_bal} {unit}  (+{diff})"
-        else:
-            line2 = f"New Balance : {new_bal} {unit}"
-    else:
-        line2 = None
-    ansi = re.compile(r'\033\[[0-9;]*m')
-    w1 = len(ansi.sub('', line1))
-    w2 = len(ansi.sub('', line2)) if line2 else 0
-    inner = max(w1, w2) + 2
-    print(f"{GRN}  ╭{'─' * inner}╮{RST}")
-    print(f"{GRN}  │{RST} {GRN}{BOLD}{line1}{RST}{' ' * (inner - w1 - 1)}{GRN}│{RST}")
-    if line2:
-        print(f"{GRN}  │{RST} {WHT}{line2}{RST}{' ' * (inner - w2 - 1)}{GRN}│{RST}")
-    print(f"{GRN}  ╰{'─' * inner}╯{RST}")
+    return {"total": len(all_tasks), "ok": total_ok}
 
 
 # ═══════════════════════════════════════════════════════════════
-# CONFIG
+# BANNER / CONFIG
 # ═══════════════════════════════════════════════════════════════
+def banner():
+    print(f"{NEON_PINK}╔═══════════════════════════════════════════════╗{RST}")
+    print(f"{NEON_PINK}║{RST}  {NEON_CYAN}{BOLD}BTCADSPACE BOT{RST} {NEON_YELLOW}—{RST} {NEON_GREEN}SINGLE ACCOUNT{RST}       {NEON_PINK}║{RST}")
+    print(f"{NEON_PINK}║{RST}  {NEON_PURPLE}Fixed by{RST} {NEON_MAGENTA}{BOLD}MoneyMaker_w{RST}                    {NEON_PINK}║{RST}")
+    print(f"{NEON_PINK}╚═══════════════════════════════════════════════╝{RST}")
+
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
-        clear(); banner_main()
-        print(f"{WHT}  ⚙  BTCadspace Configuration Setup{RST}")
-        print(f"{WHT}  ─────────────────────────────{RST}")
-        print(f"{WHT}  API key bisa diisi nanti di menu Setting.{RST}")
+        clear(); banner()
+        print(f"\n{NEON_WHITE}Setup awal — paste cookie dari browser.{RST}")
+        print(f"{NEON_WHITE}Cara: login manual di btcadspace.com{RST}")
+        print(f"{NEON_WHITE}      F12 → Console → ketik: copy(document.cookie){RST}\n")
+
+        print(f"{NEON_CYAN}Username/Email : {RST}", end="")
+        username = input().strip()
+        print(f"{NEON_CYAN}API Key (Waryono): {RST}", end="")
+        apikey = input().strip()
+        print(f"{NEON_CYAN}Proxy (Opt)    : {RST}", end="")
+        proxy = input().strip()
+        print(f"{NEON_CYAN}Cookie         : {RST}", end="")
+        cookie_raw = input().strip()
+
         cfg = {
-            "apikey_faucet": "",
-            "apikey_ptc":    "",
-            "accounts":      [],
+            "username": username,
+            "apikey":   apikey,
+            "proxy":    proxy,
+            "cookies":  parse_cookie_string(cookie_raw),
         }
         save_config(cfg)
         log("Config tersimpan", "ok")
         time.sleep(1)
         return cfg
+
     with open(CONFIG_FILE) as f:
         cfg = json.load(f)
-    # Migrasi config lama (apikey tunggal)
-    if "apikey" in cfg and not cfg.get("apikey_faucet"):
-        cfg["apikey_faucet"] = cfg.pop("apikey")
-    cfg.setdefault("apikey_faucet", "")
-    cfg.setdefault("apikey_ptc",    "")
-    cfg.setdefault("accounts",      [])
+    cfg.setdefault("username", "")
+    cfg.setdefault("apikey", "")
+    cfg.setdefault("proxy", "")
+    cfg.setdefault("cookies", {})
+    if isinstance(cfg["cookies"], str):
+        cfg["cookies"] = parse_cookie_string(cfg["cookies"])
+    cfg.pop("fp_email", None)
     return cfg
 
 
@@ -1432,980 +1118,159 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
 
 
-def add_account(cfg):
-    clear(); banner_main()
-    print(f"{WHT} TAMBAH AKUN{RST}\n")
+def show_info(cfg):
+    clear(); banner()
+    print(f"{NEON_WHITE}Account : {NEON_CYAN}{mask_email(cfg['username'])}{RST}")
+    k = cfg.get("apikey") or ""
+    k_disp = (k[:8] + "…" + k[-4:]) if len(k) > 14 else (k or "(kosong)")
+    print(f"{NEON_WHITE}API Key : {NEON_YELLOW}{k_disp}{RST}")
+    print(f"{NEON_WHITE}Proxy   : {NEON_YELLOW}{cfg.get('proxy') or '-'}{RST}")
+    print(f"{NEON_WHITE}Cookies : {NEON_GREEN}{len(cfg.get('cookies', {}))}{RST} entries")
+    print(f"{NEON_PURPLE}───────────────────────────────────────────────{RST}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# MAIN LOOP
+# ═══════════════════════════════════════════════════════════════
+def claim_loop(sess, cfg):
+    apikey = cfg["apikey"]
+
+    old_bal = get_balance(sess)
+    if old_bal is not None:
+        log(f"Balance awal: {NEON_YELLOW}{old_bal}{RST} coins", "bi")
+
+    faucet_limited = False
+
     while True:
-        n = len(cfg["accounts"]) + 1
-        print(f"{WHT}───────────────────────────────────────────────{RST}")
-        print(f"{WHT}Akun #{n}{RST}")
-        print(f"{WHT}Username/Email : {RST}", end="")
-        username = input().strip()
-        if not username:
-            print(f"{WHT}Selesai.{RST}")
-            time.sleep(1)
-            return
-        print(f"{WHT}Password       : {RST}", end="")
-        password = input().strip()
-        print(f"{WHT}FaucetPay Email: {RST}", end="")
-        fp_email = input().strip()
-        print(f"{WHT}Proxy (Opt)    : {RST}", end="")
-        proxy = input().strip()
-        cfg["accounts"].append({
-            "username": username, "password": password,
-            "fp_email": fp_email or username,
-            "proxy": proxy})
-        save_config(cfg)
-        print(f"{GRN}✓ Ditambahkan: {mask_email(username)}{RST}\n")
-
-
-def delete_account(cfg):
-    clear(); banner_main()
-    print(f"{WHT} HAPUS AKUN{RST}\n")
-    if not cfg["accounts"]:
-        print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); return
-    for i, a in enumerate(cfg["accounts"]):
-        tag = f" {WHT}[UTAMA]{RST}" if i == 0 else ""
-        print(f"{CYN}[{i+1}]{WHT} {mask_email(a['username'])}{tag}")
-    print(f"\n{WHT}Nomor (1,3 atau 1-3) | 0 batal: {RST}", end="")
-    inp = input().strip()
-    if not inp or inp == '0':
-        print(f"{RED}Batal.{RST}"); time.sleep(1); return
-    idxs = set(); total = len(cfg["accounts"])
-    for part in inp.split(","):
-        part = part.strip()
-        if "-" in part:
-            try:
-                a, b = map(int, part.split("-"))
-                for k in range(a, b + 1):
-                    if 1 <= k <= total:
-                        idxs.add(k - 1)
-            except Exception:
-                pass
-        else:
-            try:
-                k = int(part)
-                if 1 <= k <= total:
-                    idxs.add(k - 1)
-            except Exception:
-                pass
-    if not idxs:
-        print(f"{RED}Nomor invalid.{RST}"); time.sleep(2); return
-    for i in sorted(idxs, reverse=True):
-        acc = cfg["accounts"].pop(i)
-        try:
-            p = session_path(acc["username"])
-            if os.path.exists(p):
-                os.remove(p)
-        except Exception:
-            pass
-    save_config(cfg)
-    print(f"{GRN}✓ Dihapus {len(idxs)} akun.{RST}")
-    time.sleep(2)
-
-
-def get_range(total):
-    print(f"{WHT}jump to : {RST}", end="")
-    a = input().strip()
-    print(f"{WHT}end to  : {RST}", end="")
-    b = input().strip()
-    start = int(a) if a.isdigit() and int(a) >= 1 else 1
-    end   = int(b) if b.isdigit() and int(b) >= 1 else total
-    start = min(max(start, 1), total)
-    end   = min(max(end, 1), total)
-    if start > end:
-        start = end
-    return start - 1, end - 1
-
-
-# ═══════════════════════════════════════════════════════════════
-# MENU: SETTING API KEY
-# ═══════════════════════════════════════════════════════════════
-
-def _check_key_balance(label, key):
-    if not key:
-        print(f"{YEL}  [{label}] key kosong{RST}")
-        return
-    try:
-        r = requests.get(WARYONO_BALANCE, params={"apikey": key},
-                         impersonate="chrome110", timeout=15)
-        d = r.json()
-        if d.get("status") == 1:
-            bal = d.get("balance")
-            print(f"{GRN}  [{label}]{RST} balance: {YEL}{bal}{RST} token")
-        else:
-            print(f"{RED}  [{label}]{RST} error: {d.get('request')}")
-    except Exception as e:
-        print(f"{RED}  [{label}]{RST} err: {e}")
-
-
-def setting_apikey_menu(cfg):
-    while True:
-        clear(); banner_main()
-        print(f"{WHT}  ⚙  SETTING API KEY (Waryono.my.id){RST}")
-        print(f"{WHT}  ─────────────────────────────────{RST}")
-        kf = cfg.get("apikey_faucet") or ""
-        kp = cfg.get("apikey_ptc")    or ""
-        kf_disp = (kf[:8] + "…" + kf[-4:]) if len(kf) > 14 else (kf or "(kosong)")
-        kp_disp = (kp[:8] + "…" + kp[-4:]) if len(kp) > 14 else (kp or "(kosong)")
-        print(f"{CYN}[1]{WHT} API Key Faucet   : {YEL}{kf_disp}{RST}")
-        print(f"{CYN}[2]{WHT} API Key PTC      : {YEL}{kp_disp}{RST}")
-        print(f"{CYN}[3]{WHT} Pakai 1 key buat semuanya{RST}")
-        print(f"{CYN}[4]{WHT} Hapus semua key{RST}")
-        print(f"{CYN}[5]{WHT} Cek balance key (Faucet & PTC){RST}")
-        print(f"{CYN}[0]{WHT} Kembali{RST}")
-        print(f"{WHT}Pilih: {RST}", end="")
-        c = input().strip()
-
-        if c == '0':
-            save_config(cfg); return
-        elif c == '1':
-            print(f"{WHT}API key Faucet: {RST}", end="")
-            cfg["apikey_faucet"] = input().strip()
-            save_config(cfg)
-            log("Tersimpan", "ok"); time.sleep(1)
-        elif c == '2':
-            print(f"{WHT}API key PTC   : {RST}", end="")
-            cfg["apikey_ptc"] = input().strip()
-            save_config(cfg)
-            log("Tersimpan", "ok"); time.sleep(1)
-        elif c == '3':
-            print(f"{WHT}API key (sama buat Faucet & PTC): {RST}", end="")
-            k = input().strip()
-            cfg["apikey_faucet"] = k
-            cfg["apikey_ptc"]    = k
-            save_config(cfg)
-            log("Tersimpan", "ok"); time.sleep(1)
-        elif c == '4':
-            cfg["apikey_faucet"] = ""
-            cfg["apikey_ptc"]    = ""
-            save_config(cfg)
-            log("Dihapus", "wr"); time.sleep(1)
-        elif c == '5':
-            print()
-            _check_key_balance("Faucet", kf)
-            _check_key_balance("PTC",    kp)
-            print(f"\n{WHT}Tekan Enter...{RST}", end="")
-            input()
-
-
-# ═══════════════════════════════════════════════════════════════
-# LOOP: FAUCET
-# ═══════════════════════════════════════════════════════════════
-
-def check_balance_all(cfg):
-    accounts = cfg["accounts"]
-    if not accounts:
-        print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); return
-    start, end = get_range(len(accounts))
-    sel = accounts[start:end + 1]
-    print()
-    # Butuh apikey buat login. Pakai faucet key, fallback ptc key.
-    apikey = cfg.get("apikey_faucet") or cfg.get("apikey_ptc") or ""
-    for acc in sel:
-        username = acc["username"]
-        try:
-            sess = load_session(username, acc.get("proxy") or None)
-        except Exception:
-            print_balance_box(username, None, is_error=True)
-            print()
-            continue
-        try:
-            if not ensure_logged_in(sess, apikey, username, acc["password"]):
-                print_balance_box(username, None, is_error=True)
-                print()
-                continue
-            bal = get_balance(sess, username=username, debug=True)
-            print_balance_box(username, bal)
-            print()
-        except Exception:
-            print_balance_box(username, None, is_error=True)
-            print()
-    print(f"{WHT}Tekan Enter...{RST}", end="")
-    input()
-
-
-def run_faucet_loop(cfg, selected, apikey=None):
-    apikey = apikey or cfg.get("apikey_faucet") or ""
-    clear(); banner_main()
-    print(f"{WHT}Mode      : {CYN}Faucet Only{RST}")
-    print(f"{WHT}Total Akun: {GRN}{len(selected)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-    LIMITED_FAUCET.clear()
-    single_account = (len(selected) == 1)
-
-    try:
-        while True:
-            for idx, acc in enumerate(selected):
-                username = acc["username"]
-                banner_account(idx, username,
-                               proxy_raw=acc.get("proxy") or None, show_ip=True)
-
-                if _is_faucet_limited(username):
-                    log(f"[FAUCET] {mask_email(username)} limit harian, skip", "wr")
-                    time.sleep(1)
-                    continue
-
-                try:
-                    sess = load_session(username, acc.get("proxy") or None)
-                except Exception as e:
-                    log(f"Proxy error: {e}", "er")
-                    time.sleep(2)
-                    continue
-
-                if not ensure_logged_in(sess, apikey, username, acc["password"]):
-                    log("Login gagal, skip", "er")
-                    time.sleep(2)
-                    continue
-
-                old_bal = get_balance(sess)
-                if old_bal is not None:
-                    log(f"Balance: {old_bal} coins", "bi")
-
-                print(f"\n{WHT}  ── FAUCET ──{RST}")
-                for attempt in range(1, MAX_RETRY + 1):
-                    try:
-                        r = do_faucet(sess, apikey, username=username)
-                    except Exception as e:
-                        log(f"[FAUCET] err: {e}", "er"); r = 0
-                    if r == -1:
-                        if ensure_logged_in(sess, apikey, username, acc["password"]):
-                            continue
-                        break
-                    if r == -2:
-                        _mark_faucet_limited(username)
-                        break
-                    if r == -3:
-                        break
-                    if r == 1:
-                        time.sleep(2)
-                        new_bal = get_balance(sess)
-                        diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                        if new_bal == old_bal and old_bal is not None:
-                            log(f"[FAUCET] ⚠ Balance gak berubah (masih {old_bal})", "wr")
-                        print_success_banner("Faucet Claim!", new_bal, diff)
-                        if new_bal is not None:
-                            old_bal = new_bal
-                        break
-                    if attempt < MAX_RETRY:
-                        log(f"[FAUCET] retry {attempt}/{MAX_RETRY}...", "wr")
-                    time.sleep(2)
-
-                if single_account and _is_faucet_limited(username):
-                    log("Akun ini limit harian, stop loop.", "wr")
-                    print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-                    input()
-                    return
-
-                time.sleep(2)
-
-            if all(_is_faucet_limited(a["username"]) for a in selected):
-                log("Semua akun limit harian, stop loop.", "wr")
-                print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-                input()
-                return
-
-            print(f"\n{WHT}[LOOP] Cooldown {FAUCET_COOLDOWN}s...{RST}")
-            tmr(FAUCET_COOLDOWN, "Cooldown")
-    except KeyboardInterrupt:
-        print(f"\n{YEL}Dihentikan user.{RST}"); time.sleep(1)
-
-
-# ═══════════════════════════════════════════════════════════════
-# LOOP: PTC
-# ═══════════════════════════════════════════════════════════════
-
-def run_ptc_loop(cfg, selected, apikey=None):
-    apikey = apikey or cfg.get("apikey_ptc") or ""
-    clear(); banner_main()
-    print(f"{WHT}Mode      : {CYN}PTC (Surf Ads){RST}")
-    print(f"{WHT}Total Akun: {GRN}{len(selected)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-    for idx, acc in enumerate(selected):
-        username = acc["username"]
-        banner_account(idx, username,
-                       proxy_raw=acc.get("proxy") or None, show_ip=True)
-
-        try:
-            sess = load_session(username, acc.get("proxy") or None)
-        except Exception as e:
-            log(f"Proxy error: {e}", "er")
-            time.sleep(2)
-            continue
-
-        if not ensure_logged_in(sess, apikey, username, acc["password"]):
-            log("Login gagal, skip", "er")
-            time.sleep(2)
-            continue
-
-        old_bal = get_balance(sess)
-        if old_bal is not None:
-            log(f"Balance: {old_bal} coins", "bi")
-
+        # ═══ SURF ═══
+        print(f"\n{NEON_PURPLE}╭─ {NEON_BLUE}{BOLD}SURF ADS{RST} {NEON_PURPLE}──────────────────────╮{RST}")
         try:
             ads = get_surf_ads(sess)
         except Exception:
             ads = []
-
         if not ads:
-            log(f"[SURF] {GRN}0{RST} tersedia", "wr")
-            time.sleep(2)
-            continue
-
-        print(f"\n{WHT}  ── SURF ADS ──{RST}")
-        log(f"[SURF] {GRN}{len(ads)}{RST} tersedia", "in")
-        total_ok = 0
-        for i, ad in enumerate(ads, 1):
-            log(f"[SURF] [{i}/{len(ads)}] {ad['title'][:30]} | "
-                f"{YEL}{ad['coins']}c{RST} | {ad['duration']}s", "in")
-            try:
-                r = claim_one_surf(sess, apikey, ad)
-            except Exception as e:
-                log(f"[SURF] err: {e}", "er"); r = False
-
-            if r is None:
-                if ensure_logged_in(sess, apikey, username, acc["password"]):
-                    try:
-                        r = claim_one_surf(sess, apikey, ad)
-                    except Exception:
-                        r = False
-                else:
-                    r = False
-
-            if r:
-                time.sleep(1)
-                new_bal = get_balance(sess)
-                diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                print_success_banner(f"Surf +{ad['coins']}c", new_bal, diff)
-                if new_bal is not None:
-                    old_bal = new_bal
-                total_ok += 1
-            else:
-                log(f"[SURF] ✗ gagal: {ad['title'][:30]}", "er")
-            time.sleep(2)
-
-        log(f"[SURF] Selesai: {GRN}{total_ok}{RST}/{len(ads)} ok",
-            "ok" if total_ok else "wr")
-        time.sleep(2)
-
-    print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-    input()
-
-
-# ═══════════════════════════════════════════════════════════════
-# LOOP: VIDEO (no API key)
-# ═══════════════════════════════════════════════════════════════
-
-def run_video_loop(cfg, selected):
-    clear(); banner_main()
-    print(f"{WHT}Mode      : {CYN}YouTube Videos {GRN}(no API key){RST}")
-    print(f"{WHT}Total Akun: {GRN}{len(selected)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-    for idx, acc in enumerate(selected):
-        username = acc["username"]
-        banner_account(idx, username,
-                       proxy_raw=acc.get("proxy") or None, show_ip=True)
-
-        try:
-            sess = load_session(username, acc.get("proxy") or None)
-        except Exception as e:
-            log(f"Proxy error: {e}", "er")
-            time.sleep(2)
-            continue
-
-        # YouTube mode: login tanpa captcha solve (apikey None → fallback token-based)
-        # Tapi biasanya session cookie masih valid, jadi cukup /account check.
-        base_hdr = {"user-agent": DEF_UA,
-                    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-        try:
-            html, _, final_url = safe_request(sess, f"{HOST}/account", headers=base_hdr)
-            if "/login" in final_url or not is_logged_in(html):
-                log("Session expired & YouTube mode no-solve. Update cookie manual.", "er")
-                time.sleep(2)
-                continue
-        except Exception as e:
-            log(f"Session check err: {e}", "er")
-            time.sleep(2)
-            continue
-
-        old_bal = get_balance(sess)
-        if old_bal is not None:
-            log(f"Balance: {old_bal} coins", "bi")
-
-        print(f"\n{WHT}  ── YOUTUBE VIDEOS ──{RST}")
-        try:
-            yt_html, _, _ = safe_request(sess, f"{HOST}/ytvideos",
-                                         headers={"user-agent": DEF_UA})
-            user_hash = parse_user_hash(yt_html)
-        except Exception:
-            user_hash = None
-
-        if not user_hash:
-            log("[VIDEO] user_hash gak ketemu, skip", "wr")
-            time.sleep(2)
-            continue
-
-        aviso_id = aviso_identify(sess, user_hash)
-        if not aviso_id:
-            log("[VIDEO] aviso identify gagal", "wr")
-            time.sleep(2)
-            continue
-
-        data = aviso_tasks_page(user_hash, 0, 100)
-        if not data:
-            log("[VIDEO] gak ada tasks", "wr")
-            time.sleep(2)
-            continue
-
-        all_tasks = []
-        for t in ("ads", "like", "sub"):
-            for task in data.get(t, []):
-                if task.get("inProgress"):
-                    continue
-                task["type"] = t
-                all_tasks.append(task)
-
-        if not all_tasks:
-            log("[VIDEO] 0 task tersedia", "wr")
-            time.sleep(2)
-            continue
-
-        log(f"[VIDEO] {GRN}{len(all_tasks)}{RST} task tersedia", "in")
-        total_ok = 0
-        for i, task in enumerate(all_tasks, 1):
-            log(f"[VIDEO] [{i}/{len(all_tasks)}] [{task['type']}] "
-                f"{task.get('title', '-')[:30]}", "in")
-            try:
-                r = claim_one_video(sess, user_hash, task)
-            except Exception as e:
-                log(f"[VIDEO] err: {e}", "er"); r = False
-
-            if r:
-                time.sleep(1)
-                new_bal = get_balance(sess)
-                diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                print_success_banner(f"Video [{task['type']}]", new_bal, diff)
-                if new_bal is not None:
-                    old_bal = new_bal
-                total_ok += 1
-            else:
-                log(f"[VIDEO] ✗ gagal: {task['type']}", "er")
-            time.sleep(2)
-
-        log(f"[VIDEO] Selesai: {GRN}{total_ok}{RST}/{len(all_tasks)} ok",
-            "ok" if total_ok else "wr")
-        time.sleep(2)
-
-    print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-    input()
-
-
-# ═══════════════════════════════════════════════════════════════
-# FARM ALL
-# ═══════════════════════════════════════════════════════════════
-
-STATS = {"faucet": 0, "surf": 0, "video": 0, "coins": 0}
-PER_ACCOUNT_STATS = {}
-
-
-def reset_stats():
-    STATS["faucet"] = 0
-    STATS["surf"] = 0
-    STATS["video"] = 0
-    PER_ACCOUNT_STATS.clear()
-
-
-def _ensure_acc_stats(username, start_bal=None):
-    if username not in PER_ACCOUNT_STATS:
-        PER_ACCOUNT_STATS[username] = {
-            "faucet": 0, "surf": 0, "video": 0,
-            "start_bal": start_bal, "end_bal": start_bal,
-            "claims_faucet": 0, "claims_surf": 0, "claims_video": 0,
-            "status": "running",
-        }
-    return PER_ACCOUNT_STATS[username]
-
-
-def _track_earned(username, category, amount):
-    s = _ensure_acc_stats(username)
-    s[category] = s.get(category, 0) + amount
-    s[f"claims_{category}"] = s.get(f"claims_{category}", 0) + 1
-
-
-def _set_end_bal(username, end_bal):
-    s = _ensure_acc_stats(username)
-    s["end_bal"] = end_bal
-
-
-def print_account_summary():
-    if not PER_ACCOUNT_STATS:
-        return
-
-    print(f"\n{WHT}═══════════════════════════════════════════════{RST}")
-    print(f"{WHT}  {BOLD}📊 PER-ACCOUNT EARNINGS{RST}")
-    print(f"{WHT}═══════════════════════════════════════════════{RST}")
-
-    total_faucet = total_surf = total_video = 0
-
-    for username, s in PER_ACCOUNT_STATS.items():
-        earned_total = s["faucet"] + s["surf"] + s["video"]
-        total_faucet += s["faucet"]
-        total_surf += s["surf"]
-        total_video += s["video"]
-
-        status = s.get("status", "?")
-        if status == "ok":
-            status_icon = f"{GRN}✓{RST}"
-        elif status == "partial":
-            status_icon = f"{YEL}◐{RST}"
-        elif status == "login_fail":
-            status_icon = f"{RED}✗{RST}"
+            log("[SURF] 0 tersedia", "wr")
         else:
-            status_icon = f"{CYN}▶{RST}"
-
-        start_b = s.get("start_bal")
-        end_b = s.get("end_bal")
-        start_str = f"{start_b}" if start_b is not None else "?"
-        end_str   = f"{end_b}"   if end_b   is not None else "?"
-
-        print(f"\n  {status_icon} {CYN}{mask_email(username)}{RST}")
-        print(f"     Balance  : {YEL}{start_str}{RST} → {YEL}{end_str}{RST}  "
-              f"{WHT}(net {GRN}+{earned_total}{RST})")
-        print(f"     Faucet   : {GRN}+{s['faucet']:<5}{RST} "
-              f"({s.get('claims_faucet', 0)}x)  "
-              f"{WHT}|{RST}  "
-              f"Surf : {GRN}+{s['surf']:<5}{RST} ({s.get('claims_surf', 0)}x)  "
-              f"{WHT}|{RST}  "
-              f"Video: {GRN}+{s['video']:<5}{RST} ({s.get('claims_video', 0)}x)")
-
-    print(f"\n{WHT}───────────────────────────────────────────────{RST}")
-    print(f"  {BOLD}GRAND TOTAL ({len(PER_ACCOUNT_STATS)} akun){RST}")
-    print(f"  Faucet : {GRN}+{total_faucet}{RST}  "
-          f"|  Surf : {GRN}+{total_surf}{RST}  "
-          f"|  Video : {GRN}+{total_video}{RST}")
-    grand = total_faucet + total_surf + total_video
-    print(f"  {BOLD}{GRN}💎 TOTAL EARNED : +{grand} coins{RST}")
-    print(f"{WHT}═══════════════════════════════════════════════{RST}")
-
-
-def farm_one_account(cfg, acc, idx, apikey_faucet="", apikey_ptc=""):
-    sess = load_session(acc["username"], acc.get("proxy") or None)
-    username = acc["username"]
-
-    login_key = apikey_faucet or apikey_ptc
-    if not ensure_logged_in(sess, login_key, username, acc["password"]):
-        log("Login gagal, skip akun", "er")
-        _ensure_acc_stats(username)
-        PER_ACCOUNT_STATS[username]["status"] = "login_fail"
-        return
-
-    old_bal = get_balance(sess)
-    if old_bal is not None:
-        log(f"Balance: {old_bal} coins", "bi")
-
-    _ensure_acc_stats(username, start_bal=old_bal)
-    PER_ACCOUNT_STATS[username]["start_bal"] = old_bal
-    PER_ACCOUNT_STATS[username]["status"] = "running"
-
-    # ── SURF (pakai apikey_ptc) ──
-    try:
-        ads = get_surf_ads(sess)
-    except Exception:
-        ads = []
-
-    if not ads:
-        log(f"[SURF] {GRN}0{RST} tersedia", "wr")
-    else:
-        print(f"\n{WHT}  ── SURF ADS (PTC) ──{RST}")
-        log(f"[SURF] {GRN}{len(ads)}{RST} tersedia", "in")
-        for i, ad in enumerate(ads, 1):
-            log(f"[SURF] [{i}/{len(ads)}] {ad['title'][:30]} | "
-                f"{YEL}{ad['coins']}c{RST} | {ad['duration']}s", "in")
-            done = False
-            for attempt in range(1, MAX_RETRY + 1):
+            log(f"[SURF] {NEON_GREEN}{len(ads)}{RST} tersedia", "sf")
+            for i, ad in enumerate(ads, 1):
+                log(f"[SURF] [{i}/{len(ads)}] {ad['title'][:30]} | "
+                    f"{NEON_YELLOW}{ad['coins']}c{RST} | {ad['duration']}s", "sf")
                 try:
-                    r = claim_one_surf(sess, apikey_ptc, ad)
+                    r = claim_one_surf(sess, apikey, ad)
                 except Exception as e:
                     log(f"[SURF] err: {e}", "er"); r = False
-                if r is None:
-                    if not ensure_logged_in(sess, apikey_ptc,
-                                            username, acc["password"]):
-                        break
-                    continue
                 if r:
                     time.sleep(1)
                     new_bal = get_balance(sess)
                     diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                    print_success_banner(f"Surf +{ad['coins']}c", new_bal, diff)
-                    STATS["surf"] += 1
-                    if diff and diff > 0:
-                        _track_earned(username, "surf", diff)
-                    else:
-                        _track_earned(username, "surf", ad["coins"])
+                    log(f"[SURF] ✓ {ad['title'][:30]} | balance: {NEON_GREEN}{new_bal}{RST} (+{diff})", "ok")
                     if new_bal is not None:
                         old_bal = new_bal
-                    done = True
-                    break
-                break
-            if not done:
-                log(f"[SURF] ✗ gagal: {ad['title'][:30]}", "er")
-            time.sleep(2)
-
-    # ── FAUCET (pakai apikey_faucet) ──
-    print(f"\n{WHT}  ── FAUCET ──{RST}")
-    if _is_faucet_limited(username):
-        log(f"[FAUCET] limit harian, skip ke video", "wr")
-    else:
-        for attempt in range(1, MAX_RETRY + 1):
-            try:
-                r = do_faucet(sess, apikey_faucet, username=username)
-            except Exception as e:
-                log(f"[FAUCET] err: {e}", "er"); r = 0
-            if r == -1:
-                if ensure_logged_in(sess, apikey_faucet, username, acc["password"]):
-                    continue
-                break
-            if r == -2:
-                _mark_faucet_limited(username)
-                break
-            if r == -3:
-                break
-            if r == 1:
-                time.sleep(2)
-                new_bal = get_balance(sess)
-                diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                if new_bal == old_bal and old_bal is not None:
-                    log(f"[FAUCET] ⚠ Balance gak berubah (masih {old_bal})", "wr")
-                print_success_banner("Faucet Claim!", new_bal, diff)
-                STATS["faucet"] += 1
-                if diff and diff > 0:
-                    _track_earned(username, "faucet", diff)
                 else:
-                    _track_earned(username, "faucet", 5)
-                if new_bal is not None:
-                    old_bal = new_bal
-                break
-            if attempt < MAX_RETRY:
-                log(f"[FAUCET] retry {attempt}/{MAX_RETRY}...", "wr")
-            time.sleep(2)
+                    log(f"[SURF] ✗ gagal: {ad['title'][:30]}", "er")
+                time.sleep(2)
+        print(f"{NEON_PURPLE}╰────────────────────────────────────╯{RST}")
 
-    # ── VIDEO (no apikey) ──
-    print(f"\n{WHT}  ── YOUTUBE VIDEOS ──{RST}")
-    try:
-        yt_html, _, _ = safe_request(sess, f"{HOST}/ytvideos",
-                                     headers={"user-agent": DEF_UA})
-        user_hash = parse_user_hash(yt_html)
-    except Exception:
-        user_hash = None
-
-    if not user_hash:
-        log("[VIDEO] user_hash gak ketemu, skip", "wr")
-    else:
-        aviso_id = aviso_identify(sess, user_hash)
-        if not aviso_id:
-            log("[VIDEO] aviso identify gagal", "wr")
+        # ═══ FAUCET ═══
+        print(f"\n{NEON_PURPLE}╭─ {NEON_ORANGE}{BOLD}FAUCET{RST} {NEON_PURPLE}─────────────────────────╮{RST}")
+        if faucet_limited:
+            log("[FAUCET] skip (limit harian)", "wr")
         else:
-            data = aviso_tasks_page(user_hash, 0, 100)
-            if not data:
-                log("[VIDEO] gak ada tasks", "wr")
-            else:
-                all_tasks = []
-                for t in ("ads", "like", "sub"):
-                    for task in data.get(t, []):
-                        if task.get("inProgress"):
-                            continue
-                        task["type"] = t
-                        all_tasks.append(task)
-                log(f"[VIDEO] {GRN}{len(all_tasks)}{RST} task tersedia", "in")
-                for i, task in enumerate(all_tasks, 1):
-                    log(f"[VIDEO] [{i}/{len(all_tasks)}] [{task['type']}] "
-                        f"{task.get('title', '-')[:30]}", "in")
-                    try:
-                        r = claim_one_video(sess, user_hash, task)
-                    except Exception as e:
-                        log(f"[VIDEO] err: {e}", "er"); r = False
-                    if r:
-                        time.sleep(1)
-                        new_bal = get_balance(sess)
-                        diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
-                        print_success_banner(f"Video [{task['type']}]", new_bal, diff)
-                        STATS["video"] += 1
-                        if diff and diff > 0:
-                            _track_earned(username, "video", diff)
-                        if new_bal is not None:
-                            old_bal = new_bal
-                    else:
-                        log(f"[VIDEO] ✗ gagal: {task['type']}", "er")
-                    time.sleep(2)
-
-    if old_bal is not None:
-        STATS["coins"] = old_bal
-        _set_end_bal(username, old_bal)
-
-    total_earned = (PER_ACCOUNT_STATS[username]["faucet"] +
-                    PER_ACCOUNT_STATS[username]["surf"] +
-                    PER_ACCOUNT_STATS[username]["video"])
-    if total_earned > 0:
-        PER_ACCOUNT_STATS[username]["status"] = "ok"
-    else:
-        PER_ACCOUNT_STATS[username]["status"] = "partial"
-
-
-def run_farm_all(cfg, selected, apikey_faucet=None, apikey_ptc=None):
-    apikey_faucet = apikey_faucet or cfg.get("apikey_faucet") or ""
-    apikey_ptc    = apikey_ptc    or cfg.get("apikey_ptc")    or ""
-
-    clear(); banner_main()
-    print(f"{WHT}Mode      : {CYN}Farm All (PTC + Faucet + Videos){RST}")
-    print(f"{WHT}Total Akun: {GRN}{len(selected)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-    LIMITED_FAUCET.clear()
-    reset_stats()
-    try:
-        while True:
-            for idx, acc in enumerate(selected):
-                banner_account(idx, acc["username"],
-                               proxy_raw=acc.get("proxy") or None, show_ip=True)
+            for attempt in range(1, MAX_RETRY + 1):
                 try:
-                    farm_one_account(cfg, acc, idx,
-                                     apikey_faucet=apikey_faucet,
-                                     apikey_ptc=apikey_ptc)
+                    r = do_faucet(sess, apikey)
                 except Exception as e:
-                    log(f"Err akun: {type(e).__name__}: {e}", "er")
-                    time.sleep(3)
+                    log(f"[FAUCET] err: {e}", "er"); r = 0
 
-            print_account_summary()
+                if r == -1:
+                    log("[FAUCET] session expired", "er")
+                    return
+                if r == -2:
+                    faucet_limited = True
+                    break
+                if r == -3:
+                    break
+                if r == 1:
+                    time.sleep(2)
+                    new_bal = get_balance(sess)
+                    diff = (new_bal - old_bal) if (new_bal is not None and old_bal is not None) else None
+                    log(f"[FAUCET] ✓ balance: {NEON_GREEN}{new_bal}{RST} (+{diff})", "ok")
+                    if new_bal is not None:
+                        old_bal = new_bal
+                    break
+                if attempt < MAX_RETRY:
+                    log(f"[FAUCET] retry {attempt}/{MAX_RETRY}...", "wr")
+                time.sleep(2)
+        print(f"{NEON_PURPLE}╰────────────────────────────────────╯{RST}")
 
-            print(f"\n{WHT}[LOOP] Cooldown {FARM_COOLDOWN}s...{RST}")
-            tmr(FARM_COOLDOWN, "Cooldown")
-    except KeyboardInterrupt:
-        print(f"\n{YEL}Farming dihentikan.{RST}"); time.sleep(1)
-
-
-# ═══════════════════════════════════════════════════════════════
-# WITHDRAW / HISTORY MENU
-# ═══════════════════════════════════════════════════════════════
-
-def withdraw_menu(cfg):
-    accounts = cfg["accounts"]
-    if not accounts:
-        print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); return
-    start, end = get_range(len(accounts))
-    sel = accounts[start:end + 1]
-
-    login_key = cfg.get("apikey_faucet") or cfg.get("apikey_ptc") or ""
-    try:
-        sess = load_session(sel[0]["username"], sel[0].get("proxy") or None)
-        if not ensure_logged_in(sess, login_key,
-                                sel[0]["username"], sel[0]["password"]):
-            print(f"{RED}Login gagal.{RST}"); time.sleep(2); return
-        form = fetch_withdraw_form(sess, sel[0]["username"])
-        if not form or not form.get("options"):
-            print(f"{RED}Form withdraw gak ketemu / opsi currency kosong.{RST}")
-            time.sleep(3); return
-        options = form["options"]
-    except Exception as e:
-        print(f"{RED}Fetch error: {e}{RST}"); time.sleep(3); return
-
-    clear(); banner_main()
-    print(f"{WHT}Mode    : {CYN}Withdraw{RST}")
-    print(f"{WHT}Total   : {GRN}{len(sel)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-    print(f"{WHT}Pilih currency:{RST}")
-    for i, opt in enumerate(options, 1):
-        label = opt["label"] or opt["value"]
-        print(f"{CYN}[{i}]{WHT} {label}")
-    print(f"{CYN}[0]{WHT} Batal")
-    print()
-    print(f"{WHT}Pilih: {RST}", end="")
-    ch = input().strip()
-    if not ch.isdigit() or ch == '0':
-        return
-    idx = int(ch) - 1
-    if not (0 <= idx < len(options)):
-        print(f"{RED}Invalid.{RST}"); time.sleep(2); return
-    coin = options[idx]
-
-    print(f"{WHT}Amount mode: {RST}")
-    print(f"{CYN}[1]{WHT} ALL balance")
-    print(f"{CYN}[2]{WHT} Custom amount")
-    print(f"{WHT}Pilih [1/2]: {RST}", end="")
-    amode = input().strip()
-    custom_amount = None
-    if amode == "2":
-        print(f"{WHT}Amount: {RST}", end="")
+        # ═══ YOUTUBE ═══
+        print(f"\n{NEON_PURPLE}╭─ {NEON_PINK}{BOLD}YOUTUBE VIDEOS{RST} {NEON_PURPLE}─────────────────╮{RST}")
         try:
-            custom_amount = int(input().strip())
-        except Exception:
-            print(f"{RED}Invalid.{RST}"); time.sleep(2); return
-
-    clear(); banner_main()
-    print(f"{WHT}Mode    : {CYN}Withdraw{RST}")
-    print(f"{WHT}Koin    : {CYN}{coin['label'] or coin['value']}{RST}")
-    print(f"{WHT}Amount  : {YEL}{'ALL' if custom_amount is None else custom_amount}{RST}")
-    print(f"{WHT}Total   : {GRN}{len(sel)}{RST}")
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-
-    ok_count = skip_count = err_count = 0
-    for i, acc in enumerate(sel):
-        try:
-            sess = load_session(acc["username"], acc.get("proxy") or None)
+            yt_result = do_youtube(sess, cfg.get("username"))
+            if yt_result:
+                if yt_result["total"] == 0:
+                    log("[YT] 0 task", "wr")
+                else:
+                    log(f"[YT] Selesai: {NEON_GREEN}{yt_result['ok']}{RST}/{yt_result['total']} ok",
+                        "ok" if yt_result["ok"] else "wr")
+                    # Refresh balance setelah YT
+                    time.sleep(2)
+                    new_bal = get_balance(sess)
+                    if new_bal is not None and new_bal != old_bal:
+                        diff = (new_bal - old_bal) if old_bal is not None else None
+                        log(f"[YT] balance: {NEON_GREEN}{new_bal}{RST} (+{diff})", "bi")
+                        old_bal = new_bal
         except Exception as e:
-            print(f"{RED}[SKIP] Proxy error: {e}{RST}"); err_count += 1; continue
+            log(f"[YT] err: {e}", "er")
+        print(f"{NEON_PURPLE}╰────────────────────────────────────╯{RST}")
 
-        banner_account(i, acc["username"], proxy_raw=acc.get("proxy") or None,
-                       show_ip=True)
+        # ═══ COOLDOWN ═══
+        print(f"\n{NEON_PURPLE}[LOOP] Cooldown {NEON_RED}{FAUCET_COOLDOWN}s{NEON_PURPLE}...{RST}")
+        tmr(FAUCET_COOLDOWN, "Cooldown")
 
-        try:
-            if not ensure_logged_in(sess, login_key,
-                                    acc["username"], acc["password"]):
-                log("Login gagal, skip", "er"); err_count += 1; continue
-
-            bal = get_balance(sess)
-            if bal is None:
-                log("Balance gak ke-parse, skip", "er"); err_count += 1; continue
-
-            amount = custom_amount if custom_amount is not None else bal
-            if amount <= 0:
-                log(f"Balance {bal} <= 0, skip", "wr"); skip_count += 1; continue
-            if amount > bal:
-                log(f"Amount {amount} > balance {bal}, pakai balance", "wr")
-                amount = bal
-
-            fp_email = acc.get("fp_email") or acc["username"]
-            result = do_withdraw(sess, login_key, coin["value"], amount, fp_email)
-            if result[0] == "ok":
-                new_bal = result[1]
-                print_success_banner(f"WD {coin['label'] or coin['value']}",
-                                     new_bal,
-                                     (new_bal - bal) if new_bal is not None else None,
-                                     unit="coins")
-                ok_count += 1
-            else:
-                log(f"Gagal: {result[1]}", "er"); err_count += 1
-        except Exception as e:
-            log(f"Error: {type(e).__name__}: {e}", "er"); err_count += 1
-        time.sleep(2)
-
-    print(f"{WHT}───────────────────────────────────────────────{RST}")
-    log(f"WD Selesai: {GRN}{ok_count} ok{RST} | {YEL}{skip_count} skip{RST} | {RED}{err_count} err{RST}",
-        "ok")
-    print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-    input()
-
-
-def history_menu(cfg):
-    accounts = cfg["accounts"]
-    if not accounts:
-        print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); return
-    start, end = get_range(len(accounts))
-    sel = accounts[start:end + 1]
-    login_key = cfg.get("apikey_faucet") or cfg.get("apikey_ptc") or ""
-    for i, acc in enumerate(sel):
-        try:
-            sess = load_session(acc["username"], acc.get("proxy") or None)
-            if not ensure_logged_in(sess, login_key,
-                                    acc["username"], acc["password"]):
-                log(f"Login gagal: {mask_email(acc['username'])}", "er")
-                continue
-            items = fetch_history(sess, acc["username"], limit=15)
-            banner_account(i, acc["username"], proxy_raw=acc.get("proxy") or None,
-                           show_ip=False)
-            print_history(items, title=f"History - {mask_email(acc['username'])}")
-        except Exception as e:
-            log(f"Error: {e}", "er")
-    print(f"\n{WHT}Tekan Enter buat balik ke menu...{RST}", end="")
-    input()
-
-
-# ═══════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════
 
 def main():
-    cfg = load_config()
-    while True:
-        clear(); banner_main()
-        accounts = cfg["accounts"]
-        kf = cfg.get("apikey_faucet") or ""
-        kp = cfg.get("apikey_ptc")    or ""
+    try:
+        cfg = load_config()
+    except KeyboardInterrupt:
+        print(f"\n{NEON_YELLOW}Cancelled.{RST}")
+        return
 
-        kf_disp = (kf[:8] + "…" + kf[-4:]) if len(kf) > 14 else (kf or "empty")
-        kp_disp = (kp[:8] + "…" + kp[-4:]) if len(kp) > 14 else (kp or "empty")
+    show_info(cfg)
 
-        print(f"{WHT}Total Akun   : {GRN}{len(accounts)}{RST}")
-        print(f"{WHT}Key Faucet   : {YEL}{kf_disp}{RST}")
-        print(f"{WHT}Key PTC      : {YEL}{kp_disp}{RST}")
-        print(f"{WHT}───────────────────────────────────────────────{RST}")
-        print(f"{CYN}[1]{WHT} Faucet {YEL}(butuh API key){RST}")
-        print(f"{CYN}[2]{WHT} PTC (Surf Ads) {YEL}(butuh API key){RST}")
-        print(f"{CYN}[3]{WHT} YouTube Videos {GRN}(no API key){RST}")
-        print(f"{CYN}[4]{WHT} Farm All (PTC + Faucet + Video){RST}")
-        print(f"{CYN}[5]{WHT} Withdrawal{RST}")
-        print(f"{CYN}[6]{WHT} Cek Balance{RST}")
-        print(f"{CYN}[7]{WHT} History WD{RST}")
-        print(f"{CYN}[8]{GRN} Tambah Akun{RST}")
-        print(f"{CYN}[9]{RED} Hapus Akun{RST}")
-        print(f"{CYN}[0]{MAG} Setting API Key{RST}")
-        print(f"{CYN}[q]{WHT} Keluar{RST}")
-        print(f"{WHT}───────────────────────────────────────────────{RST}")
-        print(f"{WHT}Pilih: {RST}", end="")
-        c = input().strip()
+    if not cfg.get("apikey"):
+        print(f"{NEON_RED}⚠ API key kosong. Isi di config.json lalu jalanin lagi.{RST}")
+        time.sleep(3)
+        return
 
-        if c.lower() == 'q':
-            print(f"{WHT}Bye!{RST}"); return
-        elif c == '0':
-            setting_apikey_menu(cfg)
-        elif c == '8':
-            add_account(cfg)
-        elif c == '9':
-            delete_account(cfg)
-        elif c == '6':
-            if not accounts:
-                print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); continue
-            check_balance_all(cfg)
-        elif c == '7':
-            if not accounts:
-                print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); continue
-            history_menu(cfg)
-        elif c == '5':
-            if not accounts:
-                print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); continue
-            withdraw_menu(cfg)
-        elif c in ('1', '2', '3', '4'):
-            if not accounts:
-                print(f"{RED}Tidak ada akun.{RST}"); time.sleep(2); continue
+    if not cfg.get("cookies"):
+        print(f"{NEON_RED}⚠ Cookies kosong. Isi di config.json lalu jalanin lagi.{RST}")
+        time.sleep(3)
+        return
 
-            # Gating API key per-mode
-            if c == '1' and not kf:
-                print(f"{RED}API key Faucet belum diset. Buka menu [0] Setting.{RST}")
-                time.sleep(3); continue
-            if c == '2' and not kp:
-                print(f"{RED}API key PTC belum diset. Buka menu [0] Setting.{RST}")
-                time.sleep(3); continue
-            if c == '4' and (not kf or not kp):
-                print(f"{RED}Farm All butuh key Faucet & PTC. Buka menu [0] Setting.{RST}")
-                time.sleep(3); continue
+    try:
+        sess = build_session(cfg["cookies"], cfg.get("proxy") or None)
+    except Exception as e:
+        print(f"{NEON_RED}Session error: {e}{RST}")
+        return
 
-            start, end = get_range(len(accounts))
-            sel = accounts[start:end + 1]
+    log("Verifikasi session cookies...", "in")
+    ok, html = check_session(sess)
+    if not ok:
+        log("Session expired / cookie invalid", "er")
+        print(f"\n{NEON_WHITE}Update cookie di config.json, lalu jalanin lagi.{RST}")
+        time.sleep(3)
+        return
+    log(f"Session valid: {NEON_GREEN}{mask_email(cfg['username'])}{RST}", "ok")
 
-            if c == '1':
-                run_faucet_loop(cfg, sel, apikey=kf)
-            elif c == '2':
-                run_ptc_loop(cfg, sel, apikey=kp)
-            elif c == '3':
-                run_video_loop(cfg, sel)     # no apikey
-            else:
-                run_farm_all(cfg, sel, apikey_faucet=kf, apikey_ptc=kp)
+    try:
+        claim_loop(sess, cfg)
+    except KeyboardInterrupt:
+        print(f"\n{NEON_YELLOW}Dihentikan user.{RST}")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(f"\n{YEL}Dihentikan user.{RST}")
+        print(f"\n{NEON_YELLOW}Dihentikan user.{RST}")
