@@ -1,13 +1,13 @@
 <?php
 /**
- * FireFaucet — Faucet Only Bot v3
+ * FireFaucet — Faucet Only Bot v4 (TURNSTILE ONLY)
  *   [1] Start faucet claim
  *   [2] Edit config
  *   [3] Reset
  *   [4] Check Solver Balance
- *   [5] Pilih Captcha (hCaptcha / Turnstile)
  *   [0] Exit
- * Captcha: hardcoded sitekey
+ *
+ * Turnstile sitekey + action auto-detect dari HTML, fallback ke hardcode.
  */
 
 error_reporting(0);
@@ -43,10 +43,9 @@ const SOLVER_IN      = "https://api.waryono.my.id/in.php";
 const SOLVER_OUT     = "https://api.waryono.my.id/res.php";
 const SOLVER_BALANCE = "https://api.waryono.my.id/balance.php";
 
-// ─── SITEKEY HARDCODE ───
-const HCAPTCHA_SITEKEY   = "034eb992-02f4-4cd7-8f90-5dfb05fb21a2";
-const TURNSTILE_SITEKEY  = "0x4AAAAAAAEUvFih09RuyAna";
-const TURNSTILE_ACTION   = "faucet_claim";
+// Turnstile fallback (auto-detect dari HTML akan override ini)
+const TURNSTILE_SITEKEY_FALLBACK = "0x4AAAAAAAEUvFih09RuyAna";
+const TURNSTILE_ACTION_FALLBACK  = "faucet_claim";
 
 const TG_GROUP = "https://t.me/+RInZ35ML2GhjM2I1";
 const TG_TAG   = "@MoneyMaker_w";
@@ -111,7 +110,7 @@ function boxClaim($label, $rows) {
     echo $yellow . "  ╚" . str_repeat("═", 58) . "╝" . $reset . "\n";
 }
 
-function banner($mode = "FAUCET ONLY") {
+function banner($mode = "TURNSTILE ONLY") {
     global $orange, $cyan, $gray, $white, $neonY, $neonC, $reset;
     echo "\n";
     echo $orange . "  ╔" . str_repeat("═", 60) . "╗" . $reset . "\n";
@@ -135,10 +134,9 @@ function getConfig($f) {
         if ($ua === '') $ua = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36";
 
         $d = [
-            "apikey"         => $ak,
-            "cookies"        => $ck,
-            "user_agent"     => $ua,
-            "captcha_method" => "hcaptcha"  // default
+            "apikey"     => $ak,
+            "cookies"    => $ck,
+            "user_agent" => $ua,
         ];
         saveConfig($f, $d);
         echo "\n  \033[1;32m✓ Config saved.\033[0m\n";
@@ -146,7 +144,6 @@ function getConfig($f) {
         return $d;
     }
     $c = json_decode(file_get_contents($f), true);
-    if (!isset($c['captcha_method'])) $c['captcha_method'] = 'hcaptcha';
     return $c;
 }
 
@@ -170,7 +167,7 @@ $GLOBALS['cookies']    = "";
 $GLOBALS['user_agent'] = "";
 $GLOBALS['apikey']     = "";
 
-function req($url, $post = null, $extraHeaders = [], $method = null) {
+function req($url, $post = null, $extraHeaders = [], $method = null, $ajax = false) {
     global $cookies, $user_agent;
 
     $m = $method ?: ($post !== null ? "POST" : "GET");
@@ -179,13 +176,31 @@ function req($url, $post = null, $extraHeaders = [], $method = null) {
 
     while ($tries++ < $maxTries) {
         $ch = curl_init();
-        $headers = array_merge([
+        $headers = [
             'User-Agent: ' . $user_agent,
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Referer: ' . HOST . '/',
             'Connection: keep-alive',
-        ], $extraHeaders);
+        ];
+
+        if ($ajax) {
+            $headers[] = 'Accept: application/json, text/javascript, */*; q=0.01';
+            $headers[] = 'X-Requested-With: XMLHttpRequest';
+            $headers[] = 'Origin: ' . HOST;
+            $headers[] = 'Referer: ' . HOST . '/faucet/';
+            $headers[] = 'Sec-Fetch-Site: same-origin';
+            $headers[] = 'Sec-Fetch-Mode: cors';
+            $headers[] = 'Sec-Fetch-Dest: empty';
+        } else {
+            $headers[] = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+            $headers[] = 'Referer: ' . HOST . '/';
+            $headers[] = 'Sec-Fetch-Site: same-origin';
+            $headers[] = 'Sec-Fetch-Mode: navigate';
+            $headers[] = 'Sec-Fetch-User: ?1';
+            $headers[] = 'Sec-Fetch-Dest: document';
+            $headers[] = 'Upgrade-Insecure-Requests: 1';
+        }
+
+        $headers = array_merge($headers, $extraHeaders);
 
         $opts = [
             CURLOPT_URL            => $url,
@@ -247,21 +262,20 @@ function isRedirecting($html) {
     return (strpos($html, '<title>Redirecting...') !== false);
 }
 
-function extractSidebarCsrf($html) {
+function extractCsrf($html) {
+    if (preg_match('/<input[^>]*name="csrf_token"\s+value="([^"]+)"/i', $html, $m)) return $m[1];
     if (preg_match('/name="csrf_token_sidebar"\s+value="([^"]+)"/i', $html, $m)) return $m[1];
-    if (preg_match('/name="csrf_token"\s+value="([^"]+)"/i', $html, $m)) return $m[1];
     return null;
 }
 
 function getBalanceFromHome($html) {
-    if (preg_match('/<div[^>]*color:#00a8ff[^>]*>\s*<b>([\d,]+)<\/b>/i', $html, $m)) return $m[1];
-    if (preg_match('/acp-balance-value">([\d.,]+)<\/div>/i', $html, $m)) return $m[1];
+    if (preg_match('/acp-balance-value">([\d,.]+)/i', $html, $m)) return $m[1];
+    if (preg_match('/sidebar_data__acp_balance">([\d,.]+)</i', $html, $m)) return $m[1];
     return null;
 }
 
 function getUsernameFromHome($html) {
     if (preg_match('/<span class="username-text">([^<]+)<\/span>/i', $html, $m)) return trim($m[1]);
-    if (preg_match('/<div class="hub-username">([^<]+)<\/div>/i', $html, $m)) return trim($m[1]);
     return null;
 }
 
@@ -271,71 +285,74 @@ function getFuelFromHome($html) {
 }
 
 /* ═══════════════════════════════════════════════════
-   SOLVER
+   TURNSTILE DETECTION
    ═══════════════════════════════════════════════════ */
-function parseSolverResp($raw) {
-    $raw = trim($raw);
-    if ($raw === '') return ['status'=>'error','id'=>'','code'=>'EMPTY'];
-    $j = json_decode($raw, true);
-    if (is_array($j)) {
-        $req = isset($j['request']) ? trim((string)$j['request']) : '';
-        $st  = isset($j['status']) ? (int)$j['status'] : null;
-        if ($st === 0 || (is_string($req) && strpos($req, 'ERROR_') === 0)) {
-            return ['status'=>'error','id'=>'','code'=>$req ?: 'UNKNOWN'];
-        }
-        if ($req !== '' && strpos($req, 'ERROR_') !== 0 && strpos($req, 'CAPCHA_NOT_READY') === false) {
-            return ['status'=>'ok','id'=>$req,'code'=>''];
-        }
-        if (strpos($req, 'CAPCHA_NOT_READY') !== false) {
-            return ['status'=>'error','id'=>'','code'=>'NOT_READY'];
-        }
-        return ['status'=>'error','id'=>'','code'=>'UNKNOWN'];
+function detectTurnstileParams($html) {
+    $sitekey = TURNSTILE_SITEKEY_FALLBACK;
+    $action  = TURNSTILE_ACTION_FALLBACK;
+    $found   = false;
+
+    // Pattern 1: langsung sitekey di HTML/JS
+    if (preg_match('/[\'"]sitekey[\'"]\s*:\s*[\'"](0x[A-Za-z0-9_\-]{20,})[\'"]/i', $html, $m)) {
+        $sitekey = $m[1]; $found = true;
     }
-    if (strpos($raw, 'OK|') === 0) return ['status'=>'ok','id'=>trim(substr($raw,3)),'code'=>''];
-    if (strpos($raw, 'ERROR_') === 0) {
-        $p = explode('|', $raw, 2);
-        return ['status'=>'error','id'=>'','code'=>$p[0]];
+    // Pattern 2: data-sitekey attr
+    elseif (preg_match('/data-sitekey=["\'](0x[A-Za-z0-9_\-]{20,})["\']/i', $html, $m)) {
+        $sitekey = $m[1]; $found = true;
     }
-    return ['status'=>'error','id'=>'','code'=>$raw];
+    // Pattern 3: string literal turnstile sitekey
+    elseif (preg_match('/[\'"](0x4A[A-Za-z0-9_\-]{20,})[\'"]/i', $html, $m)) {
+        $sitekey = $m[1]; $found = true;
+    }
+
+    // Action detection
+    if (preg_match('/[\'"]action[\'"]\s*:\s*[\'"]([a-z_]+)[\'"]/i', $html, $m)) {
+        $action = $m[1];
+    }
+
+    return [
+        'sitekey'   => $sitekey,
+        'action'    => $action,
+        'detected'  => $found,
+    ];
 }
 
-function solveCaptcha($method, $sitekey, $action = null, $rqdata = null, $pageurl = null) {
-    global $apikey;
-
-    if ($pageurl === null) $pageurl = HOST . "/faucet/";
-
-    // ── Validasi ──
-    if ($method === "hcaptcha") {
-        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $sitekey)) {
-            err("solver", "invalid hcaptcha sitekey");
-            return ["token" => false, "attempts" => 0, "method" => $method];
+/* ═══════════════════════════════════════════════════
+   SOLVER (WARYONO) — TURNSTILE ONLY
+   ═══════════════════════════════════════════════════ */
+function parseSolverSubmit($raw) {
+    $raw = trim((string)$raw);
+    if ($raw === '') return ['status'=>'error','code'=>'EMPTY','id'=>''];
+    $j = json_decode($raw, true);
+    if (is_array($j)) {
+        if (isset($j['status']) && (int)$j['status'] === 1 && !empty($j['request'])) {
+            return ['status'=>'ok', 'id'=>trim((string)$j['request']), 'code'=>''];
         }
-    } elseif ($method === "turnstile") {
-        if (!preg_match('/^0x[A-Za-z0-9_\-]{20,}$/', $sitekey)) {
-            err("solver", "invalid turnstile sitekey");
-            return ["token" => false, "attempts" => 0, "method" => $method];
-        }
-    } else {
-        err("solver", "unknown method: $method");
-        return ["token" => false, "attempts" => 0, "method" => $method];
+        $req = isset($j['request']) ? trim((string)$j['request']) : 'UNKNOWN';
+        return ['status'=>'error', 'code'=>$req, 'id'=>''];
     }
+    if (strpos($raw, 'OK|') === 0) return ['status'=>'ok', 'id'=>trim(substr($raw,3)), 'code'=>''];
+    if (strpos($raw, 'ERROR_') === 0) {
+        $p = explode('|', $raw, 2);
+        return ['status'=>'error', 'id'=>'', 'code'=>$p[0]];
+    }
+    return ['status'=>'error', 'id'=>'', 'code'=>$raw];
+}
 
+function solveTurnstile($sitekey, $action, $apikey, $pageurl) {
     $body = [
         "apikey"  => $apikey,
-        "methods" => $method,
-        "domain"  => "https://firefaucet.win",
+        "methods" => "turnstile",
+        "domain"  => "firefaucet.win",
         "sitekey" => $sitekey,
-        "json"    => 1,
         "pageurl" => $pageurl,
+        "action"  => $action,
+        "json"    => 1,
     ];
-    if ($method === "turnstile" && $action) {
-        $body["action"] = $action;
-    }
-    if ($method === "hcaptcha" && $rqdata) {
-        $body["rqdata"] = $rqdata;
-    }
 
-    cap("SOLVER", "method=$method sitekey=" . substr($sitekey, 0, 24) . "...");
+    cap("SOLVER", "submit turnstile");
+    cap("SOLVER", "sitekey = " . substr($sitekey, 0, 30) . "...");
+    cap("SOLVER", "action  = " . $action);
 
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -349,23 +366,35 @@ function solveCaptcha($method, $sitekey, $action = null, $rqdata = null, $pageur
         CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
     ]);
     $resp = curl_exec($ch);
+    $err  = curl_error($ch);
     curl_close($ch);
 
-    $parsed = parseSolverResp($resp);
-    if ($parsed['status'] === 'error') {
-        err("solver", "submit: " . $parsed['code']);
-        return ["token" => false, "attempts" => 0, "method" => $method];
+    if ($err) {
+        err("solver", "submit curl error: " . substr($err, 0, 80));
+        return false;
     }
-    $id = $parsed['id'];
-    info("solver", "task $id ($method)");
 
+    $parsed = parseSolverSubmit($resp);
+    if ($parsed['status'] !== 'ok') {
+        err("solver", "submit failed: " . $parsed['code']);
+        return false;
+    }
+
+    $id = $parsed['id'];
+    info("solver", "task id = $id");
+
+    // ── POLL ─────────────────────────────────────────────
     $attempts = 0;
     $errCount = 0;
     $unsolvableCount = 0;
+
     while ($attempts < 40) {
         $attempts++;
         sleep(3);
-        $pollUrl = SOLVER_OUT . "?apikey=" . urlencode($apikey) . "&action=get&id=" . urlencode($id) . "&json=1";
+
+        $pollUrl = SOLVER_OUT . "?apikey=" . urlencode($apikey)
+                 . "&action=get&id=" . urlencode($id) . "&json=1";
+
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $pollUrl,
@@ -377,30 +406,53 @@ function solveCaptcha($method, $sitekey, $action = null, $rqdata = null, $pageur
         $poll = curl_exec($ch);
         curl_close($ch);
 
-        $p = parseSolverResp($poll);
-        if ($p['status'] === 'ok' && $p['id']) {
-            return ["token" => $p['id'], "attempts" => $attempts, "method" => $method];
+        $poll = trim((string)$poll);
+        $pj = json_decode($poll, true);
+
+        // Waryono poll response: {"status":1,"request":"TOKEN"} when ready
+        if (is_array($pj)) {
+            $req = isset($pj['request']) ? trim((string)$pj['request']) : '';
+            $st  = isset($pj['status']) ? (int)$pj['status'] : 0;
+
+            if ($st === 1 && $req !== '' && strpos($req, 'ERROR_') !== 0) {
+                return $req; // token!
+            }
+            if (strpos($req, 'CAPCHA_NOT_READY') !== false) {
+                echo "\r  " . $GLOBALS['gray'] . "processing ($attempts)..." . $GLOBALS['reset'];
+                continue;
+            }
+            if (strpos($req, 'ERROR_CAPTCHA_UNSOLVABLE') !== false) {
+                $unsolvableCount++;
+                err("solver", "UNSOLVABLE #$unsolvableCount");
+                if ($unsolvableCount >= 2) return false;
+                continue;
+            }
+            // hard errors
+            if (strpos($req, 'ERROR_') === 0) {
+                $errCount++;
+                err("solver", "err: $req");
+                if ($errCount >= 3) return false;
+                continue;
+            }
         }
-        if ($p['code'] === 'NOT_READY' || $p['code'] === 'CAPCHA_NOT_READY') {
+
+        // fallback kalau bukan JSON
+        if (strpos($poll, 'OK|') === 0) {
+            return trim(substr($poll, 3));
+        }
+        if (strpos($poll, 'CAPCHA_NOT_READY') !== false) {
             echo "\r  " . $GLOBALS['gray'] . "processing ($attempts)..." . $GLOBALS['reset'];
             continue;
         }
-        $errCount++;
-        err("solver", "err #$errCount: " . $p['code']);
-
-        if ($p['code'] === 'ERROR_CAPTCHA_UNSOLVABLE') {
-            $unsolvableCount++;
-            if ($unsolvableCount >= 2) {
-                err("solver", "2x UNSOLVABLE — stop");
-                return ["token" => false, "attempts" => $attempts, "method" => $method];
-            }
-        }
-        if ($errCount >= 3) {
-            return ["token" => false, "attempts" => $attempts, "method" => $method];
+        if (strpos($poll, 'ERROR_') === 0) {
+            $errCount++;
+            err("solver", "err: $poll");
+            if ($errCount >= 3) return false;
         }
     }
-    err("solver", "max attempts");
-    return ["token" => false, "attempts" => $attempts, "method" => $method];
+
+    err("solver", "max attempts reached");
+    return false;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -437,7 +489,7 @@ function checkBalance() {
     if (isRedirecting($html)) {
         return ["ok"=>false, "reason"=>"expired", "detail"=>"cookie expired"];
     }
-    $csrf = extractSidebarCsrf($html);
+    $csrf = extractCsrf($html);
     if (!$csrf) {
         return ["ok"=>false, "reason"=>"expired", "detail"=>"bukan halaman logged-in"];
     }
@@ -465,9 +517,11 @@ function printBalanceBox($b) {
 }
 
 /* ═══════════════════════════════════════════════════
-   FAUCET CLAIM
+   FAUCET CLAIM — TURNSTILE ONLY
    ═══════════════════════════════════════════════════ */
-function stepFaucet($captchaMethod = 'hcaptcha') {
+function stepFaucet() {
+    global $apikey;
+
     info("FAUCET", "GET /faucet/");
     $r = req(HOST . "/faucet/");
     $html = $r["body"];
@@ -479,9 +533,10 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         return "limit";
     }
 
-    $csrf = extractSidebarCsrf($html);
+    $csrf = extractCsrf($html);
     if (!$csrf) { warn("FAUCET", "csrf not found"); return "skip"; }
 
+    // Cooldown check
     $wait = 0;
     if (preg_match("/startCountdown\('#faucet-countdown',\s*parseInt\('(\d+)'\)/", $html, $m)) {
         $wait = (int)$m[1];
@@ -492,57 +547,31 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         return "cooldown";
     }
 
-    // ═══ Ambil rqdata dari HTML (kalau ada) ═══
-    $rqdata = null;
-    if ($captchaMethod === 'hcaptcha') {
-        if (preg_match('/\bdata-rqdata=["\']([^"\']+)["\']/i', $html, $m)) $rqdata = $m[1];
-        elseif (preg_match('/\b(?:rqdata|rqData|rq_data)\s*[:=]\s*["\']([^"\']{10,})["\']/i', $html, $m)) $rqdata = $m[1];
-    }
+    // ─── Detect Turnstile params ─────────────────────────
+    $ts = detectTurnstileParams($html);
+    cap("DETECT", "sitekey = " . $ts['sitekey']);
+    cap("DETECT", "action  = " . $ts['action']);
+    cap("DETECT", "source  = " . ($ts['detected'] ? "HTML (dynamic)" : "fallback hardcoded"));
 
-    // ═══ Build solver params ═══
-    if ($captchaMethod === 'hcaptcha') {
-        $sitekey = HCAPTCHA_SITEKEY;
-        $action  = null;
-    } else {
-        $sitekey = TURNSTILE_SITEKEY;
-        $action  = TURNSTILE_ACTION;
-    }
-
-    cap("DETECT", "method  = $captchaMethod");
-    cap("DETECT", "sitekey = " . $sitekey);
-    if ($action) cap("DETECT", "action  = $action");
-    if ($rqdata) cap("DETECT", "rqdata  = " . substr($rqdata, 0, 24) . "...");
-
-    // ═══ SOLVE ═══
-    info("FAUCET", "solving $captchaMethod");
-    $sol = solveCaptcha($captchaMethod, $sitekey, $action, $rqdata, HOST . "/faucet/");
-    if (!$sol['token']) {
-        err("FAUCET", "solve failed ($captchaMethod)");
+    // ─── Solve ───────────────────────────────────────────
+    info("FAUCET", "solving turnstile...");
+    $token = solveTurnstile($ts['sitekey'], $ts['action'], $apikey, HOST . "/faucet/");
+    if (!$token) {
+        err("FAUCET", "solve failed");
         return "skip";
     }
+    info("FAUCET", "token OK (" . strlen($token) . " chars)");
 
-    info("FAUCET", "token ok (" . $sol['attempts'] . " polls)");
-
-    // ═══ BUILD POST — field name per method ═══
-    $post = [
-        'csrf_token'       => $csrf,
-        'selected-captcha' => $captchaMethod,
-    ];
-
-    if ($captchaMethod === "hcaptcha") {
-        $post['h-captcha-response'] = $sol['token'];
-    } else {
-        $post['cf-turnstile-response'] = $sol['token'];
-    }
-    // fallback legacy fields
-    $post['g-recaptcha-response'] = $sol['token'];
-
-    info("FAUCET", "POST /faucet/");
-    $r2 = req(HOST . "/faucet/", $post, [
-        'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-        'Origin: ' . HOST,
-        'Referer: ' . HOST . '/faucet/',
+    // ─── POST payload — sesuai yang dibutuhkan server ────
+    $post = http_build_query([
+        'csrf_token'              => $csrf,
+        'selected-captcha'        => 'turnstile',
+        'g-recaptcha-response'    => '',            // harus ada tapi kosong
+        'cf-turnstile-response'   => $token,        // token turnstile
     ]);
+
+    info("FAUCET", "POST /faucet/ (AJAX)");
+    $r2 = req(HOST . "/faucet/", $post, [], "POST", true);
 
     if ($r2["body"] === "") {
         err("FAUCET", "POST kosong: " . $r2["err"]);
@@ -551,7 +580,7 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
 
     $data = json_decode($r2["body"], true);
     if (!is_array($data)) {
-        warn("FAUCET", "response bukan JSON: " . substr($r2["body"], 0, 100));
+        warn("FAUCET", "response bukan JSON: " . substr($r2["body"], 0, 120));
         return "skip";
     }
 
@@ -559,6 +588,7 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         $msg = $data['message'] ?? 'unknown';
         warn("FAUCET", "claim fail: $msg");
         if (stripos($msg, 'daily limit') !== false) return "limit";
+        if (stripos($msg, 'captcha') !== false)     return "skip";
         return "skip";
     }
 
@@ -575,7 +605,7 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
     $balance = getBalanceFromHome($rb["body"]) ?? '?';
 
     boxClaim("FAUCET CLAIM", [
-        "Captcha" => "$captchaMethod (attempts: " . $sol['attempts'] . ")",
+        "Captcha" => "turnstile",
         "Reward"  => "$reward ACP",
         "Fuel"    => $fuel,
         "Balance" => $balance,
@@ -597,17 +627,16 @@ function shortCookie($c) {
     return substr($c, 0, 20) . "..." . substr($c, -15);
 }
 
-function mainMenu($cookiePreview, $captchaMethod) {
+function mainMenu($cookiePreview) {
     global $white, $cyan, $gray, $orange, $magenta, $reset;
     echo "\n";
     echo "  " . $white . "Cookie" . $reset . " : " . $cyan . $cookiePreview . $reset . "\n";
-    echo "  " . $white . "Captcha" . $reset . " : " . $magenta . strtoupper($captchaMethod) . $reset . "\n";
+    echo "  " . $white . "Captcha" . $reset . " : " . $magenta . "TURNSTILE (locked)" . $reset . "\n";
     echo "  " . $gray . str_repeat("─", 58) . $reset . "\n";
     echo "    " . $orange . "[1]" . $reset . " Start faucet claim\n";
     echo "    " . $orange . "[2]" . $reset . " Edit config\n";
     echo "    " . $orange . "[3]" . $reset . " Reset config\n";
     echo "    " . $orange . "[4]" . $reset . " Check Solver Balance\n";
-    echo "    " . $orange . "[5]" . $reset . " Pilih Captcha (hCaptcha/Turnstile)\n";
     echo "    " . $gray . "[0]" . $reset . " Exit\n";
     echo "  " . $gray . ">> " . $reset;
     $in = fgets(STDIN);
@@ -634,7 +663,6 @@ while (true) {
     $apikey        = $config['apikey'];
     $cookies       = $config['cookies'] ?? "";
     $user_agent    = $config['user_agent'] ?? "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36";
-    $captchaMethod = $config['captcha_method'] ?? 'hcaptcha';
 
     $GLOBALS['apikey']     = $apikey;
     $GLOBALS['cookies']    = $cookies;
@@ -642,7 +670,7 @@ while (true) {
 
     clear();
     banner();
-    $choice = mainMenu(shortCookie($cookies), $captchaMethod);
+    $choice = mainMenu(shortCookie($cookies));
 
     if ($choice === "0") {
         echo "\n  \033[1;33mBye bos.\033[0m\n";
@@ -676,30 +704,10 @@ while (true) {
         fgets(STDIN);
         continue;
     }
-    if ($choice === "5") {
-        clear();
-        banner("PILIH CAPTCHA METHOD");
-        echo "\n";
-        echo "    " . $orange . "[1]" . $reset . " hCaptcha (default)\n";
-        echo "    " . $orange . "[2]" . $reset . " Turnstile\n";
-        echo "  " . $gray . ">> " . $reset;
-        $c = trim(fgets(STDIN));
-        if ($c === "1") $config['captcha_method'] = 'hcaptcha';
-        elseif ($c === "2") $config['captcha_method'] = 'turnstile';
-        else {
-            warn("CONFIG", "pilihan invalid");
-            sleep(1);
-            continue;
-        }
-        saveConfig($configFile, $config);
-        ok("CONFIG", "captcha method → " . strtoupper($config['captcha_method']));
-        sleep(1);
-        continue;
-    }
 
     // ============ [1] START ============
     clear();
-    banner("FAUCET CLAIM RUNNING [" . strtoupper($captchaMethod) . "]");
+    banner("FAUCET CLAIM RUNNING [TURNSTILE]");
 
     $check = checkBalance();
     if (!$check["ok"]) {
@@ -717,7 +725,7 @@ while (true) {
 
     echo "\n";
     echo $orange . "  ══════════════════════════════════════════════════════════" . $reset . "\n";
-    echo $orange . "   AUTO CLAIM STARTING — " . strtoupper($captchaMethod) . $reset . "\n";
+    echo $orange . "   AUTO CLAIM STARTING — TURNSTILE" . $reset . "\n";
     echo $orange . "  ══════════════════════════════════════════════════════════" . $reset . "\n";
 
     $round = 0;
@@ -727,7 +735,7 @@ while (true) {
         $round++;
         echo "\n" . $cyan . "  ╭─────── ROUND #$round ─── " . date("H:i:s") . " ───────╮" . $reset . "\n";
 
-        $r = stepFaucet($captchaMethod);
+        $r = stepFaucet();
 
         if ($r === "expired") {
             echo $cyan . "  ╰─────────────────────────────────────────╯" . $reset . "\n";
