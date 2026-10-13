@@ -89,61 +89,56 @@
           "runner": "php"
         },
         "12": {
-          "label": "FireFaucet 🔴",
-          "file": "FireFaucet.php",
-          "runner": "php"
-        },
-        "13": {
           "label": "Earnbitmoon 🟢",
           "file": "Earnbitmoon.php",
           "runner": "php"
         },
-        "14": {
+        "13": {
           "label": "BullyDAO 🔴",
           "file": "Dao.py",
           "runner": "python"
         },
-        "15": {
+        "14": {
           "label": "PayubVideo 🟡",
           "file": "Payub.php",
           "runner": "php"
         },
-        "16": {
+        "15": {
           "label": "BuxFaucet 🔴",
           "file": "buxfaucet.php",
           "runner": "php"
         },
-        "17": {
+        "16": {
           "label": "Coinadster 🟡",
           "file": "coinadster.php",
           "runner": "php"
         },
-        "18": {
+        "17": {
           "label": "TRXMiner 🟢",
           "file": "trxminer.py",
           "runner": "python3"
         },
-        "19": {
+        "18": {
           "label": "DRFaucet 🟢",
           "file": "DrFaucet.py",
           "runner": "python3"
         },
-        "20": {
+        "19": {
           "label": "GainLTC 🟢",
           "file": "GainLTC.py",
           "runner": "python3"
         },
-        "21": {
+        "20": {
           "label": "Coming Soon 🟡",
           "file": "FaucetPepe.php",
           "runner": "php"
         },
-        "22": {
+        "21": {
           "label": "Mama Aku Punya Grup besar🔵",
           "file": "ComingSoon4.php",
           "runner": "php"
         },
-        "23": {
+        "22": {
           "label": "Mama Aku punya teman Hebat 🔵",
           "file": "ComingSoon5.php",
           "runner": "php"
