@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Auto bot"""
+"""BullyDao Auto Bot v2 — Fixed Faucet Parser"""
 
 import json
 import os
@@ -13,18 +13,21 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
-# ==================== CONFIG LOCATION ====================
+# ==================== CONFIG ====================
 SCRIPT_DIR  = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "bconfig.json"
 
 BASE       = "https://bullydao.org"
 SOLVER_IN  = "https://api.waryono.my.id/in.php"
 SOLVER_RES = "https://api.waryono.my.id/res.php"
-SITEKEY    = "0x4AAAAAAExQ_oRN72W6jvby"
+
+# Fallback kalau auto-detect gagal
+SITEKEY_FALLBACK = "0x4AAAAAAExQ_oRN72W6jvby"
 
 DEFAULT_CONFIG = {
-    "k": "",                # waryono apikey
-    "u": "",                # email
+    "k": "",                        # waryono apikey
+    "u": "",                        # email
+    "cookies_extra": "",            # optional: aqua_device_token=xxx; faucet_saved_wallet=yyy
     "enable_auto_login": True,
     "enable_faucet": True,
     "enable_jackpot": True,
@@ -50,7 +53,7 @@ class C:
     CYAN = "\033[96m"; MAGENTA = "\033[95m"; BLUE = "\033[94m"
     WHITE = "\033[97m"; GRAY = "\033[90m"
 
-SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+SPINNER = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 _spin_idx = 0
 _spin_lock = threading.Lock()
 
@@ -64,9 +67,12 @@ STATE = {
     "jackpot_claimed": 0,
     "jackpot_coins": 0,
     "faucet_coins": 0,
+    "daily_used": 0,
+    "daily_limit": 0,
     "logged_in": False,
     "started_at": time.time(),
     "relogin_count": 0,
+    "sitekey": SITEKEY_FALLBACK,
 }
 
 current_cfg = None
@@ -96,17 +102,10 @@ def banner():
 
 def log(msg, level="info"):
     icons = {
-        "info":    f"{C.CYAN}ℹ{C.R}",
-        "ok":      f"{C.GREEN}✔{C.R}",
-        "warn":    f"{C.YELLOW}⚠{C.R}",
-        "err":     f"{C.RED}✖{C.R}",
-        "coin":    f"{C.YELLOW}🪙{C.R}",
-        "dice":    f"{C.MAGENTA}🎲{C.R}",
-        "auth":    f"{C.BLUE}🔐{C.R}",
-        "captcha": f"{C.BLUE}🛡 {C.R}",
-        "wait":    f"{C.GRAY}⏳{C.R}",
-        "bal":     f"{C.GREEN}💰{C.R}",
-        "sleep":   f"{C.GRAY}💤{C.R}",
+        "info": f"{C.CYAN}ℹ{C.R}", "ok": f"{C.GREEN}✔{C.R}", "warn": f"{C.YELLOW}⚠{C.R}",
+        "err": f"{C.RED}✖{C.R}", "coin": f"{C.YELLOW}🪙{C.R}", "dice": f"{C.MAGENTA}🎲{C.R}",
+        "auth": f"{C.BLUE}🔐{C.R}", "captcha": f"{C.BLUE}🛡 {C.R}", "wait": f"{C.GRAY}⏳{C.R}",
+        "bal": f"{C.GREEN}💰{C.R}", "sleep": f"{C.GRAY}💤{C.R}",
     }
     icon = icons.get(level, icons["info"])
     print(f"{C.GRAY}[{now_str()}]{C.R} {icon}  {msg}")
@@ -114,18 +113,6 @@ def log(msg, level="info"):
 def section(title):
     print(f"\n{C.BOLD}{C.GREEN}▸ {title}{C.R}")
     print(f"{C.GRAY}{'─' * 52}{C.R}")
-
-def spinner_line(text):
-    global _spin_idx
-    with _spin_lock:
-        frame = SPINNER[_spin_idx % len(SPINNER)]
-        _spin_idx += 1
-    sys.stdout.write(f"\r{C.CYAN}{frame}{C.R}  {text}   ")
-    sys.stdout.flush()
-
-def clear_line():
-    sys.stdout.write("\r" + " " * 120 + "\r")
-    sys.stdout.flush()
 
 def status_bar(cfg):
     now = time.time()
@@ -147,13 +134,13 @@ def status_bar(cfg):
     runtime = fmt_duration(time.time() - STATE["started_at"])
     auth_str = f"{C.GREEN}✓{C.R}" if STATE["logged_in"] else f"{C.RED}✗{C.R}"
 
+    daily = ""
+    if STATE["daily_limit"]:
+        daily = f"📅 {C.CYAN}{STATE['daily_used']}/{STATE['daily_limit']}{C.R}  "
+
     print(
-        f"{C.GRAY}│{C.R} "
-        f"{auth_str} auth  "
-        f"💰 {bal_str}  "
-        f"🚰 {f_str}  "
-        f"🎲 {j_str}  "
-        f"📊 F:{C.CYAN}{STATE['faucet_claimed']}{C.R}/J:{C.CYAN}{STATE['jackpot_claimed']}{C.R}  "
+        f"{C.GRAY}│{C.R} {auth_str} auth  💰 {bal_str}  🚰 {f_str}  🎲 {j_str}  "
+        f"{daily}📊 F:{C.CYAN}{STATE['faucet_claimed']}{C.R}/J:{C.CYAN}{STATE['jackpot_claimed']}{C.R}  "
         f"⏱ {C.CYAN}{runtime}{C.R}"
     )
 
@@ -184,10 +171,6 @@ def ensure_config():
             if k not in cfg:
                 cfg[k] = v
                 changed = True
-        for old in ("loop_delay", "waryono_apikey", "email"):
-            if old in cfg and old not in DEFAULT_CONFIG:
-                cfg.pop(old, None)
-                changed = True
         if changed:
             save_config(cfg)
         return cfg
@@ -209,6 +192,7 @@ def menu():
     print(f"  {C.YELLOW}[1]{C.R} Start Bot")
     print(f"  {C.YELLOW}[2]{C.R} Set API Key")
     print(f"  {C.YELLOW}[3]{C.R} Set Email")
+    print(f"  {C.YELLOW}[4]{C.R} Set Extra Cookies (opsional)")
     print(f"  {C.YELLOW}[0]{C.R} Exit")
     print()
     try:
@@ -217,13 +201,14 @@ def menu():
         return "0"
     return choice
 
-def menu_config_field(label, key):
+def menu_config_field(label, key, is_secret=False):
     banner()
     section(f"Set {label}")
     cfg = load_config() or dict(DEFAULT_CONFIG)
     current = cfg.get(key, "")
     if current:
-        print(f"{C.GRAY}Current: {C.CYAN}{current}{C.R}")
+        disp = current if not is_secret else current[:12] + "..."
+        print(f"{C.GRAY}Current: {C.CYAN}{disp}{C.R}")
 
     try:
         val = input(f"  {C.CYAN}{label}{C.R} (empty=skip): ").strip()
@@ -251,15 +236,16 @@ def menu_loop():
                 print(f"{C.RED}Belum lengkap:{C.R} {', '.join(missing)}")
                 time.sleep(2)
                 continue
-            # Map short keys ke field farming
             full = dict(cfg)
             full["waryono_apikey"] = cfg.get("k", "")
             full["email"] = cfg.get("u", "")
             return full
         elif choice == "2":
-            menu_config_field("API Key", "k")
+            menu_config_field("API Key", "k", is_secret=True)
         elif choice == "3":
             menu_config_field("Email", "u")
+        elif choice == "4":
+            menu_config_field("Extra cookies (format: a=b; c=d)", "cookies_extra")
         elif choice == "0":
             return None
         else:
@@ -291,7 +277,7 @@ def solver_jitter(cfg, label="solver pause"):
     time.sleep(d)
 
 # ==================== HTTP ====================
-def make_session():
+def make_session(extra_cookies=""):
     s = requests.Session()
     s.headers.update({
         "User-Agent": (
@@ -299,18 +285,21 @@ def make_session():
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/127.0.0.0 Mobile Safari/537.36"
         ),
-        "Accept": (
-            "text/html,application/xhtml+xml,application/xml;q=0.9,"
-            "image/avif,image/webp,image/apng,*/*;q=0.8,"
-            "application/signed-exchange;v=b3;q=0.7"
-        ),
         "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
         "sec-ch-ua": '"Chromium";v="127", "Not)A;Brand";v="99", "Microsoft Edge Simulate";v="127", "Lemur";v="127"',
         "sec-ch-ua-mobile": "?1",
         "sec-ch-ua-platform": '"Android"',
         "Origin": BASE,
-        "Upgrade-Insecure-Requests": "1",
     })
+
+    # inject extra cookies
+    if extra_cookies:
+        for part in extra_cookies.split(";"):
+            part = part.strip()
+            if "=" in part:
+                k, v = part.split("=", 1)
+                s.cookies.set(k.strip(), v.strip(), domain="bullydao.org")
+
     return s
 
 def check_http(r, context="request"):
@@ -327,9 +316,10 @@ def check_http(r, context="request"):
     return None
 
 # ==================== WARYONO ====================
-def solve_turnstile(cfg, action="", cdata=None):
+def solve_turnstile(cfg, action="", cdata=None, sitekey=None, pageurl=None):
     apikey = cfg["waryono_apikey"]
     label = action or "default"
+    sk = sitekey or STATE["sitekey"]
     log(f"Solve Turnstile [{label}]", "captcha")
 
     solver_jitter(cfg, "pre-solve pause")
@@ -338,13 +328,15 @@ def solve_turnstile(cfg, action="", cdata=None):
         "apikey": apikey,
         "methods": "turnstile",
         "domain": BASE,
-        "sitekey": SITEKEY,
+        "sitekey": sk,
         "json": 1,
     }
     if action:
         payload["action"] = action
     if cdata:
         payload["cdata"] = cdata
+    if pageurl:
+        payload["pageurl"] = pageurl
 
     try:
         r = requests.post(SOLVER_IN, json=payload, timeout=60)
@@ -412,14 +404,16 @@ def solve_turnstile(cfg, action="", cdata=None):
 
 # ==================== PARSER ====================
 def parse_balance(html):
+    """Available Balance — sesuaikan sama layout bullydao."""
     idx = html.find("Available Balance")
     if idx == -1:
         return None
 
-    chunk = html[idx:idx + 800]
+    chunk = html[idx:idx + 1200]
 
+    # <span class="text-3xl sm:text-5xl font-black font-mono text-white tracking-tight">240.00</span>
     m = re.search(
-        r'<span[^>]*class="[^"]*text-(?:3|4|5)xl[^"]*"[^>]*>\s*([\d,]+(?:\.\d+)?)\s*</span>',
+        r'<span[^>]*class="[^"]*(?:text-3xl|text-4xl|text-5xl)[^"]*"[^>]*>\s*([\d,]+(?:\.\d+)?)\s*</span>',
         chunk,
     )
     if m:
@@ -437,23 +431,35 @@ def parse_balance(html):
 
     return None
 
-def parse_faucet_cooldown(html):
-    m = re.search(r"Next Claim in[^\d]{0,15}(\d{1,2}):(\d{2})", html)
+def parse_daily_limit(html):
+    """Daily Limit: 49/50"""
+    m = re.search(r"Daily Limit:\s*<[^>]*>(\d+)\s*/\s*(\d+)", html)
     if m:
-        return int(m.group(1)) * 60 + int(m.group(2))
+        return int(m.group(1)), int(m.group(2))
+    m = re.search(r"Daily Limit:\s*(\d+)\s*/\s*(\d+)", html)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None
 
+def parse_faucet_cooldown(html):
+    """Bullydao pakai `let timeLeft = N;` — itu sumber utama."""
     m = re.search(r"let\s+timeLeft\s*=\s*(\d+)", html)
     if m:
         return int(m.group(1))
 
+    # Fallback: Next Claim in MM:SS
+    m = re.search(r"Next Claim in[^\d]{0,15}(\d{1,2}):(\d{2})", html)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+
+    # Fallback: `<span id="faucetCountdown">05:00</span>`
+    m = re.search(r'id="faucetCountdown"[^>]*>(\d{1,2}):(\d{2})', html)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+
+    # Ready state
     if "Ready to Claim" in html:
         return 0
-
-    if "Cooldown Active" in html:
-        m2 = re.search(r"(\d{1,2}):(\d{2})", html)
-        if m2:
-            return int(m2.group(1)) * 60 + int(m2.group(2))
-        return None
 
     return None
 
@@ -463,6 +469,16 @@ def parse_jackpot_cooldown(html):
         return int(m.group(1))
     if "Ready to Roll" in html:
         return 0
+    return None
+
+def parse_turnstile_sitekey(html):
+    """Auto-detect turnstile sitekey dari /faucet."""
+    m = re.search(r'data-sitekey=["\'](0x[A-Za-z0-9_\-]{20,})["\']', html)
+    if m:
+        return m.group(1)
+    m = re.search(r'cf-turnstile[^>]*data-sitekey=["\'](0x[A-Za-z0-9_\-]{20,})', html)
+    if m:
+        return m.group(1)
     return None
 
 # ==================== LOGIN DETECTION ====================
@@ -532,7 +548,20 @@ def sync_faucet_cooldown(session, cfg):
             log(err[1], "warn")
             return None
 
-        cd = parse_faucet_cooldown(r.text)
+        html = r.text
+
+        # auto-detect sitekey
+        sk = parse_turnstile_sitekey(html)
+        if sk and sk != STATE["sitekey"]:
+            STATE["sitekey"] = sk
+            log(f"Sitekey: {sk[:20]}...", "captcha")
+
+        # daily limit
+        dl = parse_daily_limit(html)
+        if dl:
+            STATE["daily_used"], STATE["daily_limit"] = dl
+
+        cd = parse_faucet_cooldown(html)
         if cd is None:
             log("Faucet cooldown tidak terdeteksi", "warn")
             return None
@@ -585,8 +614,19 @@ def verify_session(session, cfg):
 def do_login(session, cfg):
     log("Auto login...", "auth")
 
+    # fetch root dulu (biar dapat aqua_device_token dsb)
     try:
-        token = solve_turnstile(cfg, cfg.get("turnstile_action_login", ""), cdata=None)
+        session.get(f"{BASE}/", timeout=30)
+    except Exception:
+        pass
+
+    try:
+        token = solve_turnstile(
+            cfg,
+            cfg.get("turnstile_action_login", ""),
+            sitekey=STATE["sitekey"],
+            pageurl=f"{BASE}/",
+        )
     except Exception as e:
         log(f"Turnstile login error: {e}", "err")
         return False
@@ -634,8 +674,26 @@ def do_login(session, cfg):
 def do_faucet(session, cfg):
     log("Faucet claim...", "coin")
 
+    # refresh halaman dulu — pastikan masih ready + auto-detect sitekey
     try:
-        token = solve_turnstile(cfg, cfg.get("turnstile_action_faucet", ""))
+        r0 = session.get(f"{BASE}/faucet", timeout=30, allow_redirects=True)
+        if r0.ok:
+            sk = parse_turnstile_sitekey(r0.text)
+            if sk:
+                STATE["sitekey"] = sk
+            dl = parse_daily_limit(r0.text)
+            if dl:
+                STATE["daily_used"], STATE["daily_limit"] = dl
+    except Exception:
+        pass
+
+    try:
+        token = solve_turnstile(
+            cfg,
+            cfg.get("turnstile_action_faucet", ""),
+            sitekey=STATE["sitekey"],
+            pageurl=f"{BASE}/faucet",
+        )
     except Exception as e:
         log(f"Turnstile faucet error: {e}", "err")
         return 60
@@ -653,7 +711,15 @@ def do_faucet(session, cfg):
             allow_redirects=True,
             headers={
                 "Referer": f"{BASE}/faucet",
+                "Origin": BASE,
+                "Cache-Control": "max-age=0",
+                "Upgrade-Insecure-Requests": "1",
                 "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-User": "?1",
+                "Sec-Fetch-Dest": "document",
             },
         )
     except Exception as e:
@@ -667,26 +733,38 @@ def do_faucet(session, cfg):
 
     html = r.text
 
-    if not is_account_page(html) and 'name="action_auth"' in html:
+    # session expired → login page
+    if 'name="action_auth"' in html and not is_account_page(html):
         log("Faucet: session expired", "warn")
         STATE["logged_in"] = False
         return 30
 
+    # === 1. SUCCESS DETECTION ===
+    # Format: "+20 DAO Coins added to your balance!"
     m = re.search(r"\+(\d+)\s*DAO\s*Coins\s*added", html, re.IGNORECASE)
     if m:
         coins = int(m.group(1))
         STATE["faucet_claimed"] += 1
         STATE["faucet_coins"] += coins
+        STATE["daily_used"] += 1
         log(f"Faucet ✓ +{coins} DAO", "ok")
 
+        # cooldown setelah success
         cd = parse_faucet_cooldown(html)
         if cd is None or cd <= 0:
             cd = int(cfg.get("faucet_cooldown_default", 300))
         STATE["faucet_next_at"] = time.time() + cd
+
+        # update daily
+        dl = parse_daily_limit(html)
+        if dl:
+            STATE["daily_used"], STATE["daily_limit"] = dl
+
         log(f"Faucet next: {fmt_duration(cd)}", "wait")
         return cd
 
-    if "Cooldown Active" in html or "Next Claim in" in html:
+    # === 2. COOLDOWN DETECTION ===
+    if "Cooldown Active" in html or "Next Claim in" in html or re.search(r"let\s+timeLeft\s*=\s*\d+", html):
         cd = parse_faucet_cooldown(html)
         if cd is None or cd <= 0:
             cd = int(cfg.get("faucet_cooldown_default", 300))
@@ -694,7 +772,20 @@ def do_faucet(session, cfg):
         log(f"Faucet cooldown: {fmt_duration(cd)}", "wait")
         return cd
 
-    m = re.search(r'class="[^"]*red[^"]*"[^>]*>([^<]{5,150})', html)
+    # === 3. DAILY LIMIT ===
+    if "Daily limit reached" in html or "limit reached" in html.lower():
+        log("Faucet: daily limit reached", "warn")
+        return 3600
+
+    # === 4. ERROR MESSAGE ===
+    m = re.search(r'class="[^"]*red[^"]*"[^>]*>([^<]{5,200})', html)
+    if m:
+        msg = m.group(1).strip()[:150]
+        log(f"Faucet: {msg}", "warn")
+        return 60
+
+    # === 5. FALLBACK: cek alert div pada umumnya ===
+    m = re.search(r'<div[^>]*alert[^>]*>([^<]{5,200})', html, re.IGNORECASE)
     if m:
         log(f"Faucet: {m.group(1).strip()[:150]}", "warn")
         return 60
@@ -707,26 +798,33 @@ def do_jackpot(session, cfg):
     log("Jackpot roll...", "dice")
 
     try:
-        token = solve_turnstile(cfg, cfg.get("turnstile_action_jackpot", ""))
+        token = solve_turnstile(
+            cfg,
+            cfg.get("turnstile_action_jackpot", ""),
+            sitekey=STATE["sitekey"],
+            pageurl=f"{BASE}/jackpot",
+        )
     except Exception as e:
         log(f"Turnstile jackpot error: {e}", "err")
         return 60
 
-    files = {
-        "action_spin":           (None, "1"),
-        "cf-turnstile-response": (None, token),
+    # PENTING: pakai form data, bukan multipart (files=...)
+    data = {
+        "action_spin": "1",
+        "cf-turnstile-response": token,
     }
 
     try:
         r = session.post(
             f"{BASE}/jackpot",
-            files=files,
+            data=data,
             timeout=45,
             headers={
                 "Referer": f"{BASE}/jackpot",
                 "Origin": BASE,
-                "Accept": "*/*",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
                 "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             },
         )
     except Exception as e:
@@ -760,7 +858,7 @@ def do_jackpot(session, cfg):
     status = data.get("status")
 
     if status == "success":
-        num   = data.get("num", "?")
+        num = data.get("num", "?")
         try:
             coins = int(data.get("coins", 0))
         except (TypeError, ValueError):
@@ -837,8 +935,7 @@ def wait_until(target_ts):
         left = target_ts - time.time()
         if left <= 0:
             break
-        chunk = min(left, 5.0)
-        time.sleep(chunk)
+        time.sleep(min(left, 5.0))
 
 # ==================== SUMMARY ====================
 def print_summary():
@@ -866,12 +963,15 @@ def run_bot(cfg):
     log("Bot start", "ok")
     log(f"Email: {cfg['email']}", "info")
 
-    session = make_session()
+    session = make_session(cfg.get("cookies_extra", ""))
     session_check_every = int(cfg.get("session_check_every", 10))
     hd_min = float(cfg.get("human_delay_min", 20))
     hd_max = float(cfg.get("human_delay_max", 60))
 
     STATE["started_at"] = time.time()
+
+    # set sitekey awal (fallback)
+    STATE["sitekey"] = SITEKEY_FALLBACK
 
     if cfg.get("enable_auto_login", True):
         ok = False
