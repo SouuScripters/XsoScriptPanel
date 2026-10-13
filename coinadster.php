@@ -10,11 +10,15 @@
  *  - CSRF auto-retry kalau token expired antar request
  *  - Runtime: UNLIMITED (ikut limit server)
  *  - Human delay: 3-7s di tiap step penting
+ *  - PHP 8.5 deprecation warning fix (curl_close removed)
  *  By Power @MoneyMaker_w
  * ═══════════════════════════════════════════════════════════════
  */
 
 if (PHP_VERSION_ID < 80000) { fwrite(STDERR, "PHP 8.0+ required\n"); exit(1); }
+
+// Sembunyiin deprecation warning (PHP 8.5+)
+error_reporting(E_ALL & ~E_DEPRECATED);
 
 // ═══════════════════════════════════════════════════════════════
 //  COLORS
@@ -107,7 +111,7 @@ function render(): void {
 
     echo "\n".$top."\n";
     echo $line(BOLD.WHT."COINADSTER AUTO CLAIM".RST)."\n";
-    echo $line(DIM."─────── SOUU ENGINE v1.4 ───────".RST)."\n";
+    echo $line(DIM."─────── SOUU ENGINE v1.5 ───────".RST)."\n";
     echo $mid."\n";
 
     $hs_color=GRN; $hs_label='ONLINE';
@@ -228,7 +232,7 @@ function curl_request($url, $method = 'GET', $data = [], $headers = [], $nofollo
     }
     curl_setopt_array($ch, $opts);
     $resp = curl_exec($ch);
-    curl_close($ch);
+    // curl_close() dihapus — deprecated di PHP 8.5, auto-GC sejak PHP 8.0
     return $resp ?: "";
 }
 
@@ -294,12 +298,8 @@ function headers_ajax($referer = null) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  CSRF EXTRACT HELPERS  (FIX v1.4)
+//  CSRF EXTRACT HELPERS
 // ═══════════════════════════════════════════════════════════════
-/**
- * Extract value dari <input> berdasarkan id atau name.
- * Handle 2 urutan attribute (id dulu, atau value dulu).
- */
 function extract_hidden_token($html, $id = null, $name = null) {
     if ($id) {
         $qid = preg_quote($id, '/');
@@ -314,20 +314,13 @@ function extract_hidden_token($html, $id = null, $name = null) {
     return null;
 }
 
-/**
- * Extract token CSRF untuk login modal.
- * Utama: id="ghadutmtbua". Fallback: scan semua input hidden hex 60+ char.
- * Skip register token (ab4tgmx8puzi5ju).
- */
 function extract_login_csrf($html) {
-    // Utama
     $tok = extract_hidden_token($html, 'ghadutmtbua');
     if ($tok && preg_match('/^[a-f0-9]{32,}$/i', $tok)) return $tok;
 
-    // Fallback: name="token" atau id apa pun dengan value hex panjang
     if (preg_match_all('/<input[^>]*\bid=["\']([a-z0-9]+)["\'][^>]*\bvalue=["\']([a-f0-9]{60,})["\']/i', $html, $matches, PREG_SET_ORDER)) {
         foreach ($matches as $m) {
-            if (strcasecmp($m[1], 'ab4tgmx8puzi5ju') === 0) continue; // skip register token
+            if (strcasecmp($m[1], 'ab4tgmx8puzi5ju') === 0) continue;
             return $m[2];
         }
         return $matches[0][2];
@@ -415,7 +408,6 @@ function do_login($apikey, $email, $password) {
             sleep(5); continue;
         }
 
-        // ── CSRF FIX ──
         $token = extract_login_csrf($home);
         if (!$token) {
             slog("gagal parse CSRF login (id=ghadutmtbua)", 'ERR');
@@ -480,7 +472,6 @@ function do_login($apikey, $email, $password) {
             exit;
         }
 
-        // CSRF expired → refetch
         if (stripos($msg, 'token') !== false
          || stripos($msg, 'csrf') !== false
          || stripos($msg, 'expired') !== false
@@ -550,7 +541,6 @@ function do_faucet_claim($apikey) {
         return ['status' => 'cooldown', 'wait' => intval($cd[1] ?? 300)];
     }
 
-    // ── CSRF FIX: pakai helper ──
     $csrf_token = extract_hidden_token($html, null, 'csrf_token');
     if (!$csrf_token) return 'PARSE_FAIL:csrf_token';
 
@@ -636,12 +626,10 @@ function do_faucet_claim($apikey) {
         true
     );
 
-    // ── Sukses ──
     if (preg_match("~<div class='alert alert-success'>([^<]+)</div>~", $resp, $ok)) {
         return ['status' => 'success', 'msg' => trim($ok[1])];
     }
 
-    // ── CSRF expired → retry ──
     if (stripos($resp, 'token mismatch') !== false
         || stripos($resp, 'csrf') !== false && stripos($resp, 'invalid') !== false
         || (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)
@@ -652,7 +640,6 @@ function do_faucet_claim($apikey) {
         return ['status' => 'too_fast', 'msg' => 'csrf_retry'];
     }
 
-    // ── Error handling umum ──
     if (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)) {
         $msg = trim(strip_tags($err[1]));
 
@@ -723,7 +710,7 @@ function setup(): array {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LIVE WAIT (replace log, no spam)
+//  LIVE WAIT
 // ═══════════════════════════════════════════════════════════════
 function live_wait(int $seconds, string $label = "cooldown", string $extra = ""): void {
     global $STATE;
