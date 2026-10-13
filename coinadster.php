@@ -2,15 +2,14 @@
 <?php
 /**
  * ═══════════════════════════════════════════════════════════════
- *  COINADSTER.com Auto Claim Bot v1.3 (Clean UI)
+ *  COINADSTER.com Auto Claim Bot v1.4 (CSRF FIX)
  *  - Auto login via email + password
  *  - Turnstile / hCaptcha solver via Waryono
  *  - Faucet claim with math anti-bot (sc_a + sc_b + 1234)
- *  - UI style: LimeFaucet clean box
+ *  - CSRF extract helper (handle 2 attribute order)
+ *  - CSRF auto-retry kalau token expired antar request
  *  - Runtime: UNLIMITED (ikut limit server)
  *  - Human delay: 3-7s di tiap step penting
- *  - FIX: countdown log replace (gak spam)
- *  - FIX: max_failures = 2
  *  By Power @MoneyMaker_w
  * ═══════════════════════════════════════════════════════════════
  */
@@ -29,7 +28,7 @@ function vlen(string $s): int { return mb_strlen(preg_replace('/\033\[[0-9;]*m/'
 function pad_to(string $s, int $w): string { return $s . str_repeat(' ', max(0, $w - vlen($s))); }
 
 // ═══════════════════════════════════════════════════════════════
-//  HUMAN DELAY HELPER
+//  HUMAN DELAY
 // ═══════════════════════════════════════════════════════════════
 function human_delay(int $extra_sec = 0): void {
     $base = rand(3, 7);
@@ -48,7 +47,7 @@ $STATE = [
     'claims'        => 0,
     'rewards'       => 0,
     'failures'      => 0,
-    'max_failures'  => 2,          // ← diubah dari 5 jadi 2
+    'max_failures'  => 2,
     'solve_attempt' => 0,
     'max_solve'     => 3,
     'runtime_start' => time(),
@@ -59,7 +58,7 @@ $STATE = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-//  LOG HELPER — support replace last
+//  LOG
 // ═══════════════════════════════════════════════════════════════
 function _log_tags(): array {
     return [
@@ -71,11 +70,6 @@ function _log_tags(): array {
     ];
 }
 
-/**
- * Push log baru (default).
- * Kalau $replace_last = true DAN log terakhir punya tag WAIT, replace log terakhir.
- * Ini biar countdown gak spam banyak baris.
- */
 function slog(string $msg, string $level = 'INFO', bool $replace_last = false): void {
     global $STATE;
     $ts = date('H:i:s');
@@ -85,7 +79,6 @@ function slog(string $msg, string $level = 'INFO', bool $replace_last = false): 
 
     if ($replace_last && !empty($STATE['logs'])) {
         $idx = count($STATE['logs']) - 1;
-        // Cek apakah log terakhir punya tag WAIT (biar cuma replace WAIT yg sama)
         if (strpos($STATE['logs'][$idx], $tags['WAIT']) !== false
             || strpos($STATE['logs'][$idx], $tags['HUMAN']) !== false) {
             $STATE['logs'][$idx] = $new;
@@ -114,7 +107,7 @@ function render(): void {
 
     echo "\n".$top."\n";
     echo $line(BOLD.WHT."COINADSTER AUTO CLAIM".RST)."\n";
-    echo $line(DIM."─────── SOUU ENGINE ───────".RST)."\n";
+    echo $line(DIM."─────── SOUU ENGINE v1.4 ───────".RST)."\n";
     echo $mid."\n";
 
     $hs_color=GRN; $hs_label='ONLINE';
@@ -301,6 +294,48 @@ function headers_ajax($referer = null) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  CSRF EXTRACT HELPERS  (FIX v1.4)
+// ═══════════════════════════════════════════════════════════════
+/**
+ * Extract value dari <input> berdasarkan id atau name.
+ * Handle 2 urutan attribute (id dulu, atau value dulu).
+ */
+function extract_hidden_token($html, $id = null, $name = null) {
+    if ($id) {
+        $qid = preg_quote($id, '/');
+        if (preg_match('/<input[^>]*\bid=["\']'.$qid.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i', $html, $m)) return $m[1];
+        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bid=["\']'.$qid.'["\']/i', $html, $m)) return $m[1];
+    }
+    if ($name) {
+        $qn = preg_quote($name, '/');
+        if (preg_match('/<input[^>]*\bname=["\']'.$qn.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i', $html, $m)) return $m[1];
+        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bname=["\']'.$qn.'["\']/i', $html, $m)) return $m[1];
+    }
+    return null;
+}
+
+/**
+ * Extract token CSRF untuk login modal.
+ * Utama: id="ghadutmtbua". Fallback: scan semua input hidden hex 60+ char.
+ * Skip register token (ab4tgmx8puzi5ju).
+ */
+function extract_login_csrf($html) {
+    // Utama
+    $tok = extract_hidden_token($html, 'ghadutmtbua');
+    if ($tok && preg_match('/^[a-f0-9]{32,}$/i', $tok)) return $tok;
+
+    // Fallback: name="token" atau id apa pun dengan value hex panjang
+    if (preg_match_all('/<input[^>]*\bid=["\']([a-z0-9]+)["\'][^>]*\bvalue=["\']([a-f0-9]{60,})["\']/i', $html, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $m) {
+            if (strcasecmp($m[1], 'ab4tgmx8puzi5ju') === 0) continue; // skip register token
+            return $m[2];
+        }
+        return $matches[0][2];
+    }
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  WARYONO SOLVER
 // ═══════════════════════════════════════════════════════════════
 function solve_captcha($apikey, $sitekey, $method = 'turnstile', $domain = host) {
@@ -374,14 +409,28 @@ function do_login($apikey, $email, $password) {
         human_delay();
 
         $home = curl_request(host."/", "GET", [], headers_html());
-        if (!preg_match('/id="tbkjja65ot7"\s+value="([^"]+)"/', $home, $m)) {
-            if (!preg_match('/id="[a-z0-9]+"\s+value="([a-f0-9]{60,})"/', $home, $m)) {
-                slog("gagal parse CSRF login", 'ERR');
-                clear_render();
-                sleep(3); continue;
-            }
+        if ($home === "" || strlen($home) < 500) {
+            slog("home response kosong, retry...", 'ERR');
+            clear_render();
+            sleep(5); continue;
         }
-        $token = $m[1];
+
+        // ── CSRF FIX ──
+        $token = extract_login_csrf($home);
+        if (!$token) {
+            slog("gagal parse CSRF login (id=ghadutmtbua)", 'ERR');
+            if (DEBUG) {
+                if (preg_match_all('/<input[^>]*id="[^"]+"[^>]*value="[^"]*"/i', $home, $mm)) {
+                    foreach (array_slice($mm[0], 0, 5) as $s) {
+                        slog("input: ".substr($s, 0, 120), 'DEBUG');
+                    }
+                }
+            }
+            clear_render();
+            sleep(3); continue;
+        }
+        slog("login token: ".substr($token, 0, 20)."...", 'DEBUG');
+        clear_render();
 
         slog("human delay sebelum solve captcha...", 'HUMAN');
         clear_render();
@@ -412,6 +461,7 @@ function do_login($apikey, $email, $password) {
 
         if (!is_array($j)) {
             slog("response login bukan JSON", 'ERR');
+            if (DEBUG) slog("raw: ".substr(trim($resp), 0, 200), 'DEBUG');
             clear_render();
             sleep(5); continue;
         }
@@ -429,6 +479,18 @@ function do_login($apikey, $email, $password) {
             clear_render();
             exit;
         }
+
+        // CSRF expired → refetch
+        if (stripos($msg, 'token') !== false
+         || stripos($msg, 'csrf') !== false
+         || stripos($msg, 'expired') !== false
+         || stripos($msg, 'refresh') !== false) {
+            slog("CSRF expired, refetch halaman...", 'WARN');
+            clear_render();
+            sleep(2);
+            continue;
+        }
+
         slog("login gagal: ".trim($msg), 'ERR');
         clear_render();
         if (stripos($msg, 'password') !== false || stripos($msg, 'wrong') !== false) {
@@ -452,6 +514,7 @@ function get_balance() {
 
     if (preg_match("/var token = '([a-f0-9]+)';/", $home, $m)) $ajax_token = $m[1];
     if (preg_match('~id="sbBalanceBits">([^<]+)</span>~', $home, $m)) $bits = trim($m[1]);
+    if (preg_match('~id="bitBal">([^<]+)<~', $home, $m)) $bits = trim($m[1]);
     if (preg_match('~id="credBal">([^<]+)</span>~', $home, $m)) $credits = trim($m[1]);
 
     return [
@@ -487,16 +550,23 @@ function do_faucet_claim($apikey) {
         return ['status' => 'cooldown', 'wait' => intval($cd[1] ?? 300)];
     }
 
-    if (!preg_match('/name="csrf_token"\s+value="([^"]+)"/', $html, $m)) return 'PARSE_FAIL:csrf_token';
-    $csrf_token = $m[1];
-    if (!preg_match('/name="sc_ts"\s+value="([^"]+)"/', $html, $m)) return 'PARSE_FAIL:sc_ts';
-    $sc_ts = $m[1];
-    if (!preg_match('/name="sc_a"\s+id="sc_a_val"\s+value="(\d+)"/', $html, $m)) return 'PARSE_FAIL:sc_a';
-    $sc_a = intval($m[1]);
-    if (!preg_match('/name="sc_b"\s+id="sc_b_val"\s+value="(\d+)"/', $html, $m)) return 'PARSE_FAIL:sc_b';
-    $sc_b = intval($m[1]);
-    if (!preg_match('/name="sc_sig"\s+value="([^"]+)"/', $html, $m)) return 'PARSE_FAIL:sc_sig';
-    $sc_sig = $m[1];
+    // ── CSRF FIX: pakai helper ──
+    $csrf_token = extract_hidden_token($html, null, 'csrf_token');
+    if (!$csrf_token) return 'PARSE_FAIL:csrf_token';
+
+    $sc_ts  = extract_hidden_token($html, null, 'sc_ts');
+    if (!$sc_ts) return 'PARSE_FAIL:sc_ts';
+
+    $sc_a   = extract_hidden_token($html, 'sc_a_val');
+    if (!$sc_a) return 'PARSE_FAIL:sc_a';
+    $sc_a   = intval($sc_a);
+
+    $sc_b   = extract_hidden_token($html, 'sc_b_val');
+    if (!$sc_b) return 'PARSE_FAIL:sc_b';
+    $sc_b   = intval($sc_b);
+
+    $sc_sig = extract_hidden_token($html, null, 'sc_sig');
+    if (!$sc_sig) return 'PARSE_FAIL:sc_sig';
 
     $sc_res = $sc_a + $sc_b + 1234;
     slog("math: $sc_a + $sc_b + 1234 = $sc_res", 'INFO');
@@ -566,9 +636,23 @@ function do_faucet_claim($apikey) {
         true
     );
 
+    // ── Sukses ──
     if (preg_match("~<div class='alert alert-success'>([^<]+)</div>~", $resp, $ok)) {
         return ['status' => 'success', 'msg' => trim($ok[1])];
     }
+
+    // ── CSRF expired → retry ──
+    if (stripos($resp, 'token mismatch') !== false
+        || stripos($resp, 'csrf') !== false && stripos($resp, 'invalid') !== false
+        || (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)
+            && preg_match('/token|csrf|expired/i', $err[1]))
+    ) {
+        slog("CSRF expired → refetch form & retry", 'WARN');
+        clear_render();
+        return ['status' => 'too_fast', 'msg' => 'csrf_retry'];
+    }
+
+    // ── Error handling umum ──
     if (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)) {
         $msg = trim(strip_tags($err[1]));
 
@@ -639,21 +723,19 @@ function setup(): array {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  HELPER: cooldown live countdown (replace log, no spam)
+//  LIVE WAIT (replace log, no spam)
 // ═══════════════════════════════════════════════════════════════
 function live_wait(int $seconds, string $label = "cooldown", string $extra = ""): void {
     global $STATE;
     if ($seconds < 1) return;
     $STATE['faucet_status'] = 'cooldown';
 
-    /* Push log WAIT pertama (biar keliatan) */
     slog("{$label} ".fmt_dur($seconds).($extra ? " ({$extra})" : ""), 'WAIT');
     clear_render();
 
     $start = time();
     while ((time() - $start) < $seconds) {
         $left = $seconds - (time() - $start);
-        /* replace_last = true → cuma update 1 baris WAIT */
         slog("{$label} ".fmt_dur($left).($extra ? " ({$extra})" : ""), 'WAIT', true);
         clear_render();
         sleep(1);
@@ -775,6 +857,12 @@ while (true) {
             break;
 
         case 'too_fast':
+            if (($res['msg'] ?? '') === 'csrf_retry') {
+                slog("retry karena CSRF expired...", 'WARN');
+                clear_render();
+                sleep(2);
+                continue 2;
+            }
             slog("server bilang terlalu cepat, retry 5s...", 'WARN');
             clear_render();
             sleep(5);
