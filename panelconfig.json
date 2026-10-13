@@ -79,7 +79,7 @@
           "runner": "python3"
         },
         "10": {
-          "label": "LimeFaucet 🔴",
+          "label": "LimeFaucet 🟢",
           "file": "lime.php",
           "runner": "php"
         },
@@ -94,12 +94,12 @@
           "runner": "php"
         },
         "13": {
-          "label": "BullyDAO 🔴",
+          "label": "BullyDAO 🟢",
           "file": "Dao.py",
           "runner": "python"
         },
         "14": {
-          "label": "PayubVideo 🟡",
+          "label": "PayubVideo 🟢",
           "file": "Payub.php",
           "runner": "php"
         },
@@ -109,7 +109,7 @@
           "runner": "php"
         },
         "16": {
-          "label": "Coinadster 🟡",
+          "label": "Coinadster 🟢",
           "file": "coinadster.php",
           "runner": "php"
         },
@@ -129,18 +129,13 @@
           "runner": "python3"
         },
         "20": {
-          "label": "Coming Soon 🟡",
+          "label": "Coming Soon ",
           "file": "FaucetPepe.php",
           "runner": "php"
         },
         "21": {
-          "label": "Mama Aku Punya Grup besar🔵",
+          "label": "Mama Aku Punya Grup besar",
           "file": "ComingSoon4.php",
-          "runner": "php"
-        },
-        "22": {
-          "label": "Mama Aku punya teman Hebat 🔵",
-          "file": "ComingSoon5.php",
           "runner": "php"
         }
       }
@@ -254,12 +249,12 @@
           "runner": "python3"
         },
         "22": {
-          "label": "Mama Aku Di M7 🔴",
+          "label": "Mama Aku Di M7 ",
           "file": "ComingSoon1.php",
           "runner": "php"
         },
         "23": {
-          "label": "Mama Aku Owner ScriptyXSouu 🔵",
+          "label": "Mama Aku Owner ScriptyXSouu ",
           "file": "ComingSoon2.php",
           "runner": "php"
         }
