@@ -139,9 +139,9 @@
           "runner": "php"
         },
         "20": {
-          "label": "Mama Aku Punya Grup besar",
-          "file": "ComingSoon4.php",
-          "runner": "php"
+          "label": "MiniTasky 🟢",
+          "file": "MiniTasky.py",
+          "runner": "python3"
         }
       }
     },
