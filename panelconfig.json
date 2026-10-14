@@ -14,26 +14,21 @@
           "runner": "python3"
         },
         "3": {
-          "label": "ClaimX 🟢",
-          "file": "ClaimX.php",
-          "runner": "php"
-        },
-        "4": {
           "label": "Aruble 🟡",
           "file": "aruble.php",
           "runner": "php"
         },
-        "5": {
+        "4": {
           "label": "FreeFlareCrypto 🟢",
           "file": "FreeFlareCrypto.py",
           "runner": "python3"
         },
-        "6": {
+        "5": {
           "label": "HotFaucet 🟢",
           "file": "HotFaucet.py",
           "runner": "python3"
         },
-        "7": {
+        "6": {
           "label": "Coming Soon ⏳",
           "file": "ComingSoon6.php",
           "runner": "php"
