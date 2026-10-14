@@ -1,9 +1,7 @@
 <?php
 /**
- * altcryp.com faucet bot v8 FINAL
- * - TIDAK re-GET setelah wait (fix timer reset)
- * - Hitung 8s dari GET pertama sebelum POST
- * - Firewall bypass hanya kalau ke-detect
+ * altcryp.com faucet bot v10 FULL
+ * Menu awal + auto loop 60s + stop cuma 404
  * Credit: MoneyMaker_w
  */
 
@@ -12,7 +10,7 @@ date_default_timezone_set('Asia/Jakarta');
 
 $configFile = "config_altcryp.json";
 $debugLog   = "debug_altcryp.log";
-$DEBUG = true;
+$DEBUG = false;
 
 const RESET      = "\033[0m";
 const N_CYAN     = "\033[38;5;51m";
@@ -26,6 +24,7 @@ const N_ORANGE   = "\033[38;5;208m";
 const N_PURPLE   = "\033[38;5;129m";
 const N_WHITE    = "\033[38;5;231m";
 const N_GRAY     = "\033[38;5;245m";
+const BOLD       = "\033[1m";
 
 const putih = N_WHITE; const hijau = N_GREEN; const kuning = N_YELLOW;
 const merah = N_RED;   const cyan  = N_CYAN;  const reset  = RESET;
@@ -33,7 +32,7 @@ const merah = N_RED;   const cyan  = N_CYAN;  const reset  = RESET;
 const host        = "https://altcryp.com";
 const solver_in   = "https://api.waryono.my.id/in.php";
 const solver_res  = "https://api.waryono.my.id/res.php";
-const MIN_PAGE_WAIT = 8;   // detik minimum dari GET sebelum POST
+const MIN_PAGE_WAIT = 8;
 const FIREWALL_MAX_BYPASS = 3;
 
 $ALL_COINS = ['bnb','bch','dash','doge','dgb','pol','sol','trx','ltc','xrp','zec','usdt','ton','pepe','eth','fey','trump'];
@@ -65,11 +64,6 @@ function timer($seconds, $prefix = "") {
         $wait_time--;
     }
     echo "\r                                                \r";
-}
-
-function sleepUntil($targetTs, $prefix = "") {
-    $remain = $targetTs - microtime(true);
-    if ($remain > 0) timer(ceil($remain), $prefix);
 }
 
 function cookiesToStr($state) {
@@ -111,8 +105,7 @@ function req($url, $method = 'GET', $data = null, $headers = [], &$cookieState =
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HEADER         => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_SSL_VERIFYHOST => 0,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER     => $headers,
@@ -127,19 +120,40 @@ function req($url, $method = 'GET', $data = null, $headers = [], &$cookieState =
     curl_setopt_array($ch, $opts);
     $resp = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     if ($resp === false) {
         $err = curl_error($ch); curl_close($ch);
         dbg("REQ", "$method $url → FAIL: $err");
-        return ['body' => '', 'headers' => '', 'error' => $err, 'code'=>0, 'url'=>$url];
+        return ['body'=>'', 'headers'=>'', 'error'=>$err, 'code'=>0, 'location'=>null];
     }
     $hsize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $rawHeaders = substr($resp, 0, $hsize);
     $body = substr($resp, $hsize);
     curl_close($ch);
     if ($cookieState !== null) mergeSetCookies($cookieState, $rawHeaders);
-    dbg("REQ", "$method $url → $httpCode (final:$finalUrl, len:".strlen($body).")");
-    return ['body' => $body, 'headers' => $rawHeaders, 'error' => null, 'code'=>$httpCode, 'url'=>$finalUrl];
+
+    $location = null;
+    if (preg_match('/^location:\s*(.+)$/im', $rawHeaders, $m)) $location = trim($m[1]);
+
+    dbg("REQ", "$method $url → $httpCode (loc:".($location?:'-').", len:".strlen($body).")");
+    return ['body'=>$body, 'headers'=>$rawHeaders, 'error'=>null, 'code'=>$httpCode, 'location'=>$location];
+}
+
+function getFollow($url, $headers, &$cookieState, $maxHops = 5) {
+    $hops = 0;
+    while ($hops < $maxHops) {
+        $hops++;
+        $r = req($url, "GET", null, $headers, $cookieState);
+        if ($r['code'] == 404) return ['status'=>'error404', 'body'=>$r['body'], 'url'=>$url];
+        if (in_array($r['code'], [301,302,303,307,308]) && !empty($r['location'])) {
+            $url = $r['location'];
+            if (strpos($url, 'http') !== 0) $url = host.$url;
+            $headers = array_filter($headers, fn($h) => stripos($h, 'Referer:') !== 0);
+            $headers[] = "Referer: ".$r['location'];
+            continue;
+        }
+        return ['status'=>'ok', 'body'=>$r['body'], 'url'=>$url, 'code'=>$r['code']];
+    }
+    return ['status'=>'loop', 'body'=>'', 'url'=>$url];
 }
 
 function solveTurnstile($apikey, $sitekey, $domain) {
@@ -188,8 +202,8 @@ function saveConfig($file, $cfg) { file_put_contents($file, json_encode($cfg, JS
 
 function banner() {
     echo N_CYAN."╔═══════════════════════════════════════════════════════╗\n";
-    echo N_CYAN."║  ".N_GREEN."  ▄▀█ █░░ ▀█▀ █▀▀ █▀█ █▄█ █▀█   ".N_CYAN."Faucet Bot v8   ║\n";
-    echo N_CYAN."║  ".N_GREEN."  █▀█ █▄▄ ░█░ █▄▄ █▀▄ ░█░ █▀▀   ".N_CYAN."Timer Fixed     ║\n";
+    echo N_CYAN."║  ".N_GREEN."  ▄▀█ █░░ ▀█▀ █▀▀ █▀█ █▄█ █▀█   ".N_CYAN."Faucet Bot v10  ║\n";
+    echo N_CYAN."║  ".N_GREEN."  █▀█ █▄▄ ░█░ █▄▄ █▀▄ ░█░ █▀▀   ".N_CYAN."Menu + Auto     ║\n";
     echo N_CYAN."╠═══════════════════════════════════════════════════════╣\n";
     echo N_CYAN."║  ".N_YELLOW."Script :".N_WHITE." altcryp.com           ".N_CYAN."║\n";
     echo N_CYAN."║  ".N_YELLOW."Solver :".N_WHITE." api.waryono.my.id     ".N_CYAN."║\n";
@@ -216,24 +230,19 @@ function hasClaimForm($html) {
     $d = preg_match('/name="csrf_token_name"/i', $html);
     return ($a || $b || ($c && $d));
 }
-
 function isFirewallPage($html) {
     if (strpos($html, '<title>Firewall') !== false) return true;
     if (preg_match('/<form[^>]+action="[^"]*\/firewall\/verify/i', $html)) return true;
     return false;
 }
-
 function parseFirewallForm($html, $currentUrl) {
     $out = ['action'=>null, 'sitekey'=>null, 'inputs'=>[]];
     if (preg_match('/<form[^>]+action="([^"]+)"/i', $html, $m)) {
         $action = html_entity_decode($m[1]);
         if (strpos($action, 'http') !== 0) $action = host.$action;
         $out['action'] = $action;
-    } else {
-        $out['action'] = $currentUrl;
-    }
+    } else $out['action'] = $currentUrl;
     if (preg_match('/data-sitekey="([^"]+)"/i', $html, $m)) $out['sitekey'] = $m[1];
-
     if (preg_match_all('/<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"/i', $html, $mm, PREG_SET_ORDER)) {
         foreach ($mm as $inp) {
             $name = $inp[1]; $val = $inp[2];
@@ -243,17 +252,10 @@ function parseFirewallForm($html, $currentUrl) {
     }
     return $out;
 }
-
 function bypassFirewall(&$cookieState, $cfg, $firewallUrl, $firewallHtml, $debug) {
-    $ua = $cfg['user_agent'];
-    $api = $cfg['apikey'];
-
+    $ua = $cfg['user_agent']; $api = $cfg['apikey'];
     $form = parseFirewallForm($firewallHtml, $firewallUrl);
-    if ($debug) {
-        dbg("FW-PARSE", "action=".$form['action']." sitekey=".($form['sitekey']?substr($form['sitekey'],0,25):'NONE'));
-        dbg("FW-PARSE", "inputs=".json_encode($form['inputs']));
-    }
-
+    if ($debug) dbg("FW-PARSE", "action=".$form['action']." sitekey=".($form['sitekey']?substr($form['sitekey'],0,25):'NONE'));
     if (!$form['sitekey']) { dbg("FW", "no sitekey"); return false; }
 
     echo "    ".N_ORANGE."🔥 Firewall challenge".RESET."\n";
@@ -266,24 +268,17 @@ function bypassFirewall(&$cookieState, $cfg, $firewallUrl, $firewallHtml, $debug
     $postData['cf-turnstile-response'] = $tsToken;
 
     $headers = [
-        "Host: altcryp.com",
-        "Origin: ".host,
+        "Host: altcryp.com", "Origin: ".host,
         "Content-Type: application/x-www-form-urlencoded",
         "User-Agent: $ua",
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language: id-ID,id;q=0.9,en;q=0.8",
-        "Referer: $firewallUrl",
-        "Upgrade-Insecure-Requests: 1",
-        "Cache-Control: max-age=0",
+        "Referer: $firewallUrl", "Upgrade-Insecure-Requests: 1", "Cache-Control: max-age=0",
     ];
-
     $r = req($form['action'], "POST", $postData, $headers, $cookieState);
-    if ($debug) dbg("FW-POST", "code=".$r['code']." final=".$r['url']." len=".strlen($r['body']));
-
-    if (isFirewallPage($r['body'])) {
-        dbg("FW", "masih firewall setelah POST");
-        return false;
-    }
+    if ($r['code'] == 404) return ['error404'=>true];
+    if ($debug) dbg("FW-POST", "code=".$r['code']." loc=".($r['location']?:'-')." len=".strlen($r['body']));
+    if (isFirewallPage($r['body'])) { dbg("FW", "masih firewall"); return false; }
     return true;
 }
 
@@ -321,31 +316,27 @@ function parseWaitAtLeast($msg) {
 function isLoggedIn($html) { return (strpos($html, 'altcryp.com/account') !== false); }
 
 function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
-    $ua  = $cfg['user_agent'];
-    $api = $cfg['apikey'];
-
+    $ua  = $cfg['user_agent']; $api = $cfg['apikey'];
     $url = host."/faucet/currency/".$coin;
 
-    // ====== STEP 1: GET page, catat timestamp ======
     $tGet = microtime(true);
-    $h = buildHeaders($ua, host."/");
-    $r = req($url, "GET", null, $h, $cookieState);
-    $html = $r['body'];
-    $finalUrl = $r['url'];
+    $res = getFollow($url, buildHeaders($ua, host."/"), $cookieState, 5);
+    if ($res['status'] === 'error404') return ['status' => 'stop404', 'msg' => "404 di $url"];
 
-    // ====== STEP 2: Firewall bypass loop (kalau perlu) ======
+    $html = $res['body']; $finalUrl = $res['url'];
+
     $bypassCount = 0;
     while (isFirewallPage($html) && $bypassCount < FIREWALL_MAX_BYPASS) {
         $bypassCount++;
         echo "    ".N_GRAY."(firewall bypass $bypassCount/".FIREWALL_MAX_BYPASS.")".RESET."\n";
         $ok = bypassFirewall($cookieState, $cfg, $finalUrl, $html, $debug);
-        if (!$ok) return ['status' => 'firewall', 'msg' => 'Firewall bypass gagal'];
-        // re-GET page asli — INI BUKAN buat reset timer claim, ini setelah firewall
-        // baru timer claim mulai dari sini
+        if ($ok === false) return ['status' => 'firewall', 'msg' => 'Firewall bypass gagal'];
+        if (is_array($ok) && !empty($ok['error404'])) return ['status' => 'stop404', 'msg' => '404 firewall verify'];
+
         $tGet = microtime(true);
-        $r = req($url, "GET", null, buildHeaders($ua, host."/"), $cookieState);
-        $html = $r['body'];
-        $finalUrl = $r['url'];
+        $res = getFollow($url, buildHeaders($ua, host."/"), $cookieState, 5);
+        if ($res['status'] === 'error404') return ['status' => 'stop404', 'msg' => "404 re-GET $url"];
+        $html = $res['body']; $finalUrl = $res['url'];
     }
     if (isFirewallPage($html)) return ['status' => 'firewall', 'msg' => 'Firewall masih muncul'];
 
@@ -368,7 +359,6 @@ function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
     $hasTurnstile = !empty($parsed['sitekey']);
     $btnWait = parseButtonWait($html);
 
-    // ====== STEP 3: Solve turnstile DULU (sambil nunggu timer server) ======
     $tsToken = "";
     if ($hasTurnstile) {
         echo "    ".N_CYAN."🔒 Turnstile solving...".RESET."\n";
@@ -380,8 +370,6 @@ function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
         echo "    ".N_YELLOW."⚡ No turnstile".RESET."\n";
     }
 
-    // ====== STEP 4: Tunggu sampai total elapsed dari GET >= waitBefore ======
-    // TIDAK re-GET. Pakai token dari GET pertama.
     $waitTarget = max(MIN_PAGE_WAIT, $btnWait + 1);
     $elapsed = microtime(true) - $tGet;
     $remain = $waitTarget - $elapsed;
@@ -390,10 +378,9 @@ function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
         echo "    ".N_CYAN."⏳ Wait ".round($remain,1)."s".RESET."\n";
         timer(ceil($remain), "wait");
     } else {
-        echo "    ".N_GREEN."⏳ Timer OK (".round($elapsed,1)."s elapsed)".RESET."\n";
+        echo "    ".N_GREEN."⏳ Timer OK (".round($elapsed,1)."s)".RESET."\n";
     }
 
-    // ====== STEP 5: POST verify ======
     $postData = [
         "username_fake_field" => "",
         "csrf_token_name"     => $parsed['csrf'] ?? "",
@@ -405,19 +392,22 @@ function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
     }
 
     $headers = [
-        "Host: altcryp.com",
-        "Origin: ".host,
+        "Host: altcryp.com", "Origin: ".host,
         "Content-Type: application/x-www-form-urlencoded",
         "User-Agent: $ua",
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language: id-ID,id;q=0.9,en;q=0.8",
-        "Referer: ".$url,
-        "Upgrade-Insecure-Requests: 1",
-        "Cache-Control: max-age=0",
+        "Referer: ".$url, "Upgrade-Insecure-Requests: 1", "Cache-Control: max-age=0",
     ];
 
     $claim = req(host."/faucet/verify/".$coin, "POST", $postData, $headers, $cookieState);
-    $cHtml = $claim['body'];
+    if ($claim['code'] == 404) return ['status' => 'stop404', 'msg' => "404 verify/$coin"];
+
+    if (in_array($claim['code'], [301,302,303,307,308]) && !empty($claim['location'])) {
+        $r2 = getFollow($claim['location'], buildHeaders($ua, $url), $cookieState, 5);
+        if ($r2['status'] === 'error404') return ['status' => 'stop404', 'msg' => '404 redirect verify'];
+        $cHtml = $r2['body'];
+    } else $cHtml = $claim['body'];
 
     if (strpos($cHtml, "Good job!") !== false) {
         $msg = parseSwalSuccess($cHtml) ?: 'Claim sukses';
@@ -432,145 +422,195 @@ function claimOnce(&$cookieState, $cfg, $coin, $debug = false) {
         || ($swalErr && stripos($swalErr, 'funds') !== false)) {
         return ['status' => 'coin_empty', 'msg' => $swalErr ?: 'Saldo coin habis'];
     }
-    if (stripos($cHtml, "Invalid") !== false) {
-        return ['status' => 'invalid', 'msg' => $swalErr ?: 'Invalid captcha/token'];
-    }
+    if (stripos($cHtml, "Invalid") !== false) return ['status' => 'invalid', 'msg' => $swalErr ?: 'Invalid captcha'];
     if ($swalErr && stripos($swalErr, 'wait') !== false) {
         $sec = parseWaitAtLeast($swalErr);
         return ['status' => 'cooldown', 'msg' => $swalErr, 'wait' => ($sec > 0 ? $sec + 2 : 10)];
     }
     $cd2 = parseCooldown($cHtml);
     if ($cd2 > 0) return ['status' => 'cooldown', 'msg' => "POST cooldown {$cd2}s", 'wait' => $cd2];
-
-    if (isFirewallPage($cHtml)) return ['status' => 'firewall', 'msg' => 'Firewall di POST response'];
-
+    if (isFirewallPage($cHtml)) return ['status' => 'firewall', 'msg' => 'Firewall di POST'];
     if ($swalErr) return ['status' => 'unknown', 'msg' => "Swal: ".$swalErr];
     return ['status' => 'unknown', 'msg' => 'Response tidak dikenali'];
+}
+
+// =================== AUTO LOOP ===================
+function runAutoLoop($coins, $cookieState, &$cfg, $debug, $roundDelay) {
+    $round = 0;
+    $exhausted = [];
+
+    echo "\n".N_CYAN."▶ AUTO LOOP START — ".count($coins)." coin(s)".RESET."\n";
+    echo N_CYAN."▶ Round delay: {$roundDelay}s".RESET."\n";
+    echo N_CYAN."▶ Stop condition: HTTP 404".RESET."\n";
+
+    while (true) {
+        $round++;
+        echo "\n".N_MAGENTA."═══ ROUND $round — ".date('H:i:s')." ═══".RESET."\n";
+        $claimCount = 0; $skipCount = 0; $emptyCount = 0; $stopNow = false;
+
+        foreach ($coins as $coin) {
+            if (in_array($coin, $exhausted)) {
+                echo N_CYAN."[>] ".N_WHITE.strtoupper($coin)." ".N_GRAY."(saldo habis)".RESET."\n";
+                $skipCount++; continue;
+            }
+
+            echo N_CYAN."[>] ".N_WHITE.strtoupper($coin).N_GRAY." ...".RESET."\n";
+
+            $maxAttempts = 3; $attempt = 0; $done = false;
+            while ($attempt < $maxAttempts && !$done) {
+                $attempt++;
+                if ($attempt > 1) echo "    ".N_GRAY."(retry $attempt/$maxAttempts)".RESET."\n";
+                $res = claimOnce($cookieState, $cfg, $coin, $debug);
+                $st = $res['status'];
+
+                if ($st === 'ok') {
+                    echo "    ".N_GREEN."✔ OK ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    $claimCount++;
+                    $cfg['cookie'] = cookiesToStr($cookieState);
+                    saveConfig($GLOBALS['configFile'], $cfg);
+                    if (!empty($res['wait'])) timer($res['wait'], "wait");
+                    else sleep(3);
+                    $done = true;
+                } elseif ($st === 'stop404') {
+                    echo "    ".N_RED."🛑 STOP 404 ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    $stopNow = true; break 2;
+                } elseif ($st === 'cooldown') {
+                    $w = $res['wait'] ?? 10;
+                    echo "    ".N_YELLOW."⏱ COOLDOWN ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    if ($w > 0) timer($w, "cool");
+                } elseif ($st === 'coin_empty') {
+                    echo "    ".N_ORANGE."💸 SALDO HABIS ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    $exhausted[] = $coin; $emptyCount++; $done = true;
+                } elseif ($st === 'firewall') {
+                    echo "    ".N_RED."🔥 FW FAIL ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    $skipCount++; sleep(2); $done = true;
+                } elseif (in_array($st, ['parse','shortlink','invalid','solver','unknown'])) {
+                    echo "    ".N_YELLOW."⚠ SKIP ".N_WHITE."-> ".$res['msg'].RESET."\n";
+                    $skipCount++; sleep(2); $done = true;
+                } elseif ($st === 'login' || $st === 'cf') {
+                    echo "    ".N_RED."⚠ ".strtoupper($st)." ".N_WHITE."-> ".$res['msg'].N_GRAY." (skip)".RESET."\n";
+                    $skipCount++; sleep(5); $done = true;
+                }
+            }
+
+            if ($attempt >= $maxAttempts && !$done && !$stopNow) {
+                echo "    ".N_YELLOW."⚠ SKIP max attempts".RESET."\n";
+                $skipCount++;
+            }
+        }
+
+        if ($stopNow) {
+            echo "\n".N_RED."🛑 STOPPED: HTTP 404 detected".RESET."\n";
+            break;
+        }
+
+        echo N_GRAY."    Round $round → ".N_GREEN."claims:$claimCount"
+            .N_GRAY." ".N_YELLOW."skip:$skipCount"
+            .N_GRAY." ".N_ORANGE."empty:$emptyCount".RESET."\n";
+
+        if (count($exhausted) >= count($coins)) {
+            echo N_ORANGE."    Semua coin saldo habis. Reset.".RESET."\n";
+            $exhausted = [];
+        }
+
+        echo "\n".N_CYAN."⏸ Jeda {$roundDelay}s...".RESET."\n";
+        timer($roundDelay, "jeda");
+    }
+}
+
+// =================== MENU ===================
+function showMenu($roundDelay) {
+    clear();
+    banner();
+    echo N_CYAN."┌─ ".BOLD."MENU".RESET.N_CYAN." ─────────────────────────────────────┐\n";
+    echo N_CYAN."│".N_GREEN."  [1]".N_WHITE." Auto loop — semua coin                      ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [2]".N_WHITE." Auto loop — pilih beberapa coin            ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [3]".N_WHITE." Auto loop — 1 coin doang                   ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [4]".N_WHITE." Auto loop — semua + debug verbose          ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [5]".N_WHITE." Edit config (apikey/cookie/UA)             ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [6]".N_WHITE." Set round delay (sekarang: ".str_pad($roundDelay,3,' ',STR_PAD_LEFT)."s)   ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [7]".N_WHITE." Lihat debug log                            ".N_CYAN."│\n";
+    echo N_CYAN."│".N_GREEN."  [0]".N_WHITE." Exit                                       ".N_CYAN."│\n";
+    echo N_CYAN."└──────────────────────────────────────────────┘".RESET."\n\n";
+    echo N_CYAN."pilih: ".N_YELLOW;
+}
+
+function pickCoins($ALL_COINS) {
+    echo "\n".N_CYAN."Daftar coin:".RESET."\n";
+    foreach ($ALL_COINS as $i => $c) {
+        echo N_GREEN."  (".str_pad($i+1,2,' ',STR_PAD_LEFT).") ".N_WHITE.str_pad(strtoupper($c),7,' ').RESET;
+        if (($i+1) % 4 == 0) echo "\n";
+    }
+    echo "\n\n".N_CYAN."Pilih (contoh: 1,3,5 atau 1-5 atau 1,3-5): ".N_YELLOW;
+    $in = trim(fgets(STDIN));
+    if ($in === '') return $ALL_COINS;
+
+    $picked = [];
+    foreach (explode(',', $in) as $part) {
+        $part = trim($part);
+        if (strpos($part, '-') !== false) {
+            [$a, $b] = array_map('intval', explode('-', $part, 2));
+            for ($i = $a; $i <= $b; $i++) {
+                if ($i >= 1 && $i <= count($ALL_COINS)) $picked[] = $ALL_COINS[$i-1];
+            }
+        } else {
+            $n = (int)$part;
+            if ($n >= 1 && $n <= count($ALL_COINS)) $picked[] = $ALL_COINS[$n-1];
+        }
+    }
+    return array_values(array_unique($picked));
 }
 
 // =================== MAIN ===================
 clear();
 banner();
-@file_put_contents($debugLog, "\n\n===== SESSION ".date('Y-m-d H:i:s')." =====\n");
 
 $cfg = getConfig($configFile);
 $cookieState = cookiesFromStr($cfg['cookie']);
-
-dash:
-clear();
-banner();
-echo N_CYAN."Pilih mode:\n";
-echo N_GREEN."  (1)".N_WHITE." Pilih 1 coin\n";
-echo N_GREEN."  (2)".N_WHITE." Loop semua coin\n";
-echo N_GREEN."  (3)".N_WHITE." Edit config\n";
-echo N_GREEN."  (4)".N_WHITE." Debug mode\n";
-echo N_GREEN."  (5)".N_WHITE." Lihat debug log\n";
-echo N_GREEN."  (6)".N_WHITE." Exit\n";
-echo N_CYAN."pilih: ".N_YELLOW;
-$in = trim(fgets(STDIN));
-
+$roundDelay = 60;
 $debug = false;
-if ($in === '1') {
-    echo "\n".N_CYAN."Daftar coin:\n";
-    foreach ($ALL_COINS as $i => $c) {
-        echo N_GREEN."(".($i+1).") ".N_WHITE.strtoupper($c)."  ";
-        if (($i+1) % 6 == 0) echo "\n";
-    }
-    echo "\n".N_CYAN."pilih nomor: ".N_YELLOW;
-    $n = (int)trim(fgets(STDIN));
-    if ($n < 1 || $n > count($ALL_COINS)) { echo N_RED."invalid\n"; sleep(2); goto dash; }
-    $coins = [$ALL_COINS[$n-1]]; $mode = 'single';
-} elseif ($in === '2') { $coins = $ALL_COINS; $mode = 'all'; }
-elseif ($in === '3') { @unlink($configFile); goto dash; }
-elseif ($in === '4') { $coins = $ALL_COINS; $mode = 'all'; $debug = true; }
-elseif ($in === '5') {
-    if (file_exists($debugLog)) {
-        clear(); echo file_get_contents($debugLog);
-        echo "\n".N_CYAN."Press enter...".RESET; fgets(STDIN);
-    }
-    goto dash;
-}
-elseif ($in === '6') { exit; }
-else { goto dash; }
 
-$loop = true;
-$round = 0;
-$exhausted = [];
+while (true) {
+    showMenu($roundDelay);
+    $in = trim(fgets(STDIN));
 
-while ($loop) {
-    $round++;
-    echo "\n".N_MAGENTA."═══ ROUND $round ═══".RESET."\n";
-    $claimCount = 0; $skipCount = 0; $emptyCount = 0;
-
-    foreach ($coins as $coin) {
-        if (in_array($coin, $exhausted)) {
-            echo N_CYAN."[>] ".N_WHITE.strtoupper($coin)." ".N_GRAY."(saldo habis)".RESET."\n";
-            $skipCount++; continue;
+    if ($in === '1') {
+        runAutoLoop($ALL_COINS, $cookieState, $cfg, false, $roundDelay);
+    } elseif ($in === '2') {
+        $coins = pickCoins($ALL_COINS);
+        if (empty($coins)) { echo N_RED."\nGak ada coin dipilih.\n".RESET; sleep(2); continue; }
+        runAutoLoop($coins, $cookieState, $cfg, false, $roundDelay);
+    } elseif ($in === '3') {
+        $coins = pickCoins($ALL_COINS);
+        if (count($coins) !== 1) { echo N_RED."\nPilih tepat 1 coin.\n".RESET; sleep(2); continue; }
+        runAutoLoop($coins, $cookieState, $cfg, false, $roundDelay);
+    } elseif ($in === '4') {
+        $DEBUG = true;
+        runAutoLoop($ALL_COINS, $cookieState, $cfg, true, $roundDelay);
+    } elseif ($in === '5') {
+        echo N_CYAN."\nHapus config lama? (y/n): ".N_YELLOW;
+        $a = strtolower(trim(fgets(STDIN)));
+        if ($a === 'y') {
+            @unlink($configFile);
+            $cfg = getConfig($configFile);
+            $cookieState = cookiesFromStr($cfg['cookie']);
+            echo N_GREEN."Config baru tersimpan.\n".RESET; sleep(2);
         }
-
-        echo N_CYAN."[>] ".N_WHITE.strtoupper($coin).N_GRAY." ...".RESET."\n";
-
-        $maxAttempts = 3; $attempt = 0; $done = false;
-        while ($attempt < $maxAttempts && !$done) {
-            $attempt++;
-            if ($attempt > 1) echo "    ".N_GRAY."(retry $attempt/$maxAttempts)".RESET."\n";
-            $res = claimOnce($cookieState, $cfg, $coin, $debug);
-            $st = $res['status'];
-
-            if ($st === 'ok') {
-                echo "    ".N_GREEN."✔ OK ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                $claimCount++;
-                $cfg['cookie'] = cookiesToStr($cookieState);
-                saveConfig($configFile, $cfg);
-                if (!empty($res['wait'])) timer($res['wait'], "wait");
-                else sleep(3);
-                $done = true;
-            } elseif ($st === 'cooldown') {
-                $w = $res['wait'] ?? 10;
-                echo "    ".N_YELLOW."⏱ COOLDOWN ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                if ($w > 0) timer($w, "cool");
-            } elseif ($st === 'coin_empty') {
-                echo "    ".N_ORANGE."💸 SALDO HABIS ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                $exhausted[] = $coin; $emptyCount++; $done = true;
-            } elseif ($st === 'firewall') {
-                echo "    ".N_RED."🔥 FW FAIL ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                $skipCount++; sleep(2); $done = true;
-            } elseif (in_array($st, ['parse','shortlink','invalid','solver','unknown'])) {
-                echo "    ".N_YELLOW."⚠ SKIP ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                $skipCount++; sleep(2); $done = true;
-            } elseif ($st === 'login' || $st === 'cf') {
-                echo "    ".N_RED."✖ STOP ".N_WHITE."-> ".$res['msg'].RESET."\n";
-                if ($st === 'login') {
-                    echo N_CYAN."    Update cookie? (y/n): ".N_YELLOW;
-                    $ans = strtolower(trim(fgets(STDIN)));
-                    if ($ans === 'y') {
-                        echo N_CYAN."    Cookie baru: ".N_YELLOW;
-                        $cfg['cookie'] = trim(fgets(STDIN));
-                        saveConfig($configFile, $cfg);
-                        $cookieState = cookiesFromStr($cfg['cookie']);
-                        echo N_GREEN."    Saved.\n"; $done = true;
-                    } else { $loop = false; break 2; }
-                } else { $loop = false; break 2; }
-            }
+    } elseif ($in === '6') {
+        echo N_CYAN."\nRound delay baru (detik): ".N_YELLOW;
+        $d = (int)trim(fgets(STDIN));
+        if ($d > 0) { $roundDelay = $d; echo N_GREEN."Set ke {$roundDelay}s\n".RESET; sleep(1); }
+    } elseif ($in === '7') {
+        if (file_exists($debugLog)) {
+            clear(); echo file_get_contents($debugLog);
+            echo "\n".N_CYAN."Press enter...".RESET; fgets(STDIN);
+        } else {
+            echo N_RED."\nBelum ada log.\n".RESET; sleep(2);
         }
-
-        if ($attempt >= $maxAttempts && !$done) {
-            echo "    ".N_YELLOW."⚠ SKIP max attempts".RESET."\n";
-            $skipCount++;
-        }
-    }
-
-    echo N_GRAY."    Round $round → ".N_GREEN."claims:$claimCount"
-        .N_GRAY." ".N_YELLOW."skip:$skipCount"
-        .N_GRAY." ".N_ORANGE."empty:$emptyCount".RESET."\n";
-
-    if ($mode === 'single') {
-        echo N_CYAN."\nUlang? (y/n): ".N_YELLOW;
-        $a = strtolower(trim(fgets(STDIN))); if ($a !== 'y') $loop = false;
+    } elseif ($in === '0') {
+        echo N_GREEN."\nBye bos.\n".RESET;
+        exit;
     } else {
-        echo N_CYAN."\nLanjut round? (y/n): ".N_YELLOW;
-        $a = strtolower(trim(fgets(STDIN))); if ($a !== 'y') $loop = false;
+        continue;
     }
 }
-
-echo N_GREEN."\nDone bos. Log: $debugLog\n".RESET;
