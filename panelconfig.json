@@ -129,8 +129,8 @@
           "runner": "python3"
         },
         "20": {
-          "label": "Coming Soon ",
-          "file": "FaucetPepe.php",
+          "label": "FireFaucet 🟢",
+          "file": "FireFaucet.php",
           "runner": "php"
         },
         "21": {
