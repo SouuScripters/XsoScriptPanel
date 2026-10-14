@@ -27,6 +27,16 @@
           "label": "FreeFlareCrypto 🟢",
           "file": "FreeFlareCrypto.py",
           "runner": "python3"
+        },
+        "6": {
+          "label": "HotFaucet 🟢",
+          "file": "HotFaucet.py",
+          "runner": "python3"
+        },
+        "7": {
+          "label": "Coming Soon ⏳",
+          "file": "ComingSoon6.php",
+          "runner": "php"
         }
       }
     },
