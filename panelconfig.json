@@ -142,6 +142,21 @@
           "label": "MiniTasky 🟢",
           "file": "MiniTasky.py",
           "runner": "python3"
+        },
+        "21": {
+          "label": "Altcryp 🟢",
+          "file": "Altcryp.php",
+          "runner": "php"
+        },
+        "22": {
+          "label": "Mama Aku Di M7😂",
+          "file": "ComingSoon8.php",
+          "runner": "php"
+        },
+        "23": {
+          "label": "Coming Soon ⏳",
+          "file": "ComingSoon9.php",
+          "runner": "php"
         }
       }
     },
