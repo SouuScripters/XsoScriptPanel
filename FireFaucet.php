@@ -17,7 +17,7 @@ date_default_timezone_set('Asia/Jakarta');
 @ini_set('output_buffering', '0');
 @ini_set('implicit_flush', '1');
 
-$configFile = "config.json";
+$configFile = "FireFaucet.json";
 
 /* ═══════════════════════════════════════════════════
    COLORS
