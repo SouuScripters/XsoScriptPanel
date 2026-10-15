@@ -94,7 +94,7 @@
           "runner": "php"
         },
         "12": {
-          "label": "BullyDAO 🟢",
+          "label": "BullyDAO 🔴",
           "file": "Dao.py",
           "runner": "python"
         },
