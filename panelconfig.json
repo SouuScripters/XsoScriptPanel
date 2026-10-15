@@ -189,7 +189,7 @@
           "runner": "python3"
         },
         "7": {
-          "label": "MusicMiningMB 🟢",
+          "label": "MusicMiningMB 🔴",
           "file": "Music.py",
           "runner": "python3"
         },
@@ -244,7 +244,7 @@
           "runner": "python3"
         },
         "18": {
-          "label": "MetasFast 🟢",
+          "label": "MetasFast 🔴",
           "file": "Meta.py",
           "runner": "python3"
         },
