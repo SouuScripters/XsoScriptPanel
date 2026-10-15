@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""BullyDao Auto Bot v2 — Fixed Faucet Parser"""
+"""BullyDao Auto Bot v3 — Fixed Icon Captcha"""
 
 import json
 import os
@@ -17,34 +17,23 @@ from pathlib import Path
 SCRIPT_DIR  = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "bconfig.json"
 
-BASE       = "https://bullydao.org"
-SOLVER_IN  = "https://api.waryono.my.id/in.php"
-SOLVER_RES = "https://api.waryono.my.id/res.php"
-
-# Fallback kalau auto-detect gagal
-SITEKEY_FALLBACK = "0x4AAAAAAExQ_oRN72W6jvby"
+BASE = "https://bullydao.org"
 
 DEFAULT_CONFIG = {
-    "k": "",                        # waryono apikey
     "u": "",                        # email
-    "cookies_extra": "",            # optional: aqua_device_token=xxx; faucet_saved_wallet=yyy
+    "cookies_extra": "",            # optional extra cookies
     "enable_auto_login": True,
     "enable_faucet": True,
     "enable_jackpot": True,
     "enable_balance_check": True,
-    "turnstile_action_login": "",
-    "turnstile_action_faucet": "",
-    "turnstile_action_jackpot": "",
-    "human_delay_min": 20,
-    "human_delay_max": 60,
-    "solver_jitter_min": 0.8,
-    "solver_jitter_max": 2.5,
+    "human_delay_min": 8,
+    "human_delay_max": 20,
     "faucet_cooldown_default": 300,
     "jackpot_cooldown_default": 600,
     "session_check_every": 10,
 }
 
-LOOP_DELAY = 30
+LOOP_DELAY = 15
 
 # ==================== COLORS ====================
 class C:
@@ -52,10 +41,6 @@ class C:
     GREEN = "\033[92m"; YELLOW = "\033[93m"; RED = "\033[91m"
     CYAN = "\033[96m"; MAGENTA = "\033[95m"; BLUE = "\033[94m"
     WHITE = "\033[97m"; GRAY = "\033[90m"
-
-SPINNER = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
-_spin_idx = 0
-_spin_lock = threading.Lock()
 
 STATE = {
     "balance": None,
@@ -72,7 +57,6 @@ STATE = {
     "logged_in": False,
     "started_at": time.time(),
     "relogin_count": 0,
-    "sitekey": SITEKEY_FALLBACK,
 }
 
 current_cfg = None
@@ -180,19 +164,13 @@ def ensure_config():
 def menu():
     banner()
     cfg = load_config() or {}
-
-    k = cfg.get("k", "")
     u = cfg.get("u", "") or "(empty)"
-    k_disp = f"{k[:8]}..." if k else "(empty)"
-
     print(f"{C.GRAY}Account :{C.R} {C.CYAN}{u}{C.R}")
-    print(f"{C.GRAY}API Key :{C.R} {C.CYAN}{k_disp}{C.R}")
     print()
     print(f"{C.BOLD}{C.GREEN}MENU:{C.R}")
     print(f"  {C.YELLOW}[1]{C.R} Start Bot")
-    print(f"  {C.YELLOW}[2]{C.R} Set API Key")
-    print(f"  {C.YELLOW}[3]{C.R} Set Email")
-    print(f"  {C.YELLOW}[4]{C.R} Set Extra Cookies (opsional)")
+    print(f"  {C.YELLOW}[2]{C.R} Set Email")
+    print(f"  {C.YELLOW}[3]{C.R} Set Extra Cookies (opsional)")
     print(f"  {C.YELLOW}[0]{C.R} Exit")
     print()
     try:
@@ -209,12 +187,10 @@ def menu_config_field(label, key, is_secret=False):
     if current:
         disp = current if not is_secret else current[:12] + "..."
         print(f"{C.GRAY}Current: {C.CYAN}{disp}{C.R}")
-
     try:
         val = input(f"  {C.CYAN}{label}{C.R} (empty=skip): ").strip()
     except (EOFError, KeyboardInterrupt):
         return
-
     if val:
         cfg[key] = val
         save_config(cfg)
@@ -228,24 +204,16 @@ def menu_loop():
         choice = menu()
         if choice == "1":
             cfg = load_config() or {}
-            missing = []
-            if not cfg.get("k"): missing.append("API Key")
-            if not cfg.get("u"): missing.append("Email")
-            if missing:
+            if not cfg.get("u"):
                 banner()
-                print(f"{C.RED}Belum lengkap:{C.R} {', '.join(missing)}")
+                print(f"{C.RED}Email belum di-set.{C.R}")
                 time.sleep(2)
                 continue
-            full = dict(cfg)
-            full["waryono_apikey"] = cfg.get("k", "")
-            full["email"] = cfg.get("u", "")
-            return full
+            return dict(cfg)
         elif choice == "2":
-            menu_config_field("API Key", "k", is_secret=True)
-        elif choice == "3":
             menu_config_field("Email", "u")
-        elif choice == "4":
-            menu_config_field("Extra cookies (format: a=b; c=d)", "cookies_extra")
+        elif choice == "3":
+            menu_config_field("Extra cookies (a=b; c=d)", "cookies_extra")
         elif choice == "0":
             return None
         else:
@@ -260,21 +228,9 @@ def human_delay(min_s, max_s, label="delay"):
     if max_s <= 0 or max_s < min_s:
         return 0
     d = random.uniform(min_s, max_s)
-    log(f"{label}: {int(d)}s", "wait")
-    time.sleep(d)
-    return d
-
-def solver_jitter(cfg, label="solver pause"):
-    try:
-        a = float(cfg.get("solver_jitter_min", 0.8))
-        b = float(cfg.get("solver_jitter_max", 2.5))
-    except (TypeError, ValueError):
-        return
-    if b <= 0 or b < a:
-        return
-    d = random.uniform(a, b)
     log(f"{label}: {d:.1f}s", "wait")
     time.sleep(d)
+    return d
 
 # ==================== HTTP ====================
 def make_session(extra_cookies=""):
@@ -286,20 +242,13 @@ def make_session(extra_cookies=""):
             "Chrome/127.0.0.0 Mobile Safari/537.36"
         ),
         "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-        "sec-ch-ua": '"Chromium";v="127", "Not)A;Brand";v="99", "Microsoft Edge Simulate";v="127", "Lemur";v="127"',
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": '"Android"',
-        "Origin": BASE,
     })
-
-    # inject extra cookies
     if extra_cookies:
         for part in extra_cookies.split(";"):
             part = part.strip()
             if "=" in part:
                 k, v = part.split("=", 1)
                 s.cookies.set(k.strip(), v.strip(), domain="bullydao.org")
-
     return s
 
 def check_http(r, context="request"):
@@ -307,113 +256,48 @@ def check_http(r, context="request"):
         return (120, f"{context}: rate limited (429)")
     if r.status_code == 403:
         return (60, f"{context}: forbidden (403)")
-    if r.status_code == 401:
-        return (30, f"{context}: unauthorized (401)")
     if r.status_code >= 500:
         return (60, f"{context}: server error ({r.status_code})")
     if not r.ok:
         return (30, f"{context}: HTTP {r.status_code}")
     return None
 
-# ==================== WARYONO ====================
-def solve_turnstile(cfg, action="", cdata=None, sitekey=None, pageurl=None):
-    apikey = cfg["waryono_apikey"]
-    label = action or "default"
-    sk = sitekey or STATE["sitekey"]
-    log(f"Solve Turnstile [{label}]", "captcha")
+# ==================== ICON CAPTCHA ====================
+def parse_target_icon(html):
+    """
+    Cari target icon di HTML.
+    Pattern: Please click the <strong...>[ heart <i class="fa-solid fa-heart"></i> ]</strong>
+    """
+    m = re.search(r'Please click the[^\[]*\[\s*(\w+)\s*<i', html, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    # fallback pattern (tanpa tag <i>)
+    m = re.search(r'Please click the[^\[]*\[\s*(\w+)', html, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    return None
 
-    solver_jitter(cfg, "pre-solve pause")
-
-    payload = {
-        "apikey": apikey,
-        "methods": "turnstile",
-        "domain": BASE,
-        "sitekey": sk,
-        "json": 1,
+def post_multipart(session, url, fields, headers=None):
+    """Kirim multipart/form-data pakai requests files=() trick."""
+    files = {k: (None, v) for k, v in fields.items()}
+    h = {
+        "Origin": BASE,
+        "Referer": url,
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
     }
-    if action:
-        payload["action"] = action
-    if cdata:
-        payload["cdata"] = cdata
-    if pageurl:
-        payload["pageurl"] = pageurl
-
-    try:
-        r = requests.post(SOLVER_IN, json=payload, timeout=60)
-    except Exception as e:
-        raise Exception(f"waryono submit network error: {e}")
-
-    if not r.ok:
-        raise Exception(f"waryono submit HTTP {r.status_code}")
-
-    try:
-        res = r.json()
-    except Exception:
-        raise Exception(f"waryono submit non-JSON: {r.text[:150]}")
-
-    if not isinstance(res, dict):
-        raise Exception(f"waryono submit unexpected: {res}")
-
-    if res.get("status") != 1:
-        raise Exception(f"waryono submit fail: {res.get('request', res)}")
-
-    task_id = res.get("request")
-    if not task_id:
-        raise Exception(f"waryono no task id: {res}")
-
-    log(f"Task ID: {task_id}", "captcha")
-
-    max_polls = 80
-    for i in range(max_polls):
-        time.sleep(3)
-        try:
-            check_res = requests.get(
-                SOLVER_RES,
-                params={"apikey": apikey, "id": task_id, "action": "get", "json": 1},
-                timeout=30,
-            )
-        except Exception:
-            continue
-
-        if not check_res.ok:
-            continue
-
-        try:
-            check = check_res.json()
-        except Exception:
-            continue
-
-        if not isinstance(check, dict):
-            continue
-
-        if check.get("status") == 1:
-            token = check.get("request")
-            if not token:
-                raise Exception(f"waryono solved but empty token: {check}")
-            log(f"Turnstile solved ({i*3}s)", "ok")
-            solver_jitter(cfg, "post-solve pause")
-            return token
-
-        req = str(check.get("request", ""))
-        if req in ("CAPCHA_NOT_READY", "CAPTCHA_NOT_READY"):
-            continue
-
-        raise Exception(f"waryono error: {req}")
-
-    raise Exception("turnstile timeout")
+    if headers:
+        h.update(headers)
+    return session.post(url, files=files, headers=h, timeout=45, allow_redirects=False)
 
 # ==================== PARSER ====================
 def parse_balance(html):
-    """Available Balance — sesuaikan sama layout bullydao."""
-    idx = html.find("Available Balance")
+    idx = html.find("Total Available Balance")
     if idx == -1:
         return None
-
-    chunk = html[idx:idx + 1200]
-
-    # <span class="text-3xl sm:text-5xl font-black font-mono text-white tracking-tight">240.00</span>
+    chunk = html[idx:idx + 1500]
     m = re.search(
-        r'<span[^>]*class="[^"]*(?:text-3xl|text-4xl|text-5xl)[^"]*"[^>]*>\s*([\d,]+(?:\.\d+)?)\s*</span>',
+        r'<span[^>]*class="[^"]*font-num[^"]*"[^>]*>\s*([\d,]+(?:\.\d+)?)\s*</span>',
         chunk,
     )
     if m:
@@ -421,18 +305,15 @@ def parse_balance(html):
             return float(m.group(1).replace(",", ""))
         except ValueError:
             pass
-
-    m = re.search(r'<span[^>]*>\s*([\d,]+\.\d+)\s*</span>', chunk)
+    m = re.search(r'>\s*([\d,]+\.\d+)\s*<', chunk)
     if m:
         try:
             return float(m.group(1).replace(",", ""))
         except ValueError:
             pass
-
     return None
 
 def parse_daily_limit(html):
-    """Daily Limit: 49/50"""
     m = re.search(r"Daily Limit:\s*<[^>]*>(\d+)\s*/\s*(\d+)", html)
     if m:
         return int(m.group(1)), int(m.group(2))
@@ -442,99 +323,69 @@ def parse_daily_limit(html):
     return None
 
 def parse_faucet_cooldown(html):
-    """Bullydao pakai `let timeLeft = N;` — itu sumber utama."""
     m = re.search(r"let\s+timeLeft\s*=\s*(\d+)", html)
     if m:
         return int(m.group(1))
-
-    # Fallback: Next Claim in MM:SS
     m = re.search(r"Next Claim in[^\d]{0,15}(\d{1,2}):(\d{2})", html)
     if m:
         return int(m.group(1)) * 60 + int(m.group(2))
-
-    # Fallback: `<span id="faucetCountdown">05:00</span>`
-    m = re.search(r'id="faucetCountdown"[^>]*>(\d{1,2}):(\d{2})', html)
-    if m:
-        return int(m.group(1)) * 60 + int(m.group(2))
-
-    # Ready state
-    if "Ready to Claim" in html:
+    if "Ready to Claim" in html or "Claim 20 DAO" in html:
         return 0
-
     return None
 
 def parse_jackpot_cooldown(html):
-    m = re.search(r"jpTimeLeft\s*=\s*(\d+)", html)
+    m = re.search(r"let\s+jpTimeLeft\s*=\s*(\d+)", html)
     if m:
         return int(m.group(1))
-    if "Ready to Roll" in html:
+    if "Ready to Roll" in html or "Roll Lucky Number" in html:
         return 0
     return None
 
-def parse_turnstile_sitekey(html):
-    """Auto-detect turnstile sitekey dari /faucet."""
-    m = re.search(r'data-sitekey=["\'](0x[A-Za-z0-9_\-]{20,})["\']', html)
-    if m:
-        return m.group(1)
-    m = re.search(r'cf-turnstile[^>]*data-sitekey=["\'](0x[A-Za-z0-9_\-]{20,})', html)
-    if m:
-        return m.group(1)
-    return None
-
-# ==================== LOGIN DETECTION ====================
+# ==================== SESSION ====================
 def is_account_page(html):
-    if 'name="action_auth"' in html:
+    if 'name="action_auth"' in html and "Direct FaucetPay Access" in html:
         return False
-
-    strong = ["Connected Account", "Logout / Exit", "Member since"]
-    hits = sum(1 for m in strong if m in html)
-
+    markers = ["Connected Account", "Total Available Balance", "Bullydao — Cabinet"]
+    hits = sum(1 for m in markers if m in html)
     if hits >= 2:
         return True
-    if hits >= 1 and "Available Balance" in html:
+    if 'href="https://bullydao.org/logout"' in html:
         return True
-    if "Withdraw to FaucetPay" in html and "Total Claims" in html:
-        return True
-
     return False
 
-# ==================== BALANCE / COOLDOWN ====================
+def verify_session(session, cfg):
+    try:
+        r = session.get(f"{BASE}/cabinet", timeout=30, allow_redirects=True)
+        if r.ok and is_account_page(r.text):
+            STATE["logged_in"] = True
+            return True
+    except Exception:
+        pass
+    STATE["logged_in"] = False
+    return False
+
 def check_balance(session, cfg):
     try:
         r = session.get(f"{BASE}/cabinet", timeout=30, allow_redirects=True)
-
         err = check_http(r, "check_balance")
         if err:
             log(err[1], "warn")
             return False
-
         html = r.text
-
         if not is_account_page(html):
             log("Session tidak valid", "warn")
             STATE["logged_in"] = False
             return False
-
         STATE["logged_in"] = True
-
         bal = parse_balance(html)
         if bal is not None:
             old = STATE["balance"]
             STATE["balance"] = bal
             if old is None or old != bal:
                 log(f"Balance: {C.GREEN}{bal:,.2f}{C.R} DAO", "bal")
-
-        m = re.search(r"Total Claims[\s\S]{0,300}?font-mono[^>]*>\s*(\d+)", html)
+        m = re.search(r"Total Claims[\s\S]{0,500}?font-num[^>]*>\s*(\d+)", html)
         if m:
             STATE["total_claims"] = int(m.group(1))
-
-        m = re.search(r"Total Cashout[\s\S]{0,300}?>\s*\$?([\d.]+)", html)
-        if m:
-            try:
-                STATE["total_cashout"] = float(m.group(1))
-            except ValueError:
-                pass
-
         return True
     except Exception as e:
         log(f"Balance check error: {e}", "err")
@@ -547,25 +398,14 @@ def sync_faucet_cooldown(session, cfg):
         if err:
             log(err[1], "warn")
             return None
-
         html = r.text
-
-        # auto-detect sitekey
-        sk = parse_turnstile_sitekey(html)
-        if sk and sk != STATE["sitekey"]:
-            STATE["sitekey"] = sk
-            log(f"Sitekey: {sk[:20]}...", "captcha")
-
-        # daily limit
         dl = parse_daily_limit(html)
         if dl:
             STATE["daily_used"], STATE["daily_limit"] = dl
-
         cd = parse_faucet_cooldown(html)
         if cd is None:
             log("Faucet cooldown tidak terdeteksi", "warn")
             return None
-
         STATE["faucet_next_at"] = time.time() + cd
         if cd > 0:
             log(f"Faucet cooldown: {fmt_duration(cd)}", "wait")
@@ -583,12 +423,11 @@ def sync_jackpot_cooldown(session, cfg):
         if err:
             log(err[1], "warn")
             return None
-
-        cd = parse_jackpot_cooldown(r.text)
+        html = r.text
+        cd = parse_jackpot_cooldown(html)
         if cd is None:
             log("Jackpot cooldown tidak terdeteksi", "warn")
             return None
-
         STATE["jackpot_next_at"] = time.time() + cd
         if cd > 0:
             log(f"Jackpot cooldown: {fmt_duration(cd)}", "wait")
@@ -600,54 +439,45 @@ def sync_jackpot_cooldown(session, cfg):
         return None
 
 # ==================== LOGIN ====================
-def verify_session(session, cfg):
-    try:
-        r = session.get(f"{BASE}/cabinet", timeout=30, allow_redirects=True)
-        if r.ok and is_account_page(r.text):
-            STATE["logged_in"] = True
-            return True
-    except Exception:
-        pass
-    STATE["logged_in"] = False
-    return False
-
 def do_login(session, cfg):
     log("Auto login...", "auth")
-
-    # fetch root dulu (biar dapat aqua_device_token dsb)
     try:
-        session.get(f"{BASE}/", timeout=30)
-    except Exception:
-        pass
-
-    try:
-        token = solve_turnstile(
-            cfg,
-            cfg.get("turnstile_action_login", ""),
-            sitekey=STATE["sitekey"],
-            pageurl=f"{BASE}/",
-        )
+        r = session.get(f"{BASE}/", timeout=30)
     except Exception as e:
-        log(f"Turnstile login error: {e}", "err")
+        log(f"Homepage fetch error: {e}", "err")
         return False
+
+    html = r.text
+    if is_account_page(html):
+        log("Session masih valid", "ok")
+        STATE["logged_in"] = True
+        return True
+
+    target_icon = parse_target_icon(html)
+    if not target_icon:
+        log("Target icon tidak ditemukan di HTML", "err")
+        with open("debug_login.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        return False
+
+    log(f"Target icon: {C.MAGENTA}{target_icon}{C.R}", "captcha")
 
     data = {
         "action_auth": "1",
-        "email": cfg["email"],
-        "cf-turnstile-response": token,
+        "captcha_type": "icon",
+        "captcha_selected_icon": target_icon,
+        "email": cfg["u"],
+        "cf-turnstile-response": "",
     }
-
+    h = {
+        "Origin": BASE,
+        "Referer": f"{BASE}/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Upgrade-Insecure-Requests": "1",
+    }
     try:
-        r = session.post(
-            f"{BASE}/",
-            data=data,
-            timeout=45,
-            allow_redirects=True,
-            headers={
-                "Referer": f"{BASE}/",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        )
+        r = session.post(f"{BASE}/", data=data, headers=h, timeout=45, allow_redirects=True)
     except Exception as e:
         log(f"Login POST error: {e}", "err")
         return False
@@ -661,67 +491,54 @@ def do_login(session, cfg):
         log("Login ✓", "ok")
         return True
 
-    if is_account_page(r.text):
-        log("Login ✓", "ok")
-        STATE["logged_in"] = True
-        return True
-
-    log("Login ✗", "err")
-    STATE["logged_in"] = False
+    log("Login gagal", "err")
+    with open("debug_login.html", "w", encoding="utf-8") as f:
+        f.write(r.text)
     return False
 
 # ==================== FAUCET ====================
 def do_faucet(session, cfg):
     log("Faucet claim...", "coin")
 
-    # refresh halaman dulu — pastikan masih ready + auto-detect sitekey
+    # GET faucet page → parse target icon + cooldown
     try:
         r0 = session.get(f"{BASE}/faucet", timeout=30, allow_redirects=True)
-        if r0.ok:
-            sk = parse_turnstile_sitekey(r0.text)
-            if sk:
-                STATE["sitekey"] = sk
-            dl = parse_daily_limit(r0.text)
-            if dl:
-                STATE["daily_used"], STATE["daily_limit"] = dl
-    except Exception:
-        pass
-
-    try:
-        token = solve_turnstile(
-            cfg,
-            cfg.get("turnstile_action_faucet", ""),
-            sitekey=STATE["sitekey"],
-            pageurl=f"{BASE}/faucet",
-        )
+        if not r0.ok:
+            log(f"Faucet GET HTTP {r0.status_code}", "warn")
+            return 60
+        html = r0.text
     except Exception as e:
-        log(f"Turnstile faucet error: {e}", "err")
+        log(f"Faucet GET error: {e}", "err")
         return 60
 
-    data = {
-        "action_claim": "1",
-        "cf-turnstile-response": token,
-    }
+    # detect cooldown dari page
+    cd = parse_faucet_cooldown(html)
+    if cd is not None and cd > 0:
+        STATE["faucet_next_at"] = time.time() + cd
+        log(f"Faucet cooldown: {fmt_duration(cd)}", "wait")
+        return cd
 
+    dl = parse_daily_limit(html)
+    if dl:
+        STATE["daily_used"], STATE["daily_limit"] = dl
+
+    target_icon = parse_target_icon(html)
+    if not target_icon:
+        log("Target icon faucet tidak ditemukan", "err")
+        with open("debug_faucet.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        return 60
+
+    log(f"Target icon: {C.MAGENTA}{target_icon}{C.R}", "captcha")
+
+    fields = {
+        "action_claim": "1",
+        "captcha_type": "icon",
+        "captcha_selected_icon": target_icon,
+        "cf-turnstile-response": "",
+    }
     try:
-        r = session.post(
-            f"{BASE}/faucet",
-            data=data,
-            timeout=45,
-            allow_redirects=True,
-            headers={
-                "Referer": f"{BASE}/faucet",
-                "Origin": BASE,
-                "Cache-Control": "max-age=0",
-                "Upgrade-Insecure-Requests": "1",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                "Sec-Fetch-Site": "same-origin",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-User": "?1",
-                "Sec-Fetch-Dest": "document",
-            },
-        )
+        r = post_multipart(session, f"{BASE}/faucet", fields)
     except Exception as e:
         log(f"Faucet POST error: {e}", "err")
         return 60
@@ -731,66 +548,45 @@ def do_faucet(session, cfg):
         log(err[1], "warn")
         return err[0]
 
-    html = r.text
+    try:
+        data = r.json()
+    except Exception:
+        # fallback: HTML response — cek manual
+        html = r.text
+        m = re.search(r"\+(\d+)\s*DAO\s*Coins\s*added", html, re.IGNORECASE)
+        if m:
+            coins = int(m.group(1))
+            STATE["faucet_claimed"] += 1
+            STATE["faucet_coins"] += coins
+            STATE["daily_used"] += 1
+            log(f"Faucet ✓ +{coins} DAO", "ok")
+            cd = int(cfg.get("faucet_cooldown_default", 300))
+            STATE["faucet_next_at"] = time.time() + cd
+            return cd
+        log(f"Faucet: non-JSON, unknown response", "warn")
+        return 60
 
-    # session expired → login page
-    if 'name="action_auth"' in html and not is_account_page(html):
-        log("Faucet: session expired", "warn")
-        STATE["logged_in"] = False
-        return 30
+    if data.get("status") == "success":
+        msg = data.get("message", "Claimed!")
+        m = re.search(r"\+(\d+)", msg)
+        coins = int(m.group(1)) if m else 20
+        cd = int(data.get("cooldown", 300))
+        remaining = data.get("remaining", 0)
+        limit = data.get("daily_limit", 0)
 
-    # === 1. SUCCESS DETECTION ===
-    # Format: "+20 DAO Coins added to your balance!"
-    m = re.search(r"\+(\d+)\s*DAO\s*Coins\s*added", html, re.IGNORECASE)
-    if m:
-        coins = int(m.group(1))
         STATE["faucet_claimed"] += 1
         STATE["faucet_coins"] += coins
-        STATE["daily_used"] += 1
-        log(f"Faucet ✓ +{coins} DAO", "ok")
-
-        # cooldown setelah success
-        cd = parse_faucet_cooldown(html)
-        if cd is None or cd <= 0:
-            cd = int(cfg.get("faucet_cooldown_default", 300))
         STATE["faucet_next_at"] = time.time() + cd
+        if limit:
+            STATE["daily_used"] = limit - remaining
+            STATE["daily_limit"] = limit
 
-        # update daily
-        dl = parse_daily_limit(html)
-        if dl:
-            STATE["daily_used"], STATE["daily_limit"] = dl
-
-        log(f"Faucet next: {fmt_duration(cd)}", "wait")
+        log(f"Faucet ✓ +{coins} DAO | next {fmt_duration(cd)} | {STATE['daily_used']}/{STATE['daily_limit']}", "ok")
         return cd
 
-    # === 2. COOLDOWN DETECTION ===
-    if "Cooldown Active" in html or "Next Claim in" in html or re.search(r"let\s+timeLeft\s*=\s*\d+", html):
-        cd = parse_faucet_cooldown(html)
-        if cd is None or cd <= 0:
-            cd = int(cfg.get("faucet_cooldown_default", 300))
-        STATE["faucet_next_at"] = time.time() + cd
-        log(f"Faucet cooldown: {fmt_duration(cd)}", "wait")
-        return cd
-
-    # === 3. DAILY LIMIT ===
-    if "Daily limit reached" in html or "limit reached" in html.lower():
-        log("Faucet: daily limit reached", "warn")
-        return 3600
-
-    # === 4. ERROR MESSAGE ===
-    m = re.search(r'class="[^"]*red[^"]*"[^>]*>([^<]{5,200})', html)
-    if m:
-        msg = m.group(1).strip()[:150]
-        log(f"Faucet: {msg}", "warn")
-        return 60
-
-    # === 5. FALLBACK: cek alert div pada umumnya ===
-    m = re.search(r'<div[^>]*alert[^>]*>([^<]{5,200})', html, re.IGNORECASE)
-    if m:
-        log(f"Faucet: {m.group(1).strip()[:150]}", "warn")
-        return 60
-
-    log("Faucet: unknown response", "warn")
+    # error
+    msg = data.get("message", data.get("msg", "?"))
+    log(f"Faucet: {msg}", "warn")
     return 60
 
 # ==================== JACKPOT ====================
@@ -798,35 +594,38 @@ def do_jackpot(session, cfg):
     log("Jackpot roll...", "dice")
 
     try:
-        token = solve_turnstile(
-            cfg,
-            cfg.get("turnstile_action_jackpot", ""),
-            sitekey=STATE["sitekey"],
-            pageurl=f"{BASE}/jackpot",
-        )
+        r0 = session.get(f"{BASE}/jackpot", timeout=30, allow_redirects=True)
+        if not r0.ok:
+            log(f"Jackpot GET HTTP {r0.status_code}", "warn")
+            return 60
+        html = r0.text
     except Exception as e:
-        log(f"Turnstile jackpot error: {e}", "err")
+        log(f"Jackpot GET error: {e}", "err")
         return 60
 
-    # PENTING: pakai form data, bukan multipart (files=...)
-    data = {
-        "action_spin": "1",
-        "cf-turnstile-response": token,
-    }
+    cd = parse_jackpot_cooldown(html)
+    if cd is not None and cd > 0:
+        STATE["jackpot_next_at"] = time.time() + cd
+        log(f"Jackpot cooldown: {fmt_duration(cd)}", "wait")
+        return cd
 
+    target_icon = parse_target_icon(html)
+    if not target_icon:
+        log("Target icon jackpot tidak ditemukan", "err")
+        with open("debug_jackpot.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        return 60
+
+    log(f"Target icon: {C.MAGENTA}{target_icon}{C.R}", "captcha")
+
+    fields = {
+        "action_spin": "1",
+        "captcha_type": "icon",
+        "captcha_selected_icon": target_icon,
+        "cf-turnstile-response": "",
+    }
     try:
-        r = session.post(
-            f"{BASE}/jackpot",
-            data=data,
-            timeout=45,
-            headers={
-                "Referer": f"{BASE}/jackpot",
-                "Origin": BASE,
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            },
-        )
+        r = post_multipart(session, f"{BASE}/jackpot", fields)
     except Exception as e:
         log(f"Jackpot POST error: {e}", "err")
         return 60
@@ -836,53 +635,32 @@ def do_jackpot(session, cfg):
         log(err[1], "warn")
         return err[0]
 
-    ct = r.headers.get("Content-Type", "")
-    if "text/html" in ct and "application/json" not in ct:
-        if 'name="action_auth"' in r.text:
-            log("Jackpot: session expired", "warn")
-            STATE["logged_in"] = False
-            return 30
-        log(f"Jackpot: unexpected HTML ({r.status_code})", "err")
-        return 60
-
     try:
         data = r.json()
     except Exception:
-        log(f"Jackpot: non-JSON ({r.status_code})", "err")
+        log(f"Jackpot: non-JSON ({r.status_code})", "warn")
         return 60
 
-    if not isinstance(data, dict):
-        log(f"Jackpot: unexpected response", "err")
-        return 60
-
-    status = data.get("status")
-
-    if status == "success":
+    if data.get("status") == "success":
         num = data.get("num", "?")
-        try:
-            coins = int(data.get("coins", 0))
-        except (TypeError, ValueError):
-            coins = 0
-        try:
-            cd = int(data.get("cooldown", 600))
-        except (TypeError, ValueError):
-            cd = 600
+        coins = int(data.get("coins", 0))
+        cd = int(data.get("cooldown", 600))
+        remaining = data.get("remaining_spins", 0)
+        limit = data.get("daily_limit", 0)
 
         STATE["jackpot_claimed"] += 1
         STATE["jackpot_coins"] += coins
         STATE["jackpot_next_at"] = time.time() + cd
-        log(f"Jackpot ✓ #{num} +{coins} DAO | next {fmt_duration(cd)}", "ok")
+
+        log(f"Jackpot ✓ #{num} +{coins} DAO | next {fmt_duration(cd)} | {remaining}/{limit}", "ok")
         return cd
-    else:
-        msg = data.get("msg", "?")
-        try:
-            cd = int(data.get("cooldown", 60))
-        except (TypeError, ValueError):
-            cd = 60
-        if cd > 0:
-            STATE["jackpot_next_at"] = time.time() + cd
-        log(f"Jackpot: {msg}", "warn")
-        return max(cd, 30)
+
+    msg = data.get("msg", data.get("message", "?"))
+    cd = int(data.get("cooldown", 60))
+    if cd > 0:
+        STATE["jackpot_next_at"] = time.time() + cd
+    log(f"Jackpot: {msg}", "warn")
+    return max(cd, 30)
 
 # ==================== WAIT LOGIC ====================
 def event_state(cfg):
@@ -893,44 +671,36 @@ def event_state(cfg):
 
 def compute_next_wake(cfg):
     now = time.time()
-
     if cfg.get("enable_faucet", True) and STATE["faucet_next_at"] <= now:
         return now + 1
     if cfg.get("enable_jackpot", True) and STATE["jackpot_next_at"] <= now:
         return now + 1
-
     candidates = []
     if cfg.get("enable_faucet", True) and STATE["faucet_next_at"] > now:
         candidates.append(STATE["faucet_next_at"])
     if cfg.get("enable_jackpot", True) and STATE["jackpot_next_at"] > now:
         candidates.append(STATE["jackpot_next_at"])
-
     if candidates:
         return min(candidates) + 1
-
     return now + LOOP_DELAY
 
 def wait_until(target_ts):
     now = time.time()
     delta = int(target_ts - now)
-
     if delta <= 0:
         return
-
     if abs(target_ts - STATE["faucet_next_at"]) <= 2:
         target_label = "faucet ready"
     elif abs(target_ts - STATE["jackpot_next_at"]) <= 2:
         target_label = "jackpot ready"
     else:
         target_label = "idle poll"
-
     print()
     status_bar(current_cfg)
     print(f"{C.GRAY}[{now_str()}]{C.R} {C.GRAY}💤{C.R}  Tidur {fmt_duration(delta)} → {C.CYAN}{target_label}{C.R}  "
           f"(faucet {fmt_duration(max(0, STATE['faucet_next_at'] - now))}, "
           f"jackpot {fmt_duration(max(0, STATE['jackpot_next_at'] - now))})")
     print()
-
     while True:
         left = target_ts - time.time()
         if left <= 0:
@@ -947,7 +717,6 @@ def print_summary():
     print(f"  Runtime           : {C.CYAN}{fmt_duration(runtime)}{C.R}")
     print(f"  Balance akhir     : {C.GREEN}{STATE['balance'] if STATE['balance'] is not None else '?'}{C.R} DAO")
     print(f"  Total claims      : {C.CYAN}{STATE['total_claims']}{C.R}")
-    print(f"  Total cashout     : {C.CYAN}${STATE['total_cashout']:.6f}{C.R}")
     print(f"  Faucet claims     : {C.CYAN}{STATE['faucet_claimed']}{C.R} (+{STATE['faucet_coins']} DAO)")
     print(f"  Jackpot claims    : {C.CYAN}{STATE['jackpot_claimed']}{C.R} (+{STATE['jackpot_coins']} DAO)")
     print(f"  Re-login count    : {C.CYAN}{STATE['relogin_count']}{C.R}")
@@ -961,17 +730,14 @@ def run_bot(cfg):
 
     banner()
     log("Bot start", "ok")
-    log(f"Email: {cfg['email']}", "info")
+    log(f"Email: {cfg['u']}", "info")
 
     session = make_session(cfg.get("cookies_extra", ""))
     session_check_every = int(cfg.get("session_check_every", 10))
-    hd_min = float(cfg.get("human_delay_min", 20))
-    hd_max = float(cfg.get("human_delay_max", 60))
+    hd_min = float(cfg.get("human_delay_min", 8))
+    hd_max = float(cfg.get("human_delay_max", 20))
 
     STATE["started_at"] = time.time()
-
-    # set sitekey awal (fallback)
-    STATE["sitekey"] = SITEKEY_FALLBACK
 
     if cfg.get("enable_auto_login", True):
         ok = False
@@ -1013,10 +779,8 @@ def run_bot(cfg):
             if not ev["any_ready"]:
                 idle_count += 1
                 wake_at = compute_next_wake(cfg)
-
                 if idle_count == 1 or idle_count % 5 == 0:
                     section(f"Idle #{idle_count} — nunggu event")
-
                 wait_until(wake_at)
                 continue
 
