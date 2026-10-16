@@ -1,13 +1,14 @@
 <?php
 /**
- * FireFaucet — Faucet Only Bot v3
+ * FireFaucet — Faucet Only Bot v3.1 (FIXED)
  *   [1] Start faucet claim
  *   [2] Edit config
  *   [3] Reset
  *   [4] Check Solver Balance
  *   [5] Pilih Captcha (hCaptcha / Turnstile)
  *   [0] Exit
- * Captcha: hardcoded sitekey
+ * FIX: X-Requested-With + Accept JSON header, g-recaptcha-response kosong,
+ *      antibot timer 9s, header merge di req(), handler cf/hardfail
  */
 
 error_reporting(0);
@@ -179,13 +180,24 @@ function req($url, $post = null, $extraHeaders = [], $method = null) {
 
     while ($tries++ < $maxTries) {
         $ch = curl_init();
-        $headers = array_merge([
+
+        // ── base headers ──
+        $headers = [
             'User-Agent: ' . $user_agent,
             'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
             'Referer: ' . HOST . '/',
             'Connection: keep-alive',
-        ], $extraHeaders);
+        ];
+
+        // ── FIX: extraHeaders OVERRIDE header dengan nama sama (gak dobel) ──
+        foreach ($extraHeaders as $eh) {
+            $ename = strtolower(trim(strtok($eh, ':')));
+            $headers = array_values(array_filter($headers, function($h) use ($ename) {
+                return strtolower(trim(strtok($h, ':'))) !== $ename;
+            }));
+            $headers[] = $eh;
+        }
 
         $opts = [
             CURLOPT_URL            => $url,
@@ -225,7 +237,7 @@ function req($url, $post = null, $extraHeaders = [], $method = null) {
                 stripos($err, 'Send failure') !== false
             );
             if ($retryable && $tries < $maxTries) {
-                global $gray, $yellow, $reset;
+                global $gray, $reset;
                 echo "  " . $gray . "retry ($tries/$maxTries): " . substr($err, 0, 60) . $reset . "\n";
                 sleep(2);
                 continue;
@@ -379,6 +391,7 @@ function solveCaptcha($method, $sitekey, $action = null, $rqdata = null, $pageur
 
         $p = parseSolverResp($poll);
         if ($p['status'] === 'ok' && $p['id']) {
+            echo "\r" . str_repeat(" ", 60) . "\r";
             return ["token" => $p['id'], "attempts" => $attempts, "method" => $method];
         }
         if ($p['code'] === 'NOT_READY' || $p['code'] === 'CAPCHA_NOT_READY') {
@@ -437,6 +450,9 @@ function checkBalance() {
     if (isRedirecting($html)) {
         return ["ok"=>false, "reason"=>"expired", "detail"=>"cookie expired"];
     }
+    if (strpos($html, 'Just a moment') !== false) {
+        return ["ok"=>false, "reason"=>"cf", "detail"=>"Cloudflare challenge"];
+    }
     $csrf = extractSidebarCsrf($html);
     if (!$csrf) {
         return ["ok"=>false, "reason"=>"expired", "detail"=>"bukan halaman logged-in"];
@@ -468,12 +484,15 @@ function printBalanceBox($b) {
    FAUCET CLAIM
    ═══════════════════════════════════════════════════ */
 function stepFaucet($captchaMethod = 'hcaptcha') {
+    $tStart = microtime(true);
+
     info("FAUCET", "GET /faucet/");
     $r = req(HOST . "/faucet/");
     $html = $r["body"];
 
     if ($html === "") { err("FAUCET", "response kosong: " . $r["err"]); return "error"; }
     if (isRedirecting($html)) { err("FAUCET", "cookie expired"); return "expired"; }
+    if (strpos($html, 'Just a moment') !== false) { err("FAUCET", "CF challenge aktif"); return "cf"; }
     if (strpos($html, 'Daily Limit Reached') !== false) {
         warn("FAUCET", "daily limit reached");
         return "limit";
@@ -482,6 +501,7 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
     $csrf = extractSidebarCsrf($html);
     if (!$csrf) { warn("FAUCET", "csrf not found"); return "skip"; }
 
+    // cooldown check
     $wait = 0;
     if (preg_match("/startCountdown\('#faucet-countdown',\s*parseInt\('(\d+)'\)/", $html, $m)) {
         $wait = (int)$m[1];
@@ -492,14 +512,18 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         return "cooldown";
     }
 
-    // ═══ Ambil rqdata dari HTML (kalau ada) ═══
+    // ═══ FIX: antibot timer dari halaman (default 9s) ═══
+    $anti = 10;
+    if (preg_match('/id="faucet-timer">(\d+)</', $html, $m)) $anti = (int)$m[1] + 1;
+
+    // ═══ rqdata (kalau ada) ═══
     $rqdata = null;
     if ($captchaMethod === 'hcaptcha') {
         if (preg_match('/\bdata-rqdata=["\']([^"\']+)["\']/i', $html, $m)) $rqdata = $m[1];
         elseif (preg_match('/\b(?:rqdata|rqData|rq_data)\s*[:=]\s*["\']([^"\']{10,})["\']/i', $html, $m)) $rqdata = $m[1];
     }
 
-    // ═══ Build solver params ═══
+    // ═══ solver params ═══
     if ($captchaMethod === 'hcaptcha') {
         $sitekey = HCAPTCHA_SITEKEY;
         $action  = null;
@@ -520,28 +544,42 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         err("FAUCET", "solve failed ($captchaMethod)");
         return "skip";
     }
-
     info("FAUCET", "token ok (" . $sol['attempts'] . " polls)");
 
-    // ═══ BUILD POST — field name per method ═══
-    $post = [
-        'csrf_token'       => $csrf,
-        'selected-captcha' => $captchaMethod,
-    ];
+    // ═══ FIX: tunggu sisa antibot timer (GET → POST minimal 9-10s) ═══
+    $elapsed = microtime(true) - $tStart;
+    $remain = $anti - $elapsed;
+    if ($remain > 0) {
+        info("FAUCET", "antibot timer " . round($remain, 1) . "s");
+        timer((int)ceil($remain), "  antibot ");
+    } else {
+        info("FAUCET", "antibot timer OK (" . round($elapsed, 1) . "s)");
+    }
 
+    // ═══ FIX: BUILD POST persis kayak browser ═══
+    // g-recaptcha-response HARUS KOSONG — jangan diisi token!
+    $post = [
+        'csrf_token'           => $csrf,
+        'selected-captcha'     => $captchaMethod,
+        'g-recaptcha-response' => '',
+    ];
     if ($captchaMethod === "hcaptcha") {
         $post['h-captcha-response'] = $sol['token'];
     } else {
         $post['cf-turnstile-response'] = $sol['token'];
     }
-    // fallback legacy fields
-    $post['g-recaptcha-response'] = $sol['token'];
 
+    // ═══ FIX: header AJAX persis kayak jQuery di browser ═══
     info("FAUCET", "POST /faucet/");
     $r2 = req(HOST . "/faucet/", $post, [
         'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+        'Accept: application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With: XMLHttpRequest',
         'Origin: ' . HOST,
         'Referer: ' . HOST . '/faucet/',
+        'Sec-Fetch-Site: same-origin',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Dest: empty',
     ]);
 
     if ($r2["body"] === "") {
@@ -559,6 +597,7 @@ function stepFaucet($captchaMethod = 'hcaptcha') {
         $msg = $data['message'] ?? 'unknown';
         warn("FAUCET", "claim fail: $msg");
         if (stripos($msg, 'daily limit') !== false) return "limit";
+        if (stripos($msg, 'refresh') !== false || stripos($msg, 'wrong') !== false) return "hardfail";
         return "skip";
     }
 
@@ -705,6 +744,8 @@ while (true) {
     if (!$check["ok"]) {
         if ($check["reason"] === "expired") {
             err("CHECK", "cookie expired — " . $check["detail"]);
+        } elseif ($check["reason"] === "cf") {
+            err("CHECK", "Cloudflare challenge — cek IP/koneksi, coba lagi nanti");
         } else {
             err("CHECK", "gagal konek: " . $check["detail"]);
         }
@@ -732,6 +773,20 @@ while (true) {
         if ($r === "expired") {
             echo $cyan . "  ╰─────────────────────────────────────────╯" . $reset . "\n";
             err("MAIN", "cookie expired — update di menu [2]");
+            echo "\n  Tekan ENTER untuk balik ke menu...";
+            fgets(STDIN);
+            break;
+        }
+        if ($r === "cf") {
+            echo $cyan . "  ╰─────────────────────────────────────────╯" . $reset . "\n";
+            err("MAIN", "Cloudflare challenge aktif — stop, cek koneksi/IP");
+            echo "\n  Tekan ENTER untuk balik ke menu...";
+            fgets(STDIN);
+            break;
+        }
+        if ($r === "hardfail") {
+            echo $cyan . "  ╰─────────────────────────────────────────╯" . $reset . "\n";
+            err("MAIN", "server nolak terus (invalid token?) — coba ganti method captcha di menu [5]");
             echo "\n  Tekan ENTER untuk balik ke menu...";
             fgets(STDIN);
             break;
