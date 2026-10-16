@@ -4,7 +4,7 @@
       "name": "NonApikey ",
       "items": {
         "1": {
-          "label": "TronBlow 🟢",
+          "label": "TronBlow 🔴",
           "file": "Tronblow.php",
           "runner": "php"
         },
@@ -14,7 +14,7 @@
           "runner": "python3"
         },
         "3": {
-          "label": "Aruble 🟡",
+          "label": "Aruble 🔴",
           "file": "aruble.php",
           "runner": "php"
         },
@@ -94,7 +94,7 @@
           "runner": "php"
         },
         "12": {
-          "label": "BullyDAO 🟢",
+          "label": "BullyDAO 🔴",
           "file": "Dao.py",
           "runner": "python"
         },
@@ -204,7 +204,7 @@
           "runner": "python3"
         },
         "10": {
-          "label": "DiaTon 🟢",
+          "label": "DiaTon 🔴",
           "file": "DiaTon.py",
           "runner": "python3"
         },
