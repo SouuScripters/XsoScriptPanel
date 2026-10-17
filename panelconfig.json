@@ -204,7 +204,7 @@
           "runner": "python3"
         },
         "10": {
-          "label": "DiaTon 🔴",
+          "label": "DiaTon 🟢",
           "file": "DiaTon.py",
           "runner": "python3"
         },
