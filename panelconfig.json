@@ -94,7 +94,7 @@
           "runner": "php"
         },
         "12": {
-          "label": "BullyDAO 🔴",
+          "label": "BullyDAO 🟢",
           "file": "Dao.py",
           "runner": "python"
         },
@@ -104,7 +104,7 @@
           "runner": "php"
         },
         "14": {
-          "label": "BuxFaucet 🔴",
+          "label": "BuxFaucet 🟢",
           "file": "buxfaucet.php",
           "runner": "php"
         },
