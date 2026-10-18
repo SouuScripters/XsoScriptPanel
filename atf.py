@@ -1,406 +1,448 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
+import requests
+import json
+import time
 import os
 import sys
-import time
-import json
+import random
+import asyncio
 import urllib.parse
-import requests
 import uuid
 from datetime import datetime
+from telethon import TelegramClient, functions
+from telethon.errors import SessionPasswordNeededError
 
-# ===== COLOR =====
-class Colors:
-    HEADER = '\033[95m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    PINK = '\033[38;5;206m'
-    WHITE = '\033[97m'
-    GRAY = '\033[90m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+# ============ RICH UI ============
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
+from rich.live import Live
 
-BANNER = f"""
-{Colors.CYAN}================================================{Colors.END}
-{Colors.PINK}             █████╗ ████████╗███████╗{Colors.END}
-{Colors.PINK}            ██╔══██╗╚══██╔══╝██╔════╝{Colors.END}
-{Colors.PINK}            ███████║   ██║   █████╗{Colors.END}
-{Colors.PINK}            ██╔══██║   ██║   ██╔══╝{Colors.END}
-{Colors.PINK}            ██║  ██║   ██║   ███████╗{Colors.END}
-{Colors.PINK}            ╚═╝  ╚═╝   ╚═╝   ╚══════╝{Colors.END}
-{Colors.CYAN}================================================{Colors.END}
-{Colors.BOLD}{Colors.WHITE}              ⚡ ATF MINER ⚡{Colors.END}
-{Colors.BOLD}{Colors.WHITE}              AUTO FARM BOT{Colors.END}
-{Colors.CYAN}================================================{Colors.END}
-{Colors.GREEN}        ScriptMaker : MoneyMaker_w{Colors.END}
-{Colors.CYAN}================================================{Colors.END}
-{Colors.GREEN}   [✓] MINING     [✓] CLAIM{Colors.END}
-{Colors.GREEN}   [✓] REWARD     [✓] AUTO RUN{Colors.END}
-{Colors.GREEN}   [✓] AUTO TASK  [✓] SKIP EMPTY{Colors.END}
-{Colors.CYAN}================================================{Colors.END}
-"""
+# ============ NETWORK FIX ============
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-def print_banner():
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print(BANNER)
+console = Console()
 
-# ============================================================
-# SINGLE USE BOT
-# ============================================================
+def create_retry_session(retries=5, backoff_factor=2):
+    session = requests.Session()
+    retry = Retry(total=retries, read=retries, connect=retries, backoff_factor=backoff_factor,
+                  status_forcelist=[500, 502, 503, 504, 408], allowed_methods=["GET", "POST"])
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    session.verify = False
+    return session
 
-class ATFMinerBot:
-    # List task ID yang bakal dicoba
-    # dari network log: telegram_join, kemungkinan ada lain
-    KNOWN_TASKS = [
-        "telegram_join",
-        "telegram_channel",
-        "telegram_group",
-        "twitter_follow",
-        "youtube_subscribe",
-        "tiktok_follow",
-        "instagram_follow",
-        "daily_checkin",
-    ]
+http_session = create_retry_session()
 
-    def __init__(self):
-        self.device_id = f"dev-{uuid.uuid4()}"
-        self.base_url = "https://atfminers.asloni.online"
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7871.181 Mobile Safari/537.36 Telegram-Android/12.9.1",
-            "Accept": "*/*",
-            "Content-Type": "application/json",
-            "Origin": self.base_url,
-            "Referer": f"{self.base_url}/miner/index.html"
-        })
-        self.balance = 0.0
-        self.total_boost = 0
-        self.mining_freeze_at = 0
-        self.username = "Unknown"
-        self.tg_id = "0"
-        self.init_data = ""
-        self.is_logged_in = False
+def post_request(url, params=None, data=None, headers=None):
+    return http_session.post(url, params=params, data=data, headers=headers, timeout=60)
 
-        self.get_init_data()
+# ============ KONFIGURASI ============
+API_ID = 28752231
+API_HASH = 'ec1c1f2c30e2f1855c3edee7e348480b'
+URL_API = "https://atfminers.asloni.online/miner/index.php"
+BOT_USERNAME = '@ATF_AIRDROP_bot'
+TASKS_STATE_FILE = "tasks_state.json"
 
-    def get_init_data(self):
-        print(f"{Colors.CYAN}╔════════════════════════════════════════╗{Colors.END}")
-        print(f"{Colors.CYAN}║{Colors.END}  {Colors.BOLD}MASUKKAN TELEGRAM INIT DATA{Colors.END}    {Colors.CYAN}║{Colors.END}")
-        print(f"{Colors.CYAN}║{Colors.END}  {Colors.GRAY}(copy dari WebView / network log){Colors.END} {Colors.CYAN}║{Colors.END}")
-        print(f"{Colors.CYAN}╚════════════════════════════════════════╝{Colors.END}")
-        print()
-        self.init_data = input(f"{Colors.GREEN}➜ {Colors.END}").strip()
+# State UI
+STATE = {
+    "username": "Loading...",
+    "task_status": {"YT LIKE": "SKIP", "X RETWEET": "SKIP", "WEBSITE": "SKIP", "REACT POST": "SKIP"},
+    "energy": 0.0, "max_energy": 0.0, "pending": 0.0,
+    "events": [],
+    "status_msg": "Starting...",
+    "balance": "0.0000", 
+    "holding": "0.0000"
+}
 
-        if not self.init_data:
-            print(f"{Colors.RED}❌ InitData tidak boleh kosong!{Colors.END}")
-            sys.exit(1)
+USER_AGENTS = ["Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.8037.106 Mobile Safari/537.36 Telegram-Android/12.9.1"]
+TASKS = [
+    {"name": "YT LIKE", "task_id": "youtube_like_comment", "cooldown": 7200, "wait_time": 50},
+    {"name": "X RETWEET", "task_id": "twitter_retweet", "cooldown": 7200, "wait_time": 50},
+    {"name": "WEBSITE", "task_id": "website_visit", "cooldown": 7200, "wait_time": 15},
+    {"name": "REACT POST", "task_id": "telegram_react_latest", "cooldown": 7200, "wait_time": 45},
+]
 
-        if 'query_id=' not in self.init_data or 'user=' not in self.init_data:
-            print(f"{Colors.YELLOW}⚠️ InitData sepertinya tidak lengkap{Colors.END}")
-            retry = input(f"{Colors.YELLOW}Lanjutkan tetap? (y/n): {Colors.END}").strip().lower()
-            if retry != 'y':
-                self.get_init_data()
-                return
+def get_timestamp(): return str(int(time.time() * 1000))
 
-        self._parse_user()
-        self.login()
+def add_event(msg, color="white"):
+    t = datetime.now().strftime("%H:%M:%S")
+    STATE["events"].append(f"[{t}] {msg}")
+    if len(STATE["events"]) > 5: STATE["events"].pop(0)
 
-    def _parse_user(self):
+# ============ UI GENERATOR ============
+def make_header():
+    user = STATE["username"]
+    engine = Text("⚡ ENGINE ................ ", style="yellow")
+    engine.append("AUTO TASK / BOOST HUMAN LIKE", style="bold green")
+    engine.append("\n🔧 MODE .................. ", style="yellow")
+    engine.append("SMOOTH MODE NOT DETECTED", style="bold green")
+    
+    info = Text("\n💰 BALANCE ................ ", style="yellow")
+    info.append(f"{STATE['balance']} ATF\n", style="bold green")
+    info.append("🏦 HOLDING ................ ", style="yellow")
+    info.append(f"{STATE['holding']} ATF", style="bold green")
+
+    login_text = Text("\n✨ Logged in as: ", style="white")
+    login_text.append(f"@{user}", style="bold green")
+
+    return Panel(
+        Group(engine, info, login_text),
+        title="[bold magenta]⚡ ATF MINER ⚡[/]", border_style="magenta"
+    )
+
+def make_task_panel():
+    txt = Text()
+    for task in TASKS:
+        name = task['name'].ljust(20, '.')
+        status = STATE["task_status"][task['name']]
+        color = "green" if status == "READY" else "red" if status == "SKIP" else "yellow"
+        txt.append(f"➔ {name} ")
+        txt.append(f"» {status}\n", style=f"bold {color}")
+    return Panel(txt, title="[bold white]📊 AUTO TASK MODULE[/]", border_style="blue")
+
+def make_monitor_panel():
+    e = STATE["energy"]
+    me = STATE["max_energy"]
+    p = STATE["pending"]
+    
+    pct = min(100, max(0, (e / me) * 100)) if me > 0 else 0
+    bar_len = 20
+    filled = int((pct / 100) * bar_len)
+    bar = "█" * filled + "░" * (bar_len - filled)
+    
+    status_txt = Text()
+    # Kalau lagi nunggu energy 70%, kasih tau targetnya
+    if pct < 70:
+        status_txt.append(f"⏱ Recharging... {pct:.1f}% (Target: 75%)\n", style="yellow")
+    else:
+        status_txt.append(f"⚡ {int(e)}/{int(me)}  ", style="yellow")
+        status_txt.append(f"💰 {p:.4f} ATF\n", style="green")
+    
+    status_txt.append(f"🔋 Energy: [{bar}] {pct:.1f}%\n", style="bold green")
+
+    events = Text()
+    for ev in STATE["events"]:
+        if "TAPS" in ev: events.append(ev + "\n", style="green")
+        elif "SUCCESS" in ev or "CLAIM" in ev: events.append(ev + "\n", style="bold green")
+        elif "Error" in ev: events.append(ev + "\n", style="red")
+        else: events.append(ev + "\n", style="dim")
+
+    return Panel(
+        Group(status_txt, Text(""), Panel(events, title="[dim]📋 EVENTS[/]", border_style="dim")),
+        title="[bold green]📊 SESSION MONITOR[/]", border_style="green"
+    )
+
+def draw_ui():
+    return Group(make_header(), Text(""), make_task_panel(), Text(""), make_monitor_panel())
+
+# ============ HELPERS ============
+def load_tasks_state():
+    if os.path.exists(TASKS_STATE_FILE):
         try:
-            parsed = urllib.parse.parse_qs(self.init_data)
-            if 'user' in parsed:
-                user = json.loads(parsed['user'][0])
-                self.username = user.get('username') or user.get('first_name', 'Unknown')
-                self.tg_id = str(user.get('id', '0'))
-                print(f"{Colors.GREEN}✅ User terdeteksi: {self.username} (ID: {self.tg_id}){Colors.END}")
-            else:
-                print(f"{Colors.YELLOW}⚠️ InitData tidak mengandung 'user'{Colors.END}")
-        except Exception as e:
-            print(f"{Colors.YELLOW}⚠️ Parse error: {e}{Colors.END}")
+            with open(TASKS_STATE_FILE, 'r') as f: return json.load(f)
+        except: return {}
+    return {}
 
-    def _call_api(self, action, extra=None):
-        url = f"{self.base_url}/miner/index.php"
-        params = {"action": action, "t": str(int(time.time()*1000))}
-        payload = {
-            "initData": self.init_data,
-            "request_id": str(uuid.uuid4()),
-            "device_id": self.device_id
-        }
-        if extra:
-            payload.update(extra)
+def save_tasks_state(state):
+    with open(TASKS_STATE_FILE, 'w') as f: json.dump(state, f)
 
-        try:
-            resp = self.session.post(url, params=params, json=payload, timeout=30)
-            if resp.status_code == 200:
-                try:
-                    return resp.json()
-                except Exception:
-                    return {"status": "error", "raw": resp.text[:300]}
-            else:
-                return {"status": "error", "http": resp.status_code}
-        except Exception as e:
-            return {"status": "error", "msg": str(e)}
+def get_task_cooldown_remaining(task_id, server_cooldowns=None):
+    state = load_tasks_state()
+    current_time = int(time.time())
+    if server_cooldowns and task_id in server_cooldowns:
+        sc = int(server_cooldowns[task_id] or 0)
+        if sc > current_time: return sc - current_time
+    server_cd = state.get(task_id, {}).get('server_cooldown_until', 0)
+    if server_cd > current_time: return server_cd - current_time
+    last_claim = state.get(task_id, {}).get('last_claim', 0)
+    cd = 7200
+    for t in TASKS:
+        if t['task_id'] == task_id: cd = t['cooldown']; break
+    rem = cd - (current_time - last_claim)
+    return rem if rem > 0 else 0
 
-    def login(self):
-        print(f"\n{Colors.CYAN}🔄 Mencoba login...{Colors.END}")
-        result = self._call_api("login")
+def is_unauthorized_error(data):
+    if data.get("status") == "error":
+        m = data.get("message", "").lower()
+        if "unauthorized" in m or "invalid" in m or "session" in m: return True
+    return False
 
-        if result and result.get('status') == 'success':
-            user = result.get('user', {})
-            self.is_logged_in = True
-            self.balance = float(user.get('mined_balance', 0))
-            self.total_boost = int(user.get('total_boost_count', 0))
-            self.mining_freeze_at = int(user.get('mining_freezes_at', 0))
+# ============ TELEGRAM & ATF LOGIN ============
+async def get_fresh_init_data(client, skip_start=True):
+    try:
+        bot = await client.get_entity(BOT_USERNAME)
+        if not skip_start:
+            await client.send_message(bot, '/start')
+            await asyncio.sleep(1)
+        wv = await client(functions.messages.RequestWebViewRequest(
+            peer=bot, bot=bot, platform='android', from_bot_menu=True,
+            url='https://atfminers.asloni.online'))
+        raw = wv.url.split('tgWebAppData=')[1].split('&tgWebAppVersion')[0]
+        return urllib.parse.unquote(raw)
+    except: return None
 
-            print(f"\n{Colors.GREEN}✅ LOGIN BERHASIL!{Colors.END}")
-            print(f"{Colors.CYAN}👤 Username :{Colors.END} {Colors.WHITE}{user.get('username')}{Colors.END}")
-            print(f"{Colors.CYAN}📊 Level    :{Colors.END} {Colors.WHITE}{user.get('miner_level')}{Colors.END}")
-            print(f"{Colors.CYAN}💰 Balance  :{Colors.END} {Colors.WHITE}{self.balance:.4f} ATF{Colors.END}")
-            print(f"{Colors.CYAN}📈 Total Boost:{Colors.END} {Colors.WHITE}{self.total_boost}{Colors.END}")
-            print()
-            return True
+async def relogin(client):
+    init_data = await get_fresh_init_data(client, skip_start=True)
+    if not init_data: return None, None
+    res = atf_login(init_data)
+    return init_data, res
+
+def atf_login(init_data):
+    try:
+        u_enc = init_data.split('user=')[1].split('&')[0]
+        u_json = json.loads(urllib.parse.unquote(u_enc))
+        tg_id = int(u_json['id'])
+        user = u_json.get('username', '')
+    except: return None
+
+    dev_id = f"dev-{uuid.uuid4()}"
+    headers = {
+        'User-Agent': random.choice(USER_AGENTS),
+        'Content-Type': "application/json",
+        'x-requested-with': "XMLHttpRequest",
+        'origin': "https://atfminers.asloni.online",
+        'referer': "https://atfminers.asloni.online/miner/index.html?v=1788012819",
+        'x-telegram-init-data': init_data,
+    }
+    payload = {"initData": init_data, "request_id": str(uuid.uuid4()), "device_id": dev_id, "tg_id": tg_id, "username": user}
+    try:
+        r = post_request(URL_API, params={'action': "login", 't': get_timestamp()}, data=json.dumps(payload), headers=headers)
+        d = r.json()
+    except: return None
+
+    if d.get("status") != "success": return None
+    
+    token = d.get("tma_session_token")
+    if token:
+        headers['x-atf-tma-session'] = token
+        headers['cookie'] = f"atf_tma_session={token}"
+
+    u_data = d.get("user", {})
+    STATE["holding"] = str(u_data.get("wallet_holding_atf", "0.0000"))
+    STATE["balance"] = str(u_data.get("claimable_now", "0.0000"))
+
+    return {"headers": headers, "tg_id": tg_id, "username": user, "data": d, "dev_id": dev_id}
+
+# ============ CORE LOGIC ============
+async def fetch_state(url, headers, init_data, tg_id, dev_id, client_inst):
+    """Cuma ngecek state (energy & pending) tanpa nge-tap."""
+    s = post_request(url, params={'action': 'tap_v2_state', 't': get_timestamp()}, 
+                     data=json.dumps({"initData": init_data, "tg_id": str(tg_id), "device_id": dev_id, "client_instance": client_inst}), headers=headers).json()
+    return s
+
+async def run_tap(url, headers, init_data, tg_id, dev_id, client_inst, client, s):
+    """Eksekusi tap. Asumsi state (s) udah didapet dari fetch_state."""
+    nonce = s.get("session_nonce")
+    seq = int(s.get("last_seq", 0)) + 1
+    energy = float(s.get("energy", 0))
+    energy_cost = 10
+    
+    STATE["pending"] = float(s.get("pending_reward", 0))
+    
+    add_event("Tapping started (10 Taps/batch)...", "cyan")
+    
+    while energy >= energy_cost:
+        taps_to_send = 10 
+        if energy < (taps_to_send * energy_cost):
+            taps_to_send = int(energy // energy_cost)
+        if taps_to_send <= 0: break
+        
+        bid = f"b_{uuid.uuid4().hex[:20]}"
+        r = post_request(url, params={'action': 'tap_v2_sync', 't': get_timestamp()},
+            data=json.dumps({"initData": init_data, "tg_id": str(tg_id), "device_id": dev_id, "client_instance": client_inst, "session_nonce": nonce, "seq": seq, "batch_id": bid, "taps": taps_to_send}), headers=headers).json()
+        
+        if r.get("status") == "success":
+            acc, rej = r.get("accepted", 0), r.get("rejected", 0)
+            energy = float(r.get("energy", energy))
+            STATE["energy"] = energy
+            STATE["pending"] = float(r.get("pending_reward", STATE["pending"]))
+            seq = int(r.get("next_seq", seq + 1))
+            
+            add_event(f"⚡ {taps_to_send} TAPS ({acc} SUCCESS) ({rej} REJECT)", "green" if rej == 0 else "yellow")
+            if acc == 0: await asyncio.sleep(1)
+        elif is_unauthorized_error(r):
+            add_event("Unauthorized, relogin...", "red")
+            i, h = await relogin(client)
+            if i and h: return i, h["headers"]
+            break
         else:
-            print(f"\n{Colors.RED}❌ LOGIN GAGAL!{Colors.END}")
-            if result and result.get('message'):
-                print(f"{Colors.RED}Pesan: {result.get('message')}{Colors.END}")
-            if result and result.get('reason'):
-                print(f"{Colors.RED}Alasan: {result.get('reason')}{Colors.END}")
+            add_event(f"Sync error: {r.get('message', 'Unknown')}", "red")
+            await asyncio.sleep(2)
+        await asyncio.sleep(0.5)
 
-            retry = input(f"\n{Colors.YELLOW}Masukkan initData baru? (y/n): {Colors.END}").strip().lower()
-            if retry == 'y':
-                self.get_init_data()
+    return init_data, headers
+
+async def do_claim(url, headers, init_data, tg_id, dev_id, preview, client):
+    if preview <= 0: return init_data, headers, False
+    
+    add_event("Mencoba claim...", "cyan")
+    await asyncio.sleep(random.uniform(2, 4))
+    payload = {"initData": init_data, "request_id": str(uuid.uuid4()), "device_id": dev_id, "tg_id": str(tg_id), "claim_preview": preview}
+    r = post_request(url, params={'action': 'claim', 't': get_timestamp()}, data=json.dumps(payload), headers=headers).json()
+    
+    if is_unauthorized_error(r):
+        i, h = await relogin(client)
+        if i and h: return i, h["headers"], False
+        return init_data, headers, False
+        
+    if r.get("status") == "success":
+        amt = r.get("claimed_amount", "0")
+        add_event(f"💰 CLAIM OK! +{amt} ATF", "bold green")
+        STATE["pending"] = 0
+        try: STATE["balance"] = f"{float(STATE['balance']) + float(amt):.4f}"
+        except: pass
+        return init_data, headers, True
+    else:
+        add_event(f"Claim failed: {r.get('status')}", "red")
+        return init_data, headers, False
+
+async def run_tasks(url, headers, init_data, tg_id, dev_id, client, srv_cd):
+    for task in TASKS:
+        rem = get_task_cooldown_remaining(task['task_id'], srv_cd)
+        if rem > 0:
+            STATE["task_status"][task['name']] = "SKIP"
+            continue
+            
+        STATE["task_status"][task['name']] = "RUNNING"
+        payload = {"initData": init_data, "request_id": str(uuid.uuid4()), "device_id": dev_id, "tg_id": str(tg_id), "task_id": task['task_id'], "client_started_at": int(time.time())}
+        r = post_request(url, params={'action': 'start_task', 't': get_timestamp()}, data=json.dumps(payload), headers=headers).json()
+        
+        if r.get("status") == "error" and "cooldown" in r.get("message", "").lower():
+            STATE["task_status"][task['name']] = "SKIP"
+            continue
+            
+        if r.get("status") == "success" and r.get("started"):
+            wait = task.get('wait_time', 15)
+            for _ in range(wait): await asyncio.sleep(1)
+            
+            c_payload = {"initData": init_data, "request_id": str(uuid.uuid4()), "device_id": dev_id, "tg_id": str(tg_id), "task_id": task['task_id'], "client_started_at": int(time.time())}
+            c = post_request(url, params={'action': 'claim_task', 't': get_timestamp()}, data=json.dumps(c_payload), headers=headers).json()
+            
+            if c.get("status") == "success":
+                STATE["task_status"][task['name']] = "DONE"
+                add_event(f"Task {task['name']} sukses", "green")
+                st = load_tasks_state()
+                st[task['task_id']] = {'last_claim': int(time.time())}
+                save_tasks_state(st)
             else:
-                print(f"{Colors.RED}Keluar...{Colors.END}")
-                sys.exit(1)
-
-    def countdown(self, sec, msg="⏳ Menunggu"):
-        for i in range(sec, 0, -1):
-            print(f"\r{Colors.YELLOW}{msg} {i} detik...{Colors.END}", end="", flush=True)
-            time.sleep(1)
-        print(f"\r{Colors.GREEN}{msg} selesai!{Colors.END}          ")
-
-    # ==================== TASK ====================
-    def try_claim_task(self, task_id):
-        """
-        Coba claim 1 task.
-        Return: 'claimed' / 'skip' / 'already' / 'not_found' / 'error'
-        """
-        extra = {
-            "tg_id": self.tg_id,
-            "task_id": task_id,
-            "client_started_at": 0,
-        }
-        result = self._call_api("claim_task", extra)
-
-        if not result:
-            return 'error', 0
-
-        status = str(result.get('status', '')).lower()
-        msg = str(result.get('message', '')).lower()
-
-        # sukses
-        if status == 'success':
-            reward = result.get('reward', 0)
-            return 'claimed', reward
-
-        # sudah pernah / already
-        for kw in ['already', 'sudah', 'claimed', 'duplicate']:
-            if kw in msg:
-                return 'already', 0
-
-        # task gak ada / belum dibuka
-        for kw in ['not found', 'invalid task', 'unknown', 'tidak ada', 'unavailable', 'not available']:
-            if kw in msg or status in ('not_found', 'invalid'):
-                return 'not_found', 0
-
-        # task belum bisa (harus join dulu dll)
-        for kw in ['not completed', 'belum', 'must join', 'please join', 'requirement', 'need to']:
-            if kw in msg:
-                return 'skip', 0
-
-        # rate limited
-        if status == 'rate_limited':
-            return 'skip', 0
-
-        # default
-        return 'skip', 0
-
-    def run_tasks(self):
-        """Auto kerjakan semua task yang bisa, skip yang gagal/empty"""
-        print(f"\n{Colors.CYAN}{'═' * 50}{Colors.END}")
-        print(f"{Colors.BOLD}{Colors.WHITE}📋 AUTO TASK{Colors.END}")
-        print(f"{Colors.CYAN}{'═' * 50}{Colors.END}")
-
-        total_claimed = 0
-        total_reward = 0
-
-        for task_id in self.KNOWN_TASKS:
-            print(f"{Colors.GRAY}➜ Coba task: {Colors.WHITE}{task_id}{Colors.END}", end=" ")
-            res, reward = self.try_claim_task(task_id)
-
-            if res == 'claimed':
-                print(f"{Colors.GREEN}✅ +{reward} ATF{Colors.END}")
-                total_claimed += 1
-                total_reward += float(reward or 0)
-            elif res == 'already':
-                print(f"{Colors.GRAY}↺ sudah claim{Colors.END}")
-            elif res == 'not_found':
-                print(f"{Colors.GRAY}⏭ tidak ada{Colors.END}")
-            elif res == 'skip':
-                print(f"{Colors.YELLOW}⏭ skip (belum memenuhi){Colors.END}")
-            else:
-                print(f"{Colors.RED}✗ error{Colors.END}")
-
-            # delay kecil biar gak rate limited
-            time.sleep(1.2)
-
-        print(f"{Colors.CYAN}{'═' * 50}{Colors.END}")
-        if total_claimed > 0:
-            print(f"{Colors.GREEN}✅ Task selesai: {total_claimed} claimed | +{total_reward} ATF{Colors.END}")
+                STATE["task_status"][task['name']] = "FAILED"
         else:
-            print(f"{Colors.YELLOW}ℹ️ Tidak ada task baru hari ini{Colors.END}")
-        print(f"{Colors.CYAN}{'═' * 50}{Colors.END}\n")
+            STATE["task_status"][task['name']] = "SKIP"
+        await asyncio.sleep(2)
 
-        return total_claimed, total_reward
-
-    # ==================== CLAIM ====================
-    def claim(self):
-        print(f"{Colors.CYAN}🔄 Claiming reward...{Colors.END}")
-        result = self._call_api("claim")
-        if not result:
-            print(f"{Colors.RED}❌ Claim gagal{Colors.END}")
-            return False
-
-        status = result.get('status')
-        if status == 'success':
-            self.balance = float(result.get('user', {}).get('mined_balance', self.balance))
-            self.mining_freeze_at = int(result.get('user', {}).get('mining_freezes_at', 0))
-            print(f"{Colors.GREEN}✅ Claim berhasil! Balance: {self.balance:.4f} ATF{Colors.END}")
-            return True
-        elif status in ('busy', 'cooldown'):
-            wait = result.get('mining_freezes_at', 0) - int(time.time())
-            if wait > 0:
-                print(f"{Colors.YELLOW}⏳ Claim cooldown {wait} detik{Colors.END}")
-                self.countdown(wait, "⏳ Claim cooldown")
-                return self.claim()
-        else:
-            print(f"{Colors.RED}❌ Claim status: {status}{Colors.END}")
-        return False
-
-    # ==================== BOOST ====================
-    def do_boost(self):
-        if self.mining_freeze_at > 0 and int(time.time()) >= self.mining_freeze_at:
-            print(f"{Colors.YELLOW}⛔ Mining frozen! Claim dulu...{Colors.END}")
-            if not self.claim():
-                print(f"{Colors.RED}❌ Claim gagal, skip boost{Colors.END}")
-                return False
-
-        print(f"{Colors.CYAN}🚀 Mengirim boost...{Colors.END}")
-        result = self._call_api("activate_boost", {"display_preview": round(0.15 + 0.1 * (time.time() % 1), 4)})
-
-        if not result:
-            print(f"{Colors.RED}❌ Boost gagal (no response){Colors.END}")
-            return False
-
-        status = result.get('status')
-
-        if status == 'success':
-            reward = result.get('pending_reward', 0)
-            self.balance = float(result.get('user', {}).get('mined_balance', self.balance))
-            self.total_boost = int(result.get('user', {}).get('total_boost_count', self.total_boost))
-            self.mining_freeze_at = int(result.get('user', {}).get('mining_freezes_at', 0))
-
-            print(f"{Colors.GREEN}✅ BOOST BERHASIL!{Colors.END}")
-            print(f"   {Colors.YELLOW}+{reward:.4f} ATF{Colors.END}")
-            print(f"   {Colors.CYAN}💰 Balance: {self.balance:.4f} ATF{Colors.END}")
-            print(f"   {Colors.CYAN}📊 Total boost: {self.total_boost}{Colors.END}")
-            print(f"   {Colors.GRAY}⏰ {datetime.now().strftime('%H:%M:%S')}{Colors.END}")
-            return True
-
-        elif status == 'frozen':
-            print(f"{Colors.YELLOW}⛔ Frozen response, claim...{Colors.END}")
-            if self.claim():
-                return self.do_boost()
-            return False
-
-        elif status in ('busy', 'cooldown'):
-            wait = result.get('boost_ready_at', 0) - int(time.time())
-            if wait > 0:
-                print(f"{Colors.YELLOW}⏳ Cooldown {wait} detik{Colors.END}")
-                self.countdown(wait, "⏳ Cooldown")
-                return self.do_boost()
-            time.sleep(1)
-            return self.do_boost()
-
-        elif status == 'rate_limited':
-            wait = 30
-            print(f"{Colors.YELLOW}⚠️ Rate limited, tunggu {wait} detik{Colors.END}")
-            self.countdown(wait, "⏳ Rate limit")
-            return self.do_boost()
-
-        else:
-            print(f"{Colors.RED}❌ Boost gagal: {status}{Colors.END}")
-            return False
-
-    # ==================== RUN ====================
-    def run(self):
-        # ===== AUTO TASK DULU =====
-        print(f"\n{Colors.GREEN}{Colors.BOLD}📋 AUTO TASK RUN{Colors.END}")
-        self.run_tasks()
-
-        print(f"\n{Colors.GREEN}{Colors.BOLD}🚀 START AUTO BOOST{Colors.END}")
-        print(f"{Colors.CYAN}{'═' * 50}{Colors.END}")
-        print(f"{Colors.GRAY}Press Ctrl+C to stop{Colors.END}\n")
-
-        boost_count = 0
-        task_check_counter = 0
-
+# ============ MAIN LOOP ============
+async def main():
+    console.clear()
+    console.print("[bold yellow]Sedang login ke Telegram...[/]")
+    
+    client = TelegramClient("atf_miner", API_ID, API_HASH)
+    await client.connect()
+    if not await client.is_user_authorized():
+        phone = input("Nomor (+62): ")
+        await client.send_code_request(phone)
+        otp = input("OTP: ")
+        try: await client.sign_in(phone, otp)
+        except SessionPasswordNeededError:
+            pw = input("2FA Password: ")
+            await client.sign_in(password=pw)
+            
+    console.print("[bold green]Login Telegram OK! Mengambil data ATF...[/]")
+    
+    init_data = await get_fresh_init_data(client, skip_start=False)
+    res = atf_login(init_data)
+    if not res: console.print("[red]ATF Login gagal![/]"); sys.exit()
+    
+    STATE["username"] = res['username']
+    headers = res['headers']
+    tg_id = res['tg_id']
+    dev_id = res['dev_id']
+    srv_cd = res['data'].get("task_cooldowns", {})
+    client_inst = f"c_{uuid.uuid4().hex[:28]}"
+    
+    console.clear()
+    
+    # Target energy awal (acak 70-90%)
+    target_pct = random.randint(75, 85)
+    
+    with Live(draw_ui(), refresh_per_second=4, screen=True) as live:
         while True:
             try:
-                # ===== CEK TASK SETIAP 20 BOOST =====
-                if task_check_counter >= 20:
-                    self.run_tasks()
-                    task_check_counter = 0
-
-                if self.do_boost():
-                    boost_count += 1
-                    task_check_counter += 1
-                    print(f"{Colors.GRAY}➜ Total boost sesi ini: {boost_count}{Colors.END}")
+                # 1. Ambil state terbaru dari server
+                s = await fetch_state(URL_API, headers, init_data, tg_id, dev_id, client_inst)
+                
+                if s.get("status") == "success":
+                    energy = float(s.get("energy", 0))
+                    max_energy = float(s.get("max_energy", 1997))
+                    STATE["energy"] = energy
+                    STATE["max_energy"] = max_energy
+                    STATE["pending"] = float(s.get("pending_reward", 0))
+                    pct = (energy / max_energy) * 100 if max_energy > 0 else 0
                 else:
-                    print(f"{Colors.RED}❌ Boost gagal, tunggu 5 detik...{Colors.END}")
-                    time.sleep(5)
+                    # Kalau gagal ambil state (misal unauthorized), relogin
+                    if is_unauthorized_error(s):
+                        add_event("Session expired, relogin...", "red")
+                        init_data, new_res = await relogin(client)
+                        if new_res:
+                            headers = new_res['headers']
+                            res = new_res
+                    await asyncio.sleep(2)
+                    continue
 
-                self.countdown(15, "⏳ Cooling down")
+                # 2. Logika Tap: Tunggu sampai energy nyampe target (70-90%)
+                if pct >= target_pct:
+                    add_event(f"Energy {pct:.1f}% (Target {target_pct}%). Mulai tap!", "cyan")
+                    init_data, headers = await run_tap(URL_API, headers, init_data, tg_id, dev_id, client_inst, client, s)
+                    
+                    # Setelah tap, random target baru buat siklus berikutnya
+                    target_pct = random.randint(75, 85)
+                    
+                    # Setelah tap, coba claim kalau pending lumayan gede
+                    if STATE["pending"] >= 0.5:
+                        init_data, headers, ok = await do_claim(URL_API, headers, init_data, tg_id, dev_id, STATE["pending"], client)
+                
+                # 3. Kalau energy belum nyampe target, ngapain? Kerjain task aja
+                elif pct < target_pct:
+                    # Cek dulu, kalau ada task yang READY, kerjain sambil nunggu energy
+                    any_task_ready = any(get_task_cooldown_remaining(t['task_id'], srv_cd) <= 0 for t in TASKS)
+                    if any_task_ready:
+                        await run_tasks(URL_API, headers, init_data, tg_id, dev_id, client, srv_cd)
+                        live.update(draw_ui())
+                        await asyncio.sleep(2)
+                        continue
 
+                # 4. Claim independen (kalau pending gede tapi gak jadi tap)
+                if STATE["pending"] >= 1.0 and pct < target_pct:
+                    init_data, headers, ok = await do_claim(URL_API, headers, init_data, tg_id, dev_id, STATE["pending"], client)
+
+                # 5. Sync Wallet tiap 30 detik (biar balance update)
+                # Karena loop jalan tiap ~1 detik, kita hitung pakai modulo waktu
+                if int(time.time()) % 30 == 0:
+                    sw_payload = {"initData": init_data, "request_id": str(uuid.uuid4()), "device_id": dev_id, "tg_id": str(tg_id), "wallet": res['data'].get('user', {}).get('wallet_address', ''), "public_key": "", "wallet_state_init": "", "network": "", "proof": None, "refresh_holding": 0, "fg_visible": 1, "fg_epoch": int(time.time() * 1000), "activity_lease": res['data'].get('activity_lease_token', '')}
+                    sw_res = post_request(URL_API, params={'action': 'sync_wallet', 't': get_timestamp()}, data=json.dumps(sw_payload), headers=headers).json()
+                    
+                    if sw_res.get("status") == "success" and "user" in sw_res:
+                        u = sw_res["user"]
+                        STATE["holding"] = str(u.get("wallet_holding_atf", STATE["holding"]))
+                        STATE["balance"] = str(u.get("claimable_now", STATE["balance"]))
+                    
+                    await asyncio.sleep(1) # Biar gak double request di detik yang sama
+
+                live.update(draw_ui())
+                await asyncio.sleep(1) # Jeda pengecekan state
+                
             except KeyboardInterrupt:
-                print(f"\n\n{Colors.GREEN}👋 Dihentikan! Total boost: {boost_count}{Colors.END}")
                 break
             except Exception as e:
-                print(f"{Colors.RED}❌ Error: {e}{Colors.END}")
-                time.sleep(5)
+                add_event(f"Loop Error: {e}", "red")
+                live.update(draw_ui())
+                await asyncio.sleep(3)
 
-# ============================================================
-# MAIN
-# ============================================================
-
-def main():
-    print_banner()
+if __name__ == '__main__':
     try:
-        bot = ATFMinerBot()
-        if bot.is_logged_in:
-            bot.run()
-        else:
-            print(f"{Colors.RED}❌ Tidak bisa lanjut karena login gagal{Colors.END}")
-            sys.exit(1)
+        asyncio.run(main())
     except KeyboardInterrupt:
-        print(f"\n{Colors.RED}🛑 Dihentikan user{Colors.END}")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n{Colors.RED}❌ Error: {e}{Colors.END}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
+        pass
