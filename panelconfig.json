@@ -94,61 +94,56 @@
           "runner": "php"
         },
         "12": {
-          "label": "BullyDAO 🟢",
-          "file": "Dao.py",
-          "runner": "python"
-        },
-        "13": {
           "label": "PayubVideo 🟢",
           "file": "Payub.php",
           "runner": "php"
         },
-        "14": {
+        "13": {
           "label": "BuxFaucet 🟢",
           "file": "buxfaucet.php",
           "runner": "php"
         },
-        "15": {
+        "14": {
           "label": "Coinadster 🟢",
           "file": "coinadster.php",
           "runner": "php"
         },
-        "16": {
+        "15": {
           "label": "TRXMiner 🟢",
           "file": "trxminer.py",
           "runner": "python3"
         },
-        "17": {
+        "16": {
           "label": "DRFaucet 🟢",
           "file": "DrFaucet.py",
           "runner": "python3"
         },
-        "18": {
+        "17": {
           "label": "GainLTC 🟢",
           "file": "GainLTC.py",
           "runner": "python3"
         },
-        "19": {
+        "18": {
           "label": "FireFaucet 🟢",
           "file": "FireFaucet.php",
           "runner": "php"
         },
-        "20": {
+        "19": {
           "label": "MiniTasky 🟢",
           "file": "MiniTasky.py",
           "runner": "python3"
         },
-        "21": {
+        "20": {
           "label": "Altcryp 🟢",
           "file": "Altcryp.php",
           "runner": "php"
         },
-        "22": {
-          "label": "Mama Aku Di M7😂",
-          "file": "ComingSoon8.php",
-          "runner": "php"
+        "21": {
+          "label": "Tap-Coin.de 🟢",
+          "file": "Tap-Coin.de.py",
+          "runner": "python3"
         },
-        "23": {
+        "22": {
           "label": "Coming Soon ⏳",
           "file": "ComingSoon9.php",
           "runner": "php"
