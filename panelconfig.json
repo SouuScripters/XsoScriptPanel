@@ -149,9 +149,9 @@
           "runner": "python3"
         },
         "23": {
-          "label": "VieFaucet 🟢",
-          "file": "VieFaucet.js",
-          "runner": "node"
+          "label": "VieFaucet 🟢x",
+          "file": "VieFaucet.py",
+          "runner": "python3"
         },
         "24": {
           "label": "Coming Soon ⏳",
