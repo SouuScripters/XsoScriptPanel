@@ -189,91 +189,76 @@
           "runner": "python3"
         },
         "5": {
-          "label": "AuctionAstrabot 🟢",
-          "file": "AuctionAstra.py",
-          "runner": "python3"
-        },
-        "6": {
           "label": "LtcMiner 🟢",
           "file": "LtcMiner.py",
           "runner": "python3"
         },
-        "7": {
-          "label": "MusicMiningMB 🔴",
-          "file": "Music.py",
-          "runner": "python3"
-        },
-        "8": {
+        "6": {
           "label": "GramBux 🟢",
           "file": "Gramads.py",
           "runner": "python3"
         },
-        "9": {
+        "7": {
           "label": "PaidZ [ High Payment ] 🟢",
           "file": "baby.py",
           "runner": "python3"
         },
-        "10": {
+        "8": {
           "label": "DiaTon 🟢",
           "file": "DiaTon.py",
           "runner": "python3"
         },
-        "11": {
+        "9": {
           "label": "GramAD 🟢",
           "file": "GramAD.py",
           "runner": "python3"
         },
-        "12": {
+        "10": {
           "label": "LiteBitsFaucet 🟢",
           "file": "Litebits.py",
           "runner": "python3"
         },
-        "13": {
+        "11": {
           "label": "DogeMinerVip 🟢",
           "file": "Dogevip.py",
           "runner": "python3"
         },
-        "14": {
+        "12": {
           "label": "TReward 🟢",
           "file": "tr.py",
           "runner": "python3"
         },
-        "15": {
+        "13": {
           "label": "NewTube 🟢",
           "file": "newtube.py",
           "runner": "python3"
         },
-        "16": {
-          "label": "InstaBitcoFaucet 🟢",
-          "file": "InstaBitco.py",
-          "runner": "python3"
-        },
-        "17": {
+        "14": {
           "label": "AdTubesBot 🟢",
           "file": "AdTubesBot.py",
           "runner": "python3"
         },
-        "18": {
+        "15": {
           "label": "Adclickers 🟢",
           "file": "Adclickers.php",
           "runner": "php"
         },
-        "19": {
+        "16": {
           "label": "FarmBuddies 🟢",
           "file": "FarmBuddiesBot.py",
           "runner": "python3"
         },
-        "20": {
+        "17": {
           "label": "Btc Faucet 🟢",
           "file": "btcFaucet.py",
           "runner": "python3"
         },
-        "21": {
+        "18": {
           "label": "VipFaucet 🟢",
           "file": "VipFaucet.py",
           "runner": "python3"
         },
-        "22": {
+        "19": {
           "label": "VIRTUAL MINE 🟢",
           "file": "VirtualMine.py",
           "runner": "python3"
