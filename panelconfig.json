@@ -149,8 +149,8 @@
           "runner": "python3"
         },
         "23": {
-          "label": "VieFaucet 🔴",
-          "file": "VieFaucet.",
+          "label": "Nevcoins 🟢",
+          "file": "NevCoins.py",
           "runner": "python3"
         },
         "24": {
