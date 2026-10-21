@@ -154,8 +154,8 @@
           "runner": "python3"
         },
         "24": {
-          "label": "Coming Soon ⏳",
-          "file": "ComingSoon24.php",
+          "label": "HateCoins 🟢",
+          "file": "Hatecoin.php",
           "runner": "php"
         },
         "25": {
