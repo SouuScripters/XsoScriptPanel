@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LiteBits.io Auto Claim Bot v3.9.1
-- Waryono solver: in.php + res.php only
-- Auto-detect hCaptcha sitekey
-- FIX v3.9.1: {RST} → {Col.R} di _solve_once
+LiteBits.io Auto Claim Bot v4.2.0 — NO ANIM · SAFE PHONE
+- Waryono solver (in + res only)
+- hCaptcha sitekey detection (unchanged)
+- Telethon-only session (no initData paste, no manual menu)
+- Silent auto-refresh via saved .session (no phone prompt after first login)
+- Phone validation + retry loop + auto-normalize (08xx → +628xx)
+- Realistic tap telemetry (anti-ban)
+- sdk-frame + ads/outcome reporting
+- Human timing
+- nextClaimAt-driven cooldown
+- NO ANIMATIONS
 """
 
-import time
-import json
-import re
-import os
-import sys
-import random
-import urllib.parse
-import urllib.request
-import urllib.error
-import asyncio
+import time, json, re, os, sys, random, base64, asyncio
+import urllib.parse, urllib.request, urllib.error
 from datetime import datetime, timezone
 from collections import deque
 
@@ -24,8 +23,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-    except Exception:
-        pass
+    except Exception: pass
 
 class Col:
     R='\033[0m'; B='\033[1m'; D='\033[2m'
@@ -38,122 +36,47 @@ class Col:
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-class Anim:
-    @staticmethod
-    def spinner(text, duration=2):
-        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        end = time.time() + duration; i = 0
-        while time.time() < end:
-            sys.stdout.write(f"\r {Col.NEON_C}{frames[i%len(frames)]}{Col.R} {Col.WHT}{text}{Col.R}")
-            sys.stdout.flush(); time.sleep(0.08); i += 1
-        sys.stdout.write(f"\r{' '*(len(text)+6)}\r")
-        print(f" {Col.NEON_G}✓{Col.R} {Col.WHT}{text}{Col.R}")
-
-    @staticmethod
-    def dots(text, duration=2):
-        end = time.time() + duration; n = 0
-        while time.time() < end:
-            sys.stdout.write(f"\r {Col.NEON_C}•{Col.R} {Col.WHT}{text}{Col.NEON_C}{'.'*((n%3)+1):<4}{Col.R}")
-            sys.stdout.flush(); time.sleep(0.3); n += 1
-        sys.stdout.write(f"\r{' '*(len(text)+8)}\r")
-        print(f" {Col.NEON_G}✓{Col.R} {Col.WHT}{text}{Col.R}")
-
-    @staticmethod
-    def progress(text, duration=2, width=30):
-        end = time.time() + duration; total = duration
-        while time.time() < end:
-            elapsed = duration - (end - time.time())
-            pct = min(1.0, elapsed / total); filled = int(pct * width)
-            bar = f"{Col.NEON_G}{'█'*filled}{Col.DIM_C}{'░'*(width-filled)}{Col.R}"
-            sys.stdout.write(f"\r {Col.NEON_C}▶{Col.R} {Col.WHT}{text:<30}{Col.R} [{bar}] {Col.NEON_Y}{int(pct*100):>3}%{Col.R}")
-            sys.stdout.flush(); time.sleep(0.05)
-        sys.stdout.write(f"\r{' '*(len(text)+60)}\r")
-        print(f" {Col.NEON_G}✓{Col.R} {Col.WHT}{text}{Col.R}")
-
-    @staticmethod
-    def scan(text, duration=2):
-        end = time.time() + duration; i = 0; bar_w = 30
-        while time.time() < end:
-            pos = i % (bar_w * 2)
-            if pos >= bar_w: pos = bar_w * 2 - pos
-            bar = "".join(f"{Col.NEON_G}█{Col.R}" if abs(j-pos)<3 else f"{Col.DIM_C}·{Col.R}" for j in range(bar_w))
-            sys.stdout.write(f"\r {Col.NEON_C}[SCAN]{Col.R} {Col.WHT}{text:<25}{Col.R} [{bar}]")
-            sys.stdout.flush(); time.sleep(0.06); i += 1
-        sys.stdout.write(f"\r{' '*(len(text)+50)}\r")
-        print(f" {Col.NEON_G}✓{Col.R} {Col.WHT}{text}{Col.R}")
-
-    @staticmethod
-    def typewriter(text, delay=0.02, color=None):
-        c = color or Col.WHT
-        for ch in text:
-            sys.stdout.write(f"{c}{ch}{Col.R}"); sys.stdout.flush(); time.sleep(delay)
-        print()
-
-    @staticmethod
-    def matrix_line(width=62, duration=1.5):
-        chars = "0123456789ABCDEF"
-        end = time.time() + duration
-        while time.time() < end:
-            line = "".join(random.choice(chars) if random.random() < 0.3 else " " for _ in range(width))
-            sys.stdout.write(f"\r{Col.NEON_G}{line}{Col.R}")
-            sys.stdout.flush(); time.sleep(0.04)
-        for _ in range(3):
-            line = "".join(random.choice(chars) if random.random() < 0.1 else "─" for _ in range(width))
-            sys.stdout.write(f"\r{Col.NEON_C}{line}{Col.R}")
-            sys.stdout.flush(); time.sleep(0.08)
-        sys.stdout.write(f"\r{Col.NEON_C}{'─'*width}{Col.R}\n")
-
-    @staticmethod
-    def opening_sequence():
-        clear(); print()
-        Anim.typewriter(f"{Col.NEON_C}Initializing boot sequence...", 0.02, Col.NEON_C)
-        time.sleep(0.3)
-        Anim.progress("Loading core modules", 1.0)
-        Anim.progress("Establishing secure channel", 1.0)
-        Anim.progress("Verifying signature chain", 0.8)
-        print()
-        Anim.matrix_line(62, 1.2)
-        print()
-        time.sleep(0.4)
-
+# ═══════════════════ CONSTANTS ═══════════════════
 API_HASH   = 'fb06985ea797ac51aaa1e6d1168ceaaa'
 API_ID     = 35898257
 BASE_URL   = 'https://mini.litebits.io'
 HCAPTCHA_SITEKEY_DEFAULT = '1c602a9a-f05a-403c-9306-cacc4c64e30a'
-
 DEFAULT_BOT      = 'litebits_faucet_bot'
 DEFAULT_REFERRAL = 'A7F2K9'
 CONFIG_FILE      = 'litebits.json'
 SESSION_FILE     = 'session_auth'
 REPORT_FILE      = 'litebits_report.txt'
 
-HOLD_DURATION    = 5
-PREPARE_WAIT     = 8
-AD_VIEW_WAIT     = 20
+HOLD_MS_MIN      = 2200
+HOLD_MS_MAX      = 4200
+AD_WAIT_MIN      = 12
+AD_WAIT_MAX      = 22
+PRE_HUMAN_PAUSE  = (250, 1200)
+POST_HUMAN_PAUSE = (150, 600)
+
 DEFAULT_COOLDOWN = 300
 MAX_RUNTIME      = 6 * 3600
-
-CAPTCHA_TIMEOUT    = 180
+CAPTCHA_TIMEOUT  = 180
 CAPTCHA_POLL_DELAY = 3
-
-WARYONO_IN  = 'https://api.waryono.my.id/in.php'
-WARYONO_RES = 'https://api.waryono.my.id/res.php'
+WARYONO_IN       = 'https://api.waryono.my.id/in.php'
+WARYONO_RES      = 'https://api.waryono.my.id/res.php'
 
 DEFAULT_UA = ("Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36 "
+    "(KHTML, like Gecko) Chrome/155.0.8059.43 Mobile Safari/537.36 "
     "Telegram-Android/12.9.2 (Samsung SM-A556E; Android 16; SDK 36; HIGH)")
 
 try:
     from telethon import TelegramClient, functions, types
+    from telethon.errors import SessionPasswordNeededError
     HAS_TELETHON = True
 except ImportError:
     HAS_TELETHON = False
 
-def _post_json(url, payload, timeout=30):
+# ═══════════════════ HELPERS ═══════════════════
+def _post_json(url, payload, timeout=30, ua='Mozilla/5.0 (Linux; Android 14; Mobile)'):
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-        headers={'Content-Type': 'application/json',
-                 'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile)',
-                 'Accept': 'application/json, text/plain, */*'})
+        headers={'Content-Type':'application/json','User-Agent':ua,
+                 'Accept':'application/json, text/plain, */*'})
     try:
         return urllib.request.urlopen(req, timeout=timeout).read().decode()
     except urllib.error.HTTPError as e:
@@ -166,8 +89,8 @@ def _post_json(url, payload, timeout=30):
 
 def _get(url, timeout=30):
     req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Mobile)',
-        'Accept': 'application/json, text/plain, */*'})
+        'User-Agent':'Mozilla/5.0 (Linux; Android 14; Mobile)',
+        'Accept':'application/json, text/plain, */*'})
     try:
         return urllib.request.urlopen(req, timeout=timeout).read().decode()
     except urllib.error.HTTPError as e:
@@ -178,11 +101,41 @@ def _get(url, timeout=30):
     except Exception as e:
         return json.dumps({"_error": str(e)})
 
+def jwt_exp(tok):
+    try:
+        parts = tok.split('.')
+        if len(parts) != 3: return 0
+        pad = '=' * (-len(parts[1]) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + pad))
+        return int(payload.get('exp', 0))
+    except Exception:
+        return 0
+
+def jwt_valid(tok, min_secs=600):
+    return bool(tok) and jwt_exp(tok) > time.time() + min_secs
+
+def normalize_phone(raw):
+    """Normalize Indonesian/international phone numbers."""
+    if not raw: return ""
+    p = re.sub(r'[\s\-\(\)\.]', '', str(raw).strip())
+    if not p: return ""
+    if p.startswith('00'): p = '+' + p[2:]
+    if not p.startswith('+'):
+        if p.startswith('0'):    p = '+62' + p[1:]
+        elif p.startswith('62'): p = '+' + p
+        elif p.startswith('8'):  p = '+62' + p
+        else:                    p = '+' + p
+    return p
+
+def is_valid_phone(p):
+    if not p or not p.startswith('+'): return False
+    digits = re.sub(r'\D', '', p)
+    return 8 <= len(digits) <= 15
+
 def extract_attr(html, attr_name, quote_chars='"\''):
     results = []
     if not html or not attr_name: return results
-    search = attr_name + '='
-    idx = 0
+    search = attr_name + '='; idx = 0
     while True:
         i = html.find(search, idx)
         if i < 0: break
@@ -226,6 +179,7 @@ def extract_meta_content(html, meta_name):
         idx = j + 1
     return results
 
+# ═══════════════════ SITEKEY DETECTOR (UNCHANGED) ═══════════════════
 class SitekeyDetector:
     def __init__(self, session, base_url):
         self.session = session; self.base_url = base_url
@@ -294,6 +248,7 @@ class SitekeyDetector:
         self.source = 'default'
         return self.detected
 
+# ═══════════════════ WARYONO SOLVER ═══════════════════
 class WaryonoSolver:
     def __init__(self, apikey, sitekey=None):
         self.apikey  = apikey or ''
@@ -309,9 +264,9 @@ class WaryonoSolver:
             if tok and isinstance(tok, str) and not tok.startswith('RETRY'):
                 return tok
             if err_type == 'FATAL_KEY':
-                print(f" {Col.RED}✗{Col.R} API key SALAH. Update di config."); return None
+                print(f" {Col.RED}✗{Col.R} API key SALAH."); return None
             if err_type == 'FATAL_BALANCE':
-                print(f" {Col.RED}✗{Col.R} SALDO Waryono HABIS. Top-up dulu."); return None
+                print(f" {Col.RED}✗{Col.R} SALDO Waryono HABIS."); return None
             if err_type == 'RETRY':
                 time.sleep(4 * attempt); continue
             if attempt < max_retry: time.sleep(2 * attempt)
@@ -322,39 +277,28 @@ class WaryonoSolver:
                    "domain": self.pageurl, "sitekey": self.sitekey, "json": 1}
         raw = _post_json(WARYONO_IN, payload)
         print(f" {Col.DIM_C}→ POST in.php{Col.R}")
-
         try: j = json.loads(raw)
         except Exception:
-            print(f" {Col.RED}✗{Col.R} Response bukan JSON: {raw[:100]}"); return None, 'ERROR'
+            print(f" {Col.RED}✗{Col.R} Response bukan JSON"); return None, 'ERROR'
 
         if '_http_error' in j:
-            code = j['_http_error']; body = j.get('_body',''); reason = j.get('_reason','')
-            if code == 402:
-                print(f" {Col.RED}✗{Col.R} Waryono HTTP 402: Payment Required (saldo habis)")
-                if body: print(f" {Col.DIM_C}  body: {body[:120]}{Col.R}")
-                return None, 'FATAL_BALANCE'
-            if code in (401, 403):
-                print(f" {Col.RED}✗{Col.R} Waryono HTTP {code}: API key salah"); return None, 'FATAL_KEY'
-            print(f" {Col.RED}✗{Col.R} Waryono HTTP {code}: {reason[:80]}"); return None, 'ERROR'
-
-        if '_error' in j:
-            print(f" {Col.RED}✗{Col.R} Network: {j['_error'][:80]}"); return None, 'RETRY'
+            code = j['_http_error']
+            if code == 402: return None, 'FATAL_BALANCE'
+            if code in (401, 403): return None, 'FATAL_KEY'
+            return None, 'ERROR'
+        if '_error' in j: return None, 'RETRY'
 
         status = j.get('status'); req_msg = str(j.get('request', ''))
-
         if status == 1 and req_msg:
             tid = req_msg
         else:
             if 'ERROR_WRONG_USER_KEY' in req_msg or 'ERROR_KEY_DOES_NOT_EXIST' in req_msg:
-                print(f" {Col.RED}✗{Col.R} {req_msg}"); return None, 'FATAL_KEY'
+                return None, 'FATAL_KEY'
             if 'ERROR_ZERO_BALANCE' in req_msg:
-                print(f" {Col.RED}✗{Col.R} {req_msg}"); return None, 'FATAL_BALANCE'
-            if 'ERROR_IP_NOT_ALLOWED' in req_msg:
-                print(f" {Col.RED}✗{Col.R} {req_msg}"); return None, 'FATAL_KEY'
+                return None, 'FATAL_BALANCE'
             if 'ERROR_TOO_MANY_REQUESTS' in req_msg:
-                print(f" {Col.YEL}!{Col.R} {req_msg} → tunggu 30s"); time.sleep(30)
-                return None, 'RETRY'
-            print(f" {Col.RED}✗{Col.R} Submit resp: {req_msg[:100]}"); return None, 'ERROR'
+                time.sleep(30); return None, 'RETRY'
+            return None, 'ERROR'
 
         print(f" {Col.NEON_G}✓{Col.R} Task ID: {Col.WHT}{tid}{Col.R}")
 
@@ -373,11 +317,8 @@ class WaryonoSolver:
             except Exception: continue
 
             if '_http_error' in pj:
-                code = pj['_http_error']
-                if code == 402:
-                    sys.stdout.write("\r" + " "*70 + "\r")
-                    print(f" {Col.RED}✗{Col.R} Poll HTTP 402 (saldo habis)")
-                    return None, 'FATAL_BALANCE'
+                if pj['_http_error'] == 402:
+                    sys.stdout.write("\r" + " "*70 + "\r"); return None, 'FATAL_BALANCE'
                 continue
             if '_error' in pj: continue
 
@@ -389,21 +330,16 @@ class WaryonoSolver:
 
             rs = str(pj.get('request', ''))
             if 'CAPCHA_NOT_READY' in rs: continue
-            if 'ERROR_CAPTCHA_UNSOLVABLE' in rs or 'UNSOLVABLE' in rs:
-                sys.stdout.write("\r" + " "*70 + "\r")
-                print(f" {Col.YEL}!{Col.R} UNSOLVABLE → retry"); return None, 'RETRY'
+            if 'UNSOLVABLE' in rs:
+                sys.stdout.write("\r" + " "*70 + "\r"); return None, 'RETRY'
             if 'ERROR_ZERO_BALANCE' in rs:
                 sys.stdout.write("\r" + " "*70 + "\r"); return None, 'FATAL_BALANCE'
             if 'ERROR_WRONG_USER_KEY' in rs:
                 sys.stdout.write("\r" + " "*70 + "\r"); return None, 'FATAL_KEY'
-            if 'ERROR_TOO_MANY_REQUESTS' in rs:
-                sys.stdout.write("\r" + " "*70 + "\r"); time.sleep(30); return None, 'RETRY'
             if 'ERROR' in rs:
-                sys.stdout.write("\r" + " "*70 + "\r")
-                print(f" {Col.RED}✗{Col.R} Poll: {rs}"); return None, 'ERROR'
+                sys.stdout.write("\r" + " "*70 + "\r"); return None, 'ERROR'
 
-        sys.stdout.write("\r" + " "*70 + "\r")
-        print(f" {Col.YEL}!{Col.R} Timeout"); return None, 'RETRY'
+        sys.stdout.write("\r" + " "*70 + "\r"); return None, 'RETRY'
 
     def test_apikey(self):
         payload = {"apikey": self.apikey, "methods": "hcaptcha",
@@ -423,6 +359,7 @@ class WaryonoSolver:
         if j.get('status') == 1: return True, f"OK (test task: {req})"
         return False, req or "Unknown error"
 
+# ═══════════════════ MAIN BOT ═══════════════════
 class LiteBitsBot:
     def __init__(self):
         self.session = None
@@ -455,10 +392,347 @@ class LiteBitsBot:
         self.config_path = os.path.join(self.base_dir, CONFIG_FILE)
         self.tg_session_path = os.path.join(self.base_dir, SESSION_FILE)
 
-    def has_telethon_session(self):
+    def _telethon_session_exists(self):
         p = self.tg_session_path + '.session'
         return os.path.exists(p) and os.path.getsize(p) > 0
 
+    def _token_valid(self, min_secs=600):
+        return jwt_valid(self.auth_token, min_secs)
+
+    def save_config(self):
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'init_data': self.init_data, 'auth_token': self.auth_token,
+                    'bot_username': self.bot_username, 'referral_code': self.referral_code,
+                    'captcha_apikey': self.captcha_apikey, 'user_agent': self.user_agent,
+                    'mode': self.mode, 'hcaptcha_sitekey': self.hcaptcha_sitekey,
+                    'sitekey_source': self.sitekey_source,
+                    'total_earned': round(self.session_earned, 4),
+                    'total_cycles': self.cycles, 'total_failed': self.cycles_failed,
+                    'captcha_solved': self.captcha_solved, 'captcha_failed': self.captcha_failed,
+                    'user_info': self.user_info,
+                    'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                }, f, indent=2)
+        except Exception: pass
+
+    def load_config(self):
+        if not os.path.exists(self.config_path): return False
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                c = json.load(f)
+            self.init_data      = c.get('init_data', '') or ''
+            self.auth_token     = c.get('auth_token', '') or ''
+            self.bot_username   = c.get('bot_username', DEFAULT_BOT)
+            self.referral_code  = c.get('referral_code', DEFAULT_REFERRAL)
+            self.captcha_apikey = c.get('captcha_apikey', '')
+            self.user_agent     = c.get('user_agent', DEFAULT_UA)
+            self.mode           = c.get('mode', 'no_hcaptcha')
+            self.hcaptcha_sitekey = c.get('hcaptcha_sitekey', HCAPTCHA_SITEKEY_DEFAULT)
+            self.sitekey_source = c.get('sitekey_source', 'default')
+            self.session_earned = float(c.get('total_earned', 0) or 0)
+            self.cycles         = int(c.get('total_cycles', 0) or 0)
+            self.cycles_failed  = int(c.get('total_failed', 0) or 0)
+            self.captcha_solved = int(c.get('captcha_solved', 0) or 0)
+            self.captcha_failed = int(c.get('captcha_failed', 0) or 0)
+            self.user_info      = c.get('user_info', {}) or {}
+            return True
+        except Exception:
+            return False
+
+    def init_http_session(self):
+        try:
+            from curl_cffi import requests as cr
+            self.session = cr.Session(impersonate="chrome120")
+        except ImportError:
+            try:
+                import cloudscraper
+                self.session = cloudscraper.create_scraper()
+            except ImportError:
+                import requests
+                self.session = requests.Session()
+        self.apply_headers()
+
+    def apply_headers(self):
+        headers = {
+            'User-Agent': self.user_agent,
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Content-Type': 'application/json',
+            'Origin': BASE_URL,
+            'Referer': f'{BASE_URL}/?v5',
+            'x-platform': 'telegram',
+            'x-requested-with': 'org.telegram.messenger.web',
+            'sec-ch-ua': '"Android WebView";v="155", "Chromium";v="155", "Not(A:Brand";v="24"',
+            'sec-ch-ua-mobile': '?1',
+            'sec-ch-ua-platform': '"Android"',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-dest': 'empty',
+        }
+        if self.auth_token: headers['Authorization'] = f"Bearer {self.auth_token}"
+        if self.init_data:  headers['x-telegram-init-data'] = self.init_data
+        if hasattr(self.session, 'headers'): self.session.headers.update(headers)
+
+    def _human_pause(self, rng=PRE_HUMAN_PAUSE):
+        time.sleep(random.randint(rng[0], rng[1]) / 1000.0)
+
+    def _profile_ok(self):
+        try:
+            r = self.session.get(f"{BASE_URL}/api/user/profile", timeout=12)
+            if r.status_code == 200:
+                d = r.json()
+                if 'balance' in d or 'email' in d:
+                    self.user_info.update(d)
+                    try: self.balance_history.append(float(d.get('balance', 0) or 0))
+                    except Exception: pass
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def fetch_user_profile(self):
+        return self._profile_ok()
+
+    def fetch_app_settings(self):
+        try:
+            r = self.session.get(f"{BASE_URL}/api/app-settings", timeout=12)
+            if r.status_code == 200:
+                d = r.json()
+                self.cooldown_seconds = max(60, int(float(d.get('claimInterval', 0.0825)) * 3600))
+                return True
+        except Exception: pass
+        return False
+
+    def validate_telegram_auth(self):
+        if not self.init_data: return False
+        try:
+            r = self.session.post(f"{BASE_URL}/api/auth/telegram/validate",
+                json={'initData': self.init_data, 'referralCode': self.referral_code}, timeout=12)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get('success'):
+                    self.auth_token = d.get('token', '')
+                    if d.get('user'): self.user_info.update(d['user'])
+                    self.apply_headers(); self.save_config()
+                    return True
+        except Exception: pass
+        return False
+
+    def detect_sitekey(self, force=False):
+        if not force and self.hcaptcha_sitekey and self.hcaptcha_sitekey != HCAPTCHA_SITEKEY_DEFAULT:
+            return self.hcaptcha_sitekey
+        detector = SitekeyDetector(self.session, BASE_URL)
+        sk = detector.detect()
+        self.hcaptcha_sitekey = sk
+        self.sitekey_source = detector.source
+        self.save_config()
+        return sk
+
+    # ═══════════════════ TELETHON CORE ═══════════════════
+    def _ask_phone(self):
+        """Prompt phone with validation + retry. Returns normalized phone or None."""
+        for attempt in range(1, 6):
+            try:
+                raw = input(f" {Col.NEON_G}➜{Col.R} Phone (+62 atau 08xx): ").strip()
+            except EOFError:
+                print(f" {Col.RED}✗{Col.R} stdin closed."); return None
+            if not raw:
+                print(f" {Col.RED}✗{Col.R} Kosong. Coba lagi ({attempt}/5)."); continue
+            phone = normalize_phone(raw)
+            if not is_valid_phone(phone):
+                print(f" {Col.RED}✗{Col.R} Format invalid: {phone}. Coba lagi ({attempt}/5)."); continue
+            print(f" {Col.DIM_C}→ {phone}{Col.R}")
+            return phone
+        return None
+
+    def _ask_code(self):
+        for attempt in range(1, 6):
+            try:
+                c = input(f" {Col.NEON_G}➜{Col.R} OTP Code: ").strip().replace(' ', '').replace('-', '')
+            except EOFError:
+                return None
+            if c: return c
+            print(f" {Col.RED}✗{Col.R} OTP kosong. Coba lagi ({attempt}/5).")
+        return None
+
+    def _ask_password(self):
+        try:
+            return input(f" {Col.NEON_G}➜{Col.R} 2FA Password (kosong kalau gak ada): ").strip()
+        except EOFError:
+            return ""
+
+    async def _telethon_get_initdata(self, interactive=False):
+        if not HAS_TELETHON:
+            if interactive: print(f"\n {Col.RED}✗ Telethon not installed. pip install telethon{Col.R}\n")
+            return None
+
+        try:
+            client = TelegramClient(self.tg_session_path, API_ID, API_HASH)
+        except Exception as e:
+            if 'locked' in str(e).lower() or 'database is locked' in str(e).lower():
+                print(f" {Col.RED}✗ Telethon session LOCKED — matikan proses lain.{Col.R}")
+            else:
+                print(f" {Col.RED}✗ Telethon open error: {e}{Col.R}")
+            return None
+
+        try:
+            if interactive:
+                # First-time login flow with manual validation
+                await client.connect()
+                if not await client.is_user_authorized():
+                    phone = self._ask_phone()
+                    if not phone:
+                        print(f" {Col.RED}✗ Phone invalid — login aborted.{Col.R}")
+                        return None
+                    try:
+                        sent = await client.send_code_request(phone)
+                        print(f" {Col.NEON_G}✓{Col.R} Code sent via {getattr(sent, 'type', 'app')}")
+                    except Exception as e:
+                        print(f" {Col.RED}✗ send_code: {type(e).__name__}: {e}{Col.R}")
+                        return None
+
+                    code = self._ask_code()
+                    if not code:
+                        print(f" {Col.RED}✗ OTP kosong.{Col.R}")
+                        return None
+                    try:
+                        await client.sign_in(phone, code)
+                    except SessionPasswordNeededError:
+                        pw = self._ask_password()
+                        if not pw:
+                            print(f" {Col.RED}✗ 2FA required but empty.{Col.R}")
+                            return None
+                        try:
+                            await client.sign_in(password=pw)
+                        except Exception as e:
+                            print(f" {Col.RED}✗ 2FA sign_in: {type(e).__name__}: {e}{Col.R}")
+                            return None
+                    except Exception as e:
+                        err = str(e).lower()
+                        if 'invalid' in err or 'expired' in err or 'code' in err:
+                            print(f" {Col.RED}✗ Kode salah/expired: {e}{Col.R}")
+                        else:
+                            print(f" {Col.RED}✗ sign_in: {type(e).__name__}: {e}{Col.R}")
+                        return None
+            else:
+                await client.connect()
+                if not await client.is_user_authorized():
+                    await client.disconnect()
+                    return None
+
+            init_data = None
+            try:
+                bot = await client.get_input_entity(self.bot_username)
+                if interactive:
+                    try: await client.send_message(bot, f'/start {self.referral_code}')
+                    except Exception: pass
+
+                try:
+                    res_app = await client(functions.messages.RequestAppWebViewRequest(
+                        peer=bot, app=types.InputBotAppShortName(bot_id=bot, short_name='app'),
+                        platform='android', write_allowed=True, start_param=self.referral_code))
+                    if res_app and hasattr(res_app, 'url'):
+                        parsed = urllib.parse.urlparse(res_app.url)
+                        params = urllib.parse.parse_qs(parsed.fragment or parsed.query)
+                        init_data = params.get('tgWebAppData', [None])[0]
+                except Exception: pass
+
+                if not init_data:
+                    full_user = await client(functions.users.GetFullUserRequest(id=bot))
+                    bot_info = full_user.full_user.bot_info
+                    menu_url = (bot_info.menu_button.url
+                                if bot_info and bot_info.menu_button and hasattr(bot_info.menu_button, 'url')
+                                else f'{BASE_URL}/?v5&startapp={self.referral_code}')
+                    res_menu = await client(functions.messages.RequestWebViewRequest(
+                        peer=bot, bot=bot, platform='android', from_bot_menu=True, url=menu_url))
+                    if res_menu and hasattr(res_menu, 'url'):
+                        parsed = urllib.parse.urlparse(res_menu.url)
+                        params = urllib.parse.parse_qs(parsed.fragment or parsed.query)
+                        init_data = params.get('tgWebAppData', [None])[0]
+            except Exception as e:
+                print(f" {Col.DIM_C}  extract err: {type(e).__name__}: {e}{Col.R}")
+
+            return init_data
+        finally:
+            try: await client.disconnect()
+            except Exception: pass
+
+    def silent_refresh(self):
+        try:
+            token = asyncio.run(self._telethon_get_initdata(interactive=False))
+            if token:
+                self.init_data = token
+                self.save_config()
+                return True
+            return False
+        except Exception:
+            return False
+
+    def first_time_login(self):
+        clear(); print()
+        print(f"{Col.NEON_C}============================================================{Col.R}")
+        print(f"{Col.NEON_Y}         ⚡ LITEBITS · TELETHON FIRST LOGIN ⚡{Col.R}")
+        print(f"{Col.NEON_C}============================================================{Col.R}")
+        print()
+        print(f" {Col.DIM_C}Login sekali. Setelah ini auto-refresh silent 24/7.{Col.R}")
+        print()
+
+        try:
+            token = asyncio.run(self._telethon_get_initdata(interactive=True))
+        except Exception as e:
+            print(f" {Col.RED}✗ Login error: {type(e).__name__}: {e}{Col.R}")
+            return False
+
+        if not token:
+            print(f" {Col.RED}✗ Login gagal — tidak dapat initData.{Col.R}")
+            return False
+
+        self.init_data = token
+        self.save_config()
+        print(f" {Col.NEON_G}✓{Col.R} Session saved")
+        return True
+
+    # ═══════════════════ COOLDOWN ═══════════════════
+    def get_server_cooldown_left(self):
+        nca = self.user_info.get('nextClaimAt')
+        if nca:
+            try:
+                dt = datetime.fromisoformat(nca.replace('Z', '+00:00'))
+                return max(0, int((dt - datetime.now(timezone.utc)).total_seconds()))
+            except Exception: pass
+        lc = self.user_info.get('lastClaim')
+        if not lc: return 0
+        try:
+            ld = datetime.fromisoformat(lc.replace('Z', '+00:00'))
+            return max(0, self.cooldown_seconds - int((datetime.now(timezone.utc) - ld).total_seconds()))
+        except Exception: return 0
+
+    def _secs_until_iso(self, iso_str):
+        try:
+            dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+            return max(0, int((dt - datetime.now(timezone.utc)).total_seconds()))
+        except Exception:
+            return self.cooldown_seconds
+
+    # ═══════════════════ HUMAN TELEMETRY ═══════════════════
+    def generate_tap_telemetry(self, first_claim=False):
+        reaction = random.randint(5800, 9500) if first_claim else random.randint(3200, 7200)
+        return {
+            "x_off":       random.randint(55, 125),
+            "y_off":       random.randint(75, 130),
+            "btn_w":       178,
+            "btn_h":       178,
+            "pointer_type": "touch",
+            "press_ms":    random.randint(HOLD_MS_MIN, HOLD_MS_MAX),
+            "move_px":     random.randint(0, 4),
+            "radius":      random.randint(2, 8),
+            "pressure":    round(random.uniform(0.7, 1.0), 2),
+            "reaction_ms": reaction,
+            "is_trusted":  True,
+        }
+
+    # ═══════════════════ RENDERING ═══════════════════
     def sparkline(self, values, width=30):
         if not values or len(values) < 2: return f"{Col.DIM_C}{'·'*width}{Col.R}"
         blocks = "▁▂▃▄▅▆▇█"
@@ -495,6 +769,24 @@ class LiteBitsBot:
             time.sleep(1)
         self.cooldown_left = 0; self.claim_state = 'IDLE'
 
+    def render_banner(self):
+        mode_c = Col.NEON_R if self.mode == 'hcaptcha' else Col.NEON_G
+        return f"""
+{Col.NEON_C}=============================================================={Col.R}
+{Col.NEON_Y}                    ⚡ {Col.NEON_G}LITEBITS{Col.NEON_Y} ⚡{Col.R}
+{Col.NEON_C}              {Col.WHT}AUTO CLAIM · TELETHON v4.2.0{Col.R}
+{Col.NEON_C}=============================================================={Col.R}
+{Col.NEON_V} Bot         : {Col.NEON_C}@{self.bot_username}{Col.R}
+{Col.NEON_V} Referral    : {Col.NEON_Y}{self.referral_code}{Col.R}
+{Col.NEON_V} Mode        : {mode_c}{self.mode.upper()}{Col.R}
+{Col.NEON_V} API Key     : {Col.DIM_C}{(self.captcha_apikey[:10] + '...') if self.captcha_apikey else '(kosong)'}{Col.R}
+{Col.NEON_V} Sitekey src : {Col.DIM_C}{self.sitekey_source}{Col.R}
+{Col.NEON_V} Session     : {Col.NEON_G if self._token_valid(0) else Col.NEON_O}{'JWT VALID' if self._token_valid(0) else 'EXPIRED'}{Col.R}
+{Col.NEON_V} Telethon    : {Col.NEON_G + 'OK' if self._telethon_session_exists() else Col.NEON_R + 'NONE'}{Col.R}
+{Col.NEON_V} Auto-stop   : {Col.NEON_O}{MAX_RUNTIME // 3600} hours{Col.R}
+{Col.NEON_C}=============================================================={Col.R}
+"""
+
     def render_dashboard(self):
         name = str(self.user_info.get('telegramUsername') or self.user_info.get('username')
                    or self.user_info.get('first_name') or 'User')
@@ -518,12 +810,9 @@ class LiteBitsBot:
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Balance{Col.R}   : {Col.NEON_Y}{bal_str:<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Earned{Col.R}    : {Col.NEON_G}{earned_str:<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Mode{Col.R}      : {mode_s:<51}{Col.NEON_C}│{Col.R}")
-        if self.mode == 'hcaptcha':
-            sk = self.hcaptcha_sitekey[:20] + '...' if len(self.hcaptcha_sitekey) > 20 else self.hcaptcha_sitekey
-            print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Sitekey{Col.R}   : {Col.DIM_C}{sk:<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Cycles{Col.R}    : {Col.WHT}{str(self.cycles):<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Success{Col.R}   : {Col.NEON_G if rate >= 90 else Col.NEON_Y}{f'{rate:.1f}%':<46}{Col.NEON_C}│{Col.R}")
-        print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Captcha{Col.R}   : {Col.NEON_G}{f'{self.captcha_solved} solved / {self.captcha_failed} failed':<46}{Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Captcha{Col.R}   : {Col.NEON_G}{f'{self.captcha_solved}/{self.captcha_failed}':<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Uptime{Col.R}    : {Col.NEON_C}{f'{eh:02d}:{em:02d}:{es:02d}':<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}│{Col.R} {Col.NEON_V}Remaining{Col.R} : {Col.NEON_O}{f'{rh:02d}:{rm:02d}:{rs:02d}':<46}{Col.NEON_C}│{Col.R}")
         print(f"{Col.NEON_C}└" + "─"*60 + f"┘{Col.R}")
@@ -535,27 +824,9 @@ class LiteBitsBot:
                 dc = Col.NEON_G if delta >= 0 else Col.NEON_R
                 ds = f"+{delta:.2f}" if delta >= 0 else f"{delta:.2f}"
             except Exception: ds = "?"; dc = Col.WHT
-            print(f"{Col.NEON_C}┌─ {Col.NEON_Y}BALANCE TREND{Col.NEON_C} " + "─"*43 + f"┐{Col.R}")
             print(f"{Col.NEON_C}│{Col.R} {spark}  {dc}{ds:>8}{Col.R} {Col.NEON_C}│{Col.R}")
             print(f"{Col.NEON_C}└" + "─"*60 + f"┘{Col.R}")
         print()
-
-    def render_banner(self):
-        mode_c = Col.NEON_R if self.mode == 'hcaptcha' else Col.NEON_G
-        return f"""
-{Col.NEON_C}=============================================================={Col.R}
-{Col.NEON_Y}                    ⚡ {Col.NEON_G}LITEBITS{Col.NEON_Y} ⚡{Col.R}
-{Col.NEON_C}                 {Col.WHT}AUTO CLAIM SYSTEM v3.9.1{Col.R}
-{Col.NEON_C}=============================================================={Col.R}
-{Col.NEON_V} Bot         : {Col.NEON_C}@{self.bot_username}{Col.R}
-{Col.NEON_V} Referral    : {Col.NEON_Y}{self.referral_code}{Col.R}
-{Col.NEON_V} Mode        : {mode_c}{self.mode.upper()}{Col.R}
-{Col.NEON_V} API Key     : {Col.DIM_C}{(self.captcha_apikey[:10] + '...') if self.captcha_apikey else '(kosong)'}{Col.R}
-{Col.NEON_V} Sitekey src : {Col.DIM_C}{self.sitekey_source}{Col.R}
-{Col.NEON_V} Auto-stop   : {Col.NEON_O}{MAX_RUNTIME // 3600} hours{Col.R}
-{Col.NEON_V} Status      : {Col.NEON_G}● ONLINE{Col.R}
-{Col.NEON_C}=============================================================={Col.R}
-"""
 
     def render_view(self, live_line=None):
         clear()
@@ -565,8 +836,7 @@ class LiteBitsBot:
         print()
         for entry in self.cycle_logs[-12:]: print(entry)
         print()
-        if live_line:
-            print(live_line); print()
+        if live_line: print(live_line); print()
         runtime = int(time.time() - self.start_time)
         h, r = divmod(runtime, 3600); m, s = divmod(r, 60)
         status = f"{Col.NEON_G}● RUNNING" if self.running else f"{Col.NEON_R}● STOPPED"
@@ -584,356 +854,131 @@ class LiteBitsBot:
         self.cycle_logs.append(f"{Col.DIM_C}[{ts}]{Col.R} {icons.get(level, f'{Col.NEON_C}·{Col.R}')} {Col.WHT}{msg}{Col.R}")
         self.render_view()
 
-    def init_http_session(self):
-        try:
-            from curl_cffi import requests as cr
-            self.session = cr.Session(impersonate="chrome120")
-        except ImportError:
-            try:
-                import cloudscraper
-                self.session = cloudscraper.create_scraper()
-            except ImportError:
-                import requests
-                self.session = requests.Session()
-        self.apply_headers()
-
-    def apply_headers(self):
-        headers = {
-            'User-Agent': self.user_agent,
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'id,id-ID;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Content-Type': 'application/json',
-            'Origin': BASE_URL,
-            'Referer': f'{BASE_URL}/?v3',
-            'x-platform': 'telegram',
-            'x-requested-with': 'org.telegram.messenger.web',
-            'sec-ch-ua': '"Android WebView";v="153", "Not_A Brand";v="8", "Chromium";v="153"',
-            'sec-ch-ua-mobile': '?1',
-            'sec-ch-ua-platform': '"Android"',
-            'sec-fetch-site': 'same-origin',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-dest': 'empty',
-        }
-        if self.auth_token: headers['Authorization'] = f"Bearer {self.auth_token}"
-        if self.init_data:  headers['x-telegram-init-data'] = self.init_data
-        if hasattr(self.session, 'headers'): self.session.headers.update(headers)
-
-    def load_config(self):
-        if not os.path.exists(self.config_path): return False
-        try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                c = json.load(f)
-            self.init_data      = c.get('init_data', '') or ''
-            self.auth_token     = c.get('auth_token', '') or ''
-            self.bot_username   = c.get('bot_username', DEFAULT_BOT)
-            self.referral_code  = c.get('referral_code', DEFAULT_REFERRAL)
-            self.captcha_apikey = c.get('captcha_apikey', '')
-            self.user_agent     = c.get('user_agent', DEFAULT_UA)
-            self.mode           = c.get('mode', 'no_hcaptcha')
-            self.hcaptcha_sitekey = c.get('hcaptcha_sitekey', HCAPTCHA_SITEKEY_DEFAULT)
-            self.sitekey_source = c.get('sitekey_source', 'default')
-            self.session_earned = float(c.get('total_earned', 0) or 0)
-            self.cycles         = int(c.get('total_cycles', 0) or 0)
-            self.cycles_failed  = int(c.get('total_failed', 0) or 0)
-            self.captcha_solved = int(c.get('captcha_solved', 0) or 0)
-            self.captcha_failed = int(c.get('captcha_failed', 0) or 0)
-            self.user_info      = c.get('user_info', {}) or {}
-            return True
-        except Exception:
-            return False
-
-    def save_config(self):
-        try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'init_data': self.init_data, 'auth_token': self.auth_token,
-                    'bot_username': self.bot_username, 'referral_code': self.referral_code,
-                    'captcha_apikey': self.captcha_apikey, 'user_agent': self.user_agent,
-                    'mode': self.mode, 'hcaptcha_sitekey': self.hcaptcha_sitekey,
-                    'sitekey_source': self.sitekey_source,
-                    'total_earned': round(self.session_earned, 4),
-                    'total_cycles': self.cycles, 'total_failed': self.cycles_failed,
-                    'captcha_solved': self.captcha_solved, 'captcha_failed': self.captcha_failed,
-                    'user_info': self.user_info,
-                    'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                }, f, indent=2)
-        except Exception: pass
-
-    def validate_telegram_auth(self):
-        if not self.init_data: return False
-        try:
-            r = self.session.post(f"{BASE_URL}/api/auth/telegram/validate",
-                json={'initData': self.init_data, 'referralCode': self.referral_code}, timeout=12)
-            if r.status_code == 200:
-                d = r.json()
-                if d.get('success'):
-                    self.auth_token = d.get('token', '')
-                    if d.get('user'): self.user_info.update(d['user'])
-                    self.apply_headers(); self.save_config()
-                    return True
-        except Exception: pass
-        return False
-
-    def fetch_app_settings(self):
-        try:
-            r = self.session.get(f"{BASE_URL}/api/app-settings", timeout=12)
-            if r.status_code == 200:
-                d = r.json()
-                self.cooldown_seconds = max(60, int(float(d.get('claimInterval', 0.0825)) * 3600))
-                return True
-        except Exception: pass
-        return False
-
-    def fetch_user_profile(self):
-        if not self.auth_token and not self.validate_telegram_auth(): return False
-        try:
-            r = self.session.get(f"{BASE_URL}/api/user/profile", timeout=12)
-            if r.status_code == 200:
-                d = r.json()
-                if 'balance' in d or 'email' in d:
-                    self.user_info.update(d)
-                    try:
-                        bal = float(str(d.get('balance', 0)))
-                        self.balance_history.append(bal)
-                    except Exception: pass
-                    return True
-            elif r.status_code == 401:
-                if self.validate_telegram_auth():
-                    r2 = self.session.get(f"{BASE_URL}/api/user/profile", timeout=12)
-                    if r2.status_code == 200:
-                        self.user_info.update(r2.json()); return True
-        except Exception: pass
-        return bool(self.user_info)
-
-    def get_server_cooldown_left(self):
-        nca = self.user_info.get('nextClaimAt')
-        if nca:
-            try:
-                nca_dt = datetime.fromisoformat(nca.replace('Z', '+00:00'))
-                now = datetime.now(timezone.utc)
-                return max(0, int((nca_dt - now).total_seconds()))
-            except Exception: pass
-        lc = self.user_info.get('lastClaim')
-        if not lc: return 0
-        try:
-            ld = datetime.fromisoformat(lc.replace('Z', '+00:00'))
-            return max(0, self.cooldown_seconds - int((datetime.now(timezone.utc) - ld).total_seconds()))
-        except Exception: return 0
-
-    def detect_sitekey(self, force=False):
-        if not force and self.hcaptcha_sitekey and self.hcaptcha_sitekey != HCAPTCHA_SITEKEY_DEFAULT:
-            return self.hcaptcha_sitekey
-        detector = SitekeyDetector(self.session, BASE_URL)
-        sk = detector.detect()
-        self.hcaptcha_sitekey = sk
-        self.sitekey_source = detector.source
-        self.save_config()
-        return sk
-
-    async def extract_init_data_async(self, interactive=True):
-        if not HAS_TELETHON:
-            if interactive: print(f"\n {Col.RED}✗ Telethon not found. pip install telethon{Col.R}\n")
-            return None
-        client = TelegramClient(self.tg_session_path, API_ID, API_HASH)
-        if interactive:
-            clear(); print()
-            Anim.typewriter(f"{Col.NEON_C}╔════════════════════════════════════════════════════════════╗", 0.001)
-            Anim.typewriter(f"{Col.NEON_C}║{Col.R}          ⚡ {Col.NEON_Y}LITEBITS SECURE LOGIN v3.9.1{Col.NEON_Y} ⚡{Col.R}          {Col.NEON_C}║", 0.001)
-            Anim.typewriter(f"{Col.NEON_C}╚════════════════════════════════════════════════════════════╝", 0.001)
-            print()
-            Anim.scan("Scanning secure environment", 1.5)
-            Anim.progress("Loading Telegram API", 1.0)
-            print()
-            def get_phone():
-                print(f"{Col.NEON_Y}  📱 STEP 1/3 · PHONE{Col.R}")
-                p = input(f" {Col.NEON_G}➜{Col.R} {Col.WHT}Phone (+62...){Col.NEON_C} »{Col.R} ").strip()
-                print(); Anim.dots("Sending login code", 1.5); print()
-                return p
-            def get_code():
-                print(f"{Col.NEON_Y}  🔐 STEP 2/3 · OTP{Col.R}")
-                c = input(f" {Col.NEON_G}➜{Col.R} {Col.WHT}OTP Code{Col.NEON_C} »{Col.R} ").strip()
-                print(); Anim.dots("Verifying OTP", 1.5); print()
-                return c
-            def get_password():
-                print(f"{Col.NEON_Y}  🔒 STEP 3/3 · 2FA (kosongin kalau gak ada){Col.R}")
-                pw = input(f" {Col.NEON_G}➜{Col.R} {Col.WHT}2FA Password{Col.NEON_C} »{Col.R} ").strip()
-                print(); Anim.dots("Authenticating 2FA", 1.5); print()
-                return pw
-            try:
-                await client.start(phone=get_phone, code_callback=get_code, password=get_password)
-            except Exception as e:
-                print(f" {Col.RED}✗ Login: {e}{Col.R}")
-                try: await client.disconnect()
-                except Exception: pass
-                return None
-        else:
-            try:
-                await client.connect()
-                if not await client.is_user_authorized():
-                    await client.disconnect(); return None
-            except Exception:
-                try: await client.disconnect()
-                except Exception: pass
-                return None
-        if interactive:
-            print()
-            Anim.progress("Establishing session", 1.5)
-            Anim.scan(f"Connecting to @{self.bot_username}", 1.5)
-            print()
-        else:
-            print(f" {Col.NEON_C}•{Col.R} {Col.WHT}Refreshing init_data via saved session...{Col.R}")
-        init_data = None
-        try:
-            bot = await client.get_input_entity(self.bot_username)
-            if interactive:
-                try: await client.send_message(bot, f'/start {self.referral_code}')
-                except Exception: pass
-            try:
-                res_app = await client(functions.messages.RequestAppWebViewRequest(
-                    peer=bot, app=types.InputBotAppShortName(bot_id=bot, short_name='app'),
-                    platform='android', write_allowed=True, start_param=self.referral_code))
-                if res_app and hasattr(res_app, 'url'):
-                    parsed = urllib.parse.urlparse(res_app.url)
-                    params = urllib.parse.parse_qs(parsed.fragment or parsed.query)
-                    init_data = params.get('tgWebAppData', [None])[0]
-            except Exception: pass
-            if not init_data:
-                full_user = await client(functions.users.GetFullUserRequest(id=bot))
-                bot_info = full_user.full_user.bot_info
-                menu_url = (bot_info.menu_button.url
-                            if bot_info and bot_info.menu_button and hasattr(bot_info.menu_button, 'url')
-                            else f'{BASE_URL}/?v3&startapp={self.referral_code}')
-                res_menu = await client(functions.messages.RequestWebViewRequest(
-                    peer=bot, bot=bot, platform='android', from_bot_menu=True, url=menu_url))
-                if res_menu and hasattr(res_menu, 'url'):
-                    parsed = urllib.parse.urlparse(res_menu.url)
-                    params = urllib.parse.parse_qs(parsed.fragment or parsed.query)
-                    init_data = params.get('tgWebAppData', [None])[0]
-            if init_data and interactive:
-                Anim.progress("Extracting token", 1.2)
-                print(f"\n {Col.NEON_G}✓{Col.R} Session token acquired! ({len(init_data)} chars)\n")
-            return init_data
-        except Exception: return None
-        finally:
-            try: await client.disconnect()
-            except Exception: pass
-
-    def do_telegram_login(self, interactive=True):
-        try:
-            token = asyncio.run(self.extract_init_data_async(interactive=interactive))
-            if token:
-                self.init_data = token; self.save_config()
-                if interactive: Anim.spinner("Saving session", 1.0); time.sleep(0.5)
-                return True
-            return False
-        except Exception as e:
-            if interactive: print(f" {Col.RED}✗ Telegram error: {e}{Col.R}")
-            return False
-
-    def setup_interactive(self):
-        Anim.opening_sequence()
+    # ═══════════════════ SETUP ═══════════════════
+    def setup(self):
+        clear(); print()
+        print(f" {Col.NEON_C}•{Col.R} Initializing LiteBits · Telethon mode...")
         self.load_config()
         self.fetch_app_settings()
 
         valid_auth = False
-        if self.init_data:
-            Anim.scan("Validating saved init_data", 1.5)
-            if self.validate_telegram_auth(): valid_auth = True
-        if not valid_auth and self.has_telethon_session():
-            print()
-            print(f" {Col.NEON_Y}!{Col.R} {Col.WHT}init_data expired. Refreshing via Telethon session...{Col.R}")
-            if self.do_telegram_login(interactive=False) and self.validate_telegram_auth():
-                valid_auth = True
-                print(f" {Col.NEON_G}✓{Col.R} {Col.WHT}Auto-refreshed!{Col.R}\n")
 
-        print(f" {Col.NEON_C}•{Col.R} Detecting hCaptcha sitekey...")
-        sk = self.detect_sitekey(force=True)
-        print(f" {Col.NEON_G}✓{Col.R} Sitekey: {Col.WHT}{sk}{Col.R} {Col.DIM_C}(source: {self.sitekey_source}){Col.R}")
+        if self._token_valid(min_secs=600):
+            print(f" {Col.NEON_C}•{Col.R} JWT valid (exp in {(jwt_exp(self.auth_token) - time.time())/3600:.1f}h)")
+            if self._profile_ok():
+                valid_auth = True
+                print(f" {Col.NEON_G}✓{Col.R} Session active")
+
+        if not valid_auth and self._telethon_session_exists():
+            print(f" {Col.NEON_C}•{Col.R} Silent refresh via Telethon...")
+            if self.silent_refresh():
+                if self.validate_telegram_auth() and self._profile_ok():
+                    valid_auth = True
+                    print(f" {Col.NEON_G}✓{Col.R} Session refreshed")
+                else:
+                    print(f" {Col.NEON_O}!{Col.R} initData ok tapi auth gagal")
+            else:
+                print(f" {Col.NEON_O}!{Col.R} Silent refresh gagal")
+
+        if not valid_auth and not self._telethon_session_exists():
+            print(f" {Col.NEON_Y}!{Col.R} Belum ada Telethon session — login sekali.")
+            if not self.first_time_login(): return False
+            if not self.validate_telegram_auth() or not self._profile_ok():
+                print(f" {Col.RED}✗ Auth gagal setelah login.{Col.R}")
+                return False
+            valid_auth = True
+
+        if not valid_auth and self._telethon_session_exists():
+            print(f" {Col.RED}✗ Session tidak valid. Login ulang via nomor.{Col.R}")
+            if not self.first_time_login(): return False
+            if not self.validate_telegram_auth() or not self._profile_ok():
+                return False
+            valid_auth = True
+
+        if not valid_auth:
+            print(f" {Col.RED}✗ Auth gagal total.{Col.R}"); return False
+
+        if self.hcaptcha_sitekey == HCAPTCHA_SITEKEY_DEFAULT:
+            print(f" {Col.NEON_C}•{Col.R} Detecting hCaptcha sitekey...")
+            sk = self.detect_sitekey(force=True)
+            print(f" {Col.NEON_G}✓{Col.R} Sitekey: {Col.WHT}{sk}{Col.R} {Col.DIM_C}({self.sitekey_source}){Col.R}")
+
+        name = self.user_info.get('telegramUsername') or self.user_info.get('username') or 'User'
+        try: bal_str = f"{float(str(self.user_info.get('balance', 0))):.2f}"
+        except Exception: bal_str = str(self.user_info.get('balance', '0.00'))
+        print()
+        print(f" {Col.NEON_G}✓{Col.R} Active session: {Col.NEON_C}@{name}{Col.R}")
+        print(f" {Col.NEON_Y}💰{Col.R} Balance: {Col.NEON_Y}{bal_str} Coins{Col.R}")
+        print(f" {Col.NEON_V}🎮{Col.R} Mode: {Col.NEON_Y}{self.mode.upper()}{Col.R}")
         print()
 
-        if valid_auth:
-            name = self.user_info.get('telegramUsername') or self.user_info.get('username') or 'User'
-            try: bal_str = f"{float(str(self.user_info.get('balance', 0))):.2f}"
-            except Exception: bal_str = str(self.user_info.get('balance', '0.00'))
-            print()
-            print(f" {Col.NEON_G}✓{Col.R} Active session: {Col.NEON_C}@{name}{Col.R}")
-            print(f" {Col.NEON_Y}💰{Col.R} Balance: {Col.NEON_Y}{bal_str} Coins{Col.R}")
-            print(f" {Col.NEON_V}🎮{Col.R} Current mode: {Col.NEON_Y}{self.mode.upper()}{Col.R}")
-            print()
-
-            print(f"{Col.NEON_C}┌─ {Col.NEON_Y}SELECT MODE{Col.NEON_C} " + "─"*46 + f"┐{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_G}[1]{Col.R} {Col.WHT}No Hcaptcha {Col.DIM_C}(claim kosong){Col.R}              {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_Y}[2]{Col.R} {Col.WHT}Hcaptcha    {Col.DIM_C}(solve captcha dulu){Col.R}        {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}├" + "─"*60 + f"┤{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_C}[3]{Col.R} {Col.WHT}Re-login Telegram Phone{Col.R}                        {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_V}[4]{Col.R} {Col.WHT}Ganti Waryono API Key{Col.R}                          {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_O}[5]{Col.R} {Col.WHT}Force refresh init_data{Col.R}                        {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_P}[6]{Col.R} {Col.WHT}Re-detect sitekey{Col.R}                              {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_G}[7]{Col.R} {Col.WHT}Test Waryono API Key{Col.R}                          {Col.NEON_C}│{Col.R}")
-            print(f"{Col.NEON_C}└" + "─"*60 + f"┘{Col.R}")
-            ch = input(f"\n{Col.WHT} ➜ Pilih [1-7] (default: current mode): {Col.NEON_G}").strip()
-            print(Col.R, end='')
-        else:
-            print()
-            print(f" {Col.NEON_Y}!{Col.R} {Col.WHT}First time — login required.{Col.R}\n")
-            ch = '3'
+        print(f"{Col.NEON_C}┌─ {Col.NEON_Y}SELECT MODE{Col.NEON_C} " + "─"*46 + f"┐{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_G}[1]{Col.R} {Col.WHT}No Hcaptcha (claim kosong){Col.R}                        {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_Y}[2]{Col.R} {Col.WHT}Hcaptcha (solve dulu){Col.R}                              {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}├" + "─"*60 + f"┤{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_V}[3]{Col.R} {Col.WHT}Change Waryono API Key{Col.R}                             {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_P}[4]{Col.R} {Col.WHT}Re-detect sitekey{Col.R}                                  {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_G}[5]{Col.R} {Col.WHT}Test Waryono API Key{Col.R}                               {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_C}[6]{Col.R} {Col.WHT}Force silent refresh Telethon{Col.R}                      {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}│{Col.R}  {Col.NEON_O}[7]{Col.R} {Col.WHT}Re-login Telethon (phone){Col.R}                           {Col.NEON_C}│{Col.R}")
+        print(f"{Col.NEON_C}└" + "─"*60 + f"┘{Col.R}")
+        ch = input(f"\n{Col.WHT} ➜ Pilih [1-7]: {Col.NEON_G}").strip(); print(Col.R, end='')
 
         if ch == '1':
             self.mode = 'no_hcaptcha'; self.save_config()
-            Anim.spinner("Mode set: NO HCAPTCHA", 1.0)
+            print(f" {Col.NEON_G}✓{Col.R} Mode: NO HCAPTCHA")
         elif ch == '2':
             self.mode = 'hcaptcha'; self.save_config()
-            Anim.spinner("Mode set: HCAPTCHA", 1.0)
+            print(f" {Col.NEON_G}✓{Col.R} Mode: HCAPTCHA")
             if not self.captcha_apikey:
                 print()
-                key = input(f" {Col.NEON_G}➜{Col.R} {Col.WHT}Waryono API Key{Col.NEON_C} »{Col.R} ").strip()
-                print(Col.R, end='')
+                key = input(f" {Col.NEON_G}➜{Col.R} Waryono API Key: ").strip(); print(Col.R, end='')
                 if key:
                     self.captcha_apikey = key; self.save_config()
-                    Anim.spinner("API key saved", 1.0)
+                    print(f" {Col.NEON_G}✓{Col.R} API key saved")
         elif ch == '3':
-            if not self.do_telegram_login(interactive=True): return False
-            self.validate_telegram_auth()
-        elif ch == '4':
-            nk = input(f" {Col.WHT}Waryono API Key baru: {Col.NEON_G}").strip()
-            print(Col.R, end='')
+            nk = input(f" Waryono API Key baru: ").strip(); print(Col.R, end='')
             if nk:
                 self.captcha_apikey = nk; self.save_config()
-                Anim.spinner("API key updated", 1.0)
-        elif ch == '5':
-            if not self.has_telethon_session():
-                print(f" {Col.RED}✗{Col.R} session gak ada, pilih [3]."); return False
-            if self.do_telegram_login(interactive=False) and self.validate_telegram_auth():
-                print(f" {Col.NEON_G}✓{Col.R} refreshed")
-            else:
-                print(f" {Col.RED}✗{Col.R} refresh gagal."); return False
-        elif ch == '6':
-            print(f" {Col.NEON_C}•{Col.R} Re-detecting sitekey...")
+                print(f" {Col.NEON_G}✓{Col.R} API key updated")
+        elif ch == '4':
             sk = self.detect_sitekey(force=True)
-            print(f" {Col.NEON_G}✓{Col.R} Sitekey: {Col.WHT}{sk}{Col.R} {Col.DIM_C}(source: {self.sitekey_source}){Col.R}")
-        elif ch == '7':
+            print(f" {Col.NEON_G}✓{Col.R} Sitekey: {Col.WHT}{sk}{Col.R} {Col.DIM_C}({self.sitekey_source}){Col.R}")
+        elif ch == '5':
             if not self.captcha_apikey:
-                print(f" {Col.RED}✗{Col.R} API key belum di-set. Set dulu via menu [4].")
+                print(f" {Col.RED}✗{Col.R} API key belum di-set")
             else:
-                print(f" {Col.NEON_C}•{Col.R} Testing Waryono API key...")
-                print(f" {Col.DIM_C}  key: {self.captcha_apikey[:8]}...{self.captcha_apikey[-4:] if len(self.captcha_apikey) > 12 else ''}{Col.R}")
-                print(f" {Col.DIM_C}  sitekey: {self.hcaptcha_sitekey}{Col.R}")
                 solver = WaryonoSolver(self.captcha_apikey, self.hcaptcha_sitekey)
                 ok, msg = solver.test_apikey()
-                if ok: print(f" {Col.NEON_G}✓{Col.R} Waryono: {msg}")
-                else: print(f" {Col.RED}✗{Col.R} Waryono: {msg}")
+                print(f" {Col.NEON_G}✓{Col.R} Waryono: {msg}" if ok else f" {Col.RED}✗{Col.R} Waryono: {msg}")
+        elif ch == '6':
+            if not self._telethon_session_exists():
+                print(f" {Col.RED}✗{Col.R} Tidak ada .session — pakai [7] login dulu.")
+            else:
+                print(f" {Col.NEON_C}•{Col.R} Refreshing via Telethon...")
+                if self.silent_refresh() and self.validate_telegram_auth() and self._profile_ok():
+                    print(f" {Col.NEON_G}✓{Col.R} Session refreshed")
+                else:
+                    print(f" {Col.RED}✗{Col.R} Refresh gagal — coba [7]")
+        elif ch == '7':
+            if not self.first_time_login(): return False
+            if not self.validate_telegram_auth() or not self._profile_ok():
+                print(f" {Col.RED}✗ Auth gagal.{Col.R}"); return False
 
         return True
 
+    # ═══════════════════ CLAIM FLOW ═══════════════════
     def do_claim_flow(self):
         self.add_log('info', f"Mode: {Col.NEON_Y}{self.mode}{Col.R}")
-        self.add_log('info', f"Holding button {Col.NEON_Y}({HOLD_DURATION}s){Col.R}...")
-        self._progress_wait(HOLD_DURATION, label="HOLD")
+
+        hold_ms = random.randint(HOLD_MS_MIN, HOLD_MS_MAX)
+        self.add_log('info', f"Hold button {Col.NEON_Y}({hold_ms}ms){Col.R}...")
+        self._progress_wait(int(hold_ms / 1000), label="HOLD")
 
         captcha_token = ""
         if self.mode == 'hcaptcha':
             self.claim_state = 'SOLVING'
-            self.add_log('cap', f"Solving hCaptcha via Waryono (sitekey: {self.hcaptcha_sitekey[:20]}...)")
+            self.add_log('cap', f"Solving hCaptcha (sitekey: {self.hcaptcha_sitekey[:20]}...)")
             solver = WaryonoSolver(self.captcha_apikey, self.hcaptcha_sitekey)
             tok = solver.solve()
             if not tok:
@@ -947,6 +992,7 @@ class LiteBitsBot:
         else:
             self.add_log('info', "No hcaptcha mode — using empty token")
 
+        self._human_pause()
         start_payload = {
             "h-captcha-response": captcha_token,
             "captchaProvider": "hcaptcha",
@@ -954,7 +1000,6 @@ class LiteBitsBot:
             "fingerprint": ""
         }
         self.add_log('net', "POST /api/claim/start...")
-
         try:
             r = self.session.post(f"{BASE_URL}/api/claim/start", json=start_payload, timeout=20)
             sd = r.json()
@@ -962,8 +1007,9 @@ class LiteBitsBot:
             self.add_log('err', f"Net: {e}")
             self.cycles_failed += 1; self.save_config()
             return False, str(e)
+        self._human_pause(POST_HUMAN_PAUSE)
 
-        self.add_log('info', f"Start resp: {str(sd)[:140]}")
+        self.add_log('info', f"Start: {str(sd)[:120]}")
 
         if not sd.get('success'):
             rt = sd.get('retryInSeconds') or sd.get('retryAfterSeconds')
@@ -981,34 +1027,55 @@ class LiteBitsBot:
         ad_info = sd.get('ad') or {}
         self.add_log('ok', f"claimId: {str(claim_id)[:13]}...")
         if ad_info.get('title'):
-            self.add_log('info', f"Ad: {Col.DIM_C}{ad_info.get('title')}{Col.R}")
+            self.add_log('info', f"Ad: {Col.DIM_C}{ad_info.get('title')[:60]}{Col.R}")
 
-        ad_token = None
+        self._human_pause()
+        ad_token = None; ad_min_secs = 10
         try:
             r_ads = self.session.get(f"{BASE_URL}/api/claim/{claim_id}/ads", timeout=15)
             if r_ads.status_code == 200:
                 aj = r_ads.json()
                 if aj.get('success') and aj.get('adsUrl'):
                     ad_token = aj['adsUrl'].get('token')
+                    sdk = aj['adsUrl'].get('sdkAd') or {}
+                    ad_min_secs = sdk.get('min_seconds', 10)
+        except Exception: pass
+        self._human_pause(POST_HUMAN_PAUSE)
+
+        self._human_pause((400, 1500))
+        try:
+            self.session.post(f"{BASE_URL}/api/claim/{claim_id}/sdk-frame",
+                json={"state": "fallback", "bucket": "timeout"}, timeout=10)
         except Exception: pass
 
+        self._human_pause(POST_HUMAN_PAUSE)
+        try:
+            self.session.post(f"{BASE_URL}/api/ads/outcome",
+                json={"network": "sdk-frame", "outcome": "fallback"}, timeout=10)
+        except Exception: pass
+
+        ad_wait = max(ad_min_secs, random.randint(AD_WAIT_MIN, AD_WAIT_MAX))
         self.claim_state = 'WATCHING'
-        self.add_log('wait', f"Watching ad {Col.NEON_Y}({AD_VIEW_WAIT}s){Col.R}...")
-        self._progress_wait(AD_VIEW_WAIT, label="AD")
+        self.add_log('wait', f"Watching ad {Col.NEON_Y}({ad_wait}s){Col.R}...")
+        self._progress_wait(ad_wait, label="AD")
 
-        self.add_log('net', "POST /api/claim/{id}/complete...")
-        complete_payload = {"token": ad_token or ""}
+        reaction_ms = random.randint(2500, 6500)
+        self._human_pause((reaction_ms, reaction_ms + 200))
 
+        tap = self.generate_tap_telemetry(first_claim=(self.cycles == 0))
+        complete_payload = {"token": ad_token or "", "tap": tap}
         self.claim_state = 'CLAIMING'
-        amount = 1.0; ok = False
+        self.add_log('net', f"POST /api/claim/{{id}}/complete (tap: {tap['press_ms']}ms/{tap['reaction_ms']}ms)...")
+        amount = 1.0; ok = False; next_claim_iso = None
         try:
             r = self.session.post(f"{BASE_URL}/api/claim/{claim_id}/complete",
                                   json=complete_payload, timeout=20)
             cd = r.json()
-            self.add_log('info', f"Complete: {str(cd)[:140]}")
+            self.add_log('info', f"Complete: {str(cd)[:160]}")
             if cd.get('success'):
                 ok = True
                 amount = float(cd.get('reward', cd.get('amount', 1.0)))
+                next_claim_iso = cd.get('nextClaimAt')
         except Exception as e:
             self.add_log('err', f"Complete: {e}")
 
@@ -1017,7 +1084,7 @@ class LiteBitsBot:
             self.cycles_failed += 1; self.save_config()
             return False, 'unconfirmed'
 
-        time.sleep(1)
+        self._human_pause((300, 1200))
         self.fetch_user_profile()
         try: self.session_earned += float(amount)
         except Exception: pass
@@ -1040,18 +1107,19 @@ class LiteBitsBot:
         self.add_log('bal', f"Balance {Col.NEON_Y}{bal_str} Coins{Col.R}")
         self.add_log('cycle', f"Cycle {Col.NEON_V}#{self.cycles}{Col.R} done")
         self.save_config()
-        time.sleep(1.5)
-        return True, "Success"
+        time.sleep(1.2)
+        return True, {"status": "Success", "next_claim_at": next_claim_iso}
 
     def live_cooldown(self, wait_seconds=None):
         if wait_seconds is not None:
             total_sec = int(wait_seconds)
         else:
             total_sec = self.get_server_cooldown_left() or self.cooldown_seconds
+        total_sec = int(total_sec + random.uniform(2, 10))
         total = total_sec
         while total_sec > 0 and self.running:
             if (time.time() - self.start_time) >= MAX_RUNTIME:
-                self.add_log('warn', "Runtime limit, break cooldown.")
+                self.add_log('warn', "Runtime limit reached.")
                 self.running = False; break
             mm, ss = divmod(total_sec, 60); hh, mm = divmod(mm, 60)
             tstr = f"{hh:02d}:{mm:02d}:{ss:02d}"
@@ -1062,37 +1130,30 @@ class LiteBitsBot:
             self.render_view(live_line=f" {Col.NEON_G}[✓ READY]{Col.R} Cooldown finished.")
             time.sleep(1)
 
-    def generate_report(self, reason="TIME LIMIT REACHED"):
+    def generate_report(self, reason="TIME LIMIT"):
         runtime = int(time.time() - self.start_time)
         h, r = divmod(runtime, 3600); m, s = divmod(r, 60)
         try:
-            final_bal = float(str(self.user_info.get('balance', 0)))
-            final_bal_str = f"{final_bal:.2f} Coins"
+            final_bal_str = f"{float(str(self.user_info.get('balance', 0))):.2f} Coins"
         except Exception:
-            final_bal = 0.0; final_bal_str = "N/A"
+            final_bal_str = "N/A"
         total_cyc = self.cycles + self.cycles_failed
         rate = (self.cycles / total_cyc * 100) if total_cyc > 0 else 0.0
-        finish_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        start_str = datetime.fromtimestamp(self.start_time).strftime("%Y-%m-%d %H:%M:%S")
         lines = ["",
             f"{Col.NEON_C}╔══════════════════════════════════════════════════════════════╗{Col.R}",
-            f"{Col.NEON_C}║{Col.R}           {Col.NEON_Y}⚡ SESSION REPORT · LITEBITS v3.9.1 ⚡{Col.R}          {Col.NEON_C}║{Col.R}",
+            f"{Col.NEON_C}║{Col.R}           {Col.NEON_Y}⚡ SESSION REPORT · v4.2.0 TELETHON ⚡{Col.R}          {Col.NEON_C}║{Col.R}",
             f"{Col.NEON_C}╚══════════════════════════════════════════════════════════════╝{Col.R}",
             "",
             f"{Col.NEON_V}  Reason          : {Col.WHT}{reason}{Col.R}",
             f"{Col.NEON_V}  Mode            : {Col.NEON_Y}{self.mode.upper()}{Col.R}",
-            f"{Col.NEON_V}  Sitekey source  : {Col.WHT}{self.sitekey_source}{Col.R}",
-            f"{Col.NEON_V}  Started         : {Col.WHT}{start_str}{Col.R}",
-            f"{Col.NEON_V}  Finished        : {Col.WHT}{finish_time}{Col.R}",
+            f"{Col.NEON_V}  Session         : {Col.NEON_G if self._token_valid(0) else Col.NEON_O}{'JWT VALID' if self._token_valid(0) else 'EXPIRED'}{Col.R}",
+            f"{Col.NEON_V}  Telethon        : {Col.NEON_G if self._telethon_session_exists() else Col.NEON_R}{'OK' if self._telethon_session_exists() else 'NONE'}{Col.R}",
             f"{Col.NEON_V}  Runtime         : {Col.NEON_C}{h:02d}h {m:02d}m {s:02d}s{Col.R}",
-            "",
             f"{Col.NEON_V}  Total Earned    : {Col.NEON_G}+{self.session_earned:.4f} Coins{Col.R}",
             f"{Col.NEON_V}  Final Balance   : {Col.NEON_Y}{final_bal_str}{Col.R}",
             f"{Col.NEON_V}  Cycles OK       : {Col.NEON_G}{self.cycles}{Col.R}",
             f"{Col.NEON_V}  Cycles Failed   : {Col.NEON_R}{self.cycles_failed}{Col.R}",
             f"{Col.NEON_V}  Success Rate    : {Col.NEON_G if rate >= 90 else Col.NEON_Y}{rate:.1f}%{Col.R}",
-            f"{Col.NEON_V}  Captcha Solved  : {Col.NEON_G}{self.captcha_solved}{Col.R}",
-            f"{Col.NEON_V}  Captcha Failed  : {Col.NEON_R}{self.captcha_failed}{Col.R}",
             "",
             f"{Col.NEON_C}══════════════════════════════════════════════════════════════{Col.R}",
             ""]
@@ -1106,23 +1167,30 @@ class LiteBitsBot:
 
     def run(self):
         self.init_http_session()
-        if not self.setup_interactive(): sys.exit(1)
+        if not self.setup(): sys.exit(1)
 
         stop_reason = "USER STOPPED"
         max_h = MAX_RUNTIME // 3600
 
-        self.add_log('info', f"Auto-stop after {Col.NEON_Y}{max_h}h{Col.R}")
+        self.add_log('info', f"Auto-stop {Col.NEON_Y}{max_h}h{Col.R}")
         self.add_log('info', f"Mode: {Col.NEON_Y}{self.mode}{Col.R}")
-        self.add_log('info', f"Sitekey: {Col.DIM_C}{self.hcaptcha_sitekey[:24]}...{Col.R}")
+        self.add_log('info', f"Session: {Col.NEON_G}JWT ACTIVE{Col.R}")
         time.sleep(1)
 
         while self.running:
             try:
-                elapsed = time.time() - self.start_time
-                if elapsed >= MAX_RUNTIME:
+                if (time.time() - self.start_time) >= MAX_RUNTIME:
                     stop_reason = f"TIME LIMIT ({max_h}H)"
-                    self.add_log('warn', f"⏰ {max_h}h reached, stop...")
                     self.running = False; break
+
+                if not self._token_valid(min_secs=300):
+                    self.add_log('warn', "JWT expiring — silent refresh...")
+                    if self.silent_refresh() and self.validate_telegram_auth():
+                        self.add_log('ok', "Refreshed via Telethon")
+                    else:
+                        self.add_log('err', "Silent refresh failed — stopping")
+                        stop_reason = "SESSION EXPIRED"
+                        break
 
                 self.fetch_user_profile()
                 self.fetch_app_settings()
@@ -1143,11 +1211,15 @@ class LiteBitsBot:
                 ok, res = self.do_claim_flow()
 
                 if isinstance(res, int) and res > 0:
-                    elapsed_now = time.time() - self.start_time
-                    if res > (MAX_RUNTIME - elapsed_now):
+                    if res > (MAX_RUNTIME - (time.time() - self.start_time)):
                         stop_reason = "TIME LIMIT DURING COOLDOWN"
                         self.running = False; break
                     self.live_cooldown(wait_seconds=res)
+                    continue
+
+                if ok and isinstance(res, dict) and res.get('next_claim_at'):
+                    wait_sec = self._secs_until_iso(res['next_claim_at'])
+                    self.live_cooldown(wait_seconds=wait_sec)
                     continue
 
                 if not ok:
