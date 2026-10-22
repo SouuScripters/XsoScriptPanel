@@ -49,7 +49,7 @@
           "runner": "python3"
         },
         "3": {
-          "label": "Makeyoutask 🟢",
+          "label": "Makeyoutask 🔴",
           "file": "myt.php",
           "runner": "php"
         },
