@@ -89,7 +89,7 @@
           "runner": "php"
         },
         "11": {
-          "label": "Earnbitmoon 🔴",
+          "label": "Earnbitmoon 🟢",
           "file": "Earnbitmoon.php",
           "runner": "php"
         },
@@ -229,7 +229,7 @@
           "runner": "python3"
         },
         "13": {
-          "label": "NewTube 🟢",
+          "label": "NewTube 🔴",
           "file": "newtube.py",
           "runner": "python3"
         },
