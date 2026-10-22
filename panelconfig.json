@@ -89,12 +89,12 @@
           "runner": "php"
         },
         "11": {
-          "label": "Earnbitmoon 🟢",
+          "label": "Earnbitmoon 🔴",
           "file": "Earnbitmoon.php",
           "runner": "php"
         },
         "12": {
-          "label": "PayubVideo 🟢",
+          "label": "PayubVideo 🔴",
           "file": "Payub.php",
           "runner": "php"
         },
@@ -234,7 +234,7 @@
           "runner": "python3"
         },
         "14": {
-          "label": "AdTubesBot 🟢",
+          "label": "AdTubesBot 🟡",
           "file": "AdTubesBot.py",
           "runner": "python3"
         },
@@ -249,7 +249,7 @@
           "runner": "python3"
         },
         "17": {
-          "label": "Btc Faucet 🟢",
+          "label": "Btc Faucet 🟡",
           "file": "btcFaucet.py",
           "runner": "python3"
         },
@@ -259,7 +259,7 @@
           "runner": "python3"
         },
         "19": {
-          "label": "VIRTUAL MINE 🟢",
+          "label": "VirtualMine 🟢",
           "file": "VirtualMine.py",
           "runner": "python3"
         }
