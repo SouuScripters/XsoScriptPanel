@@ -2,16 +2,12 @@
 <?php
 /**
  * ===============================================================
- *  TRONBLOW.site Auto Claim Bot v6.1 (Email Only)
- *  - Pre-flight check (PHP, curl, connectivity)
- *  - Cloudflare detection + auto fresh session
- *  - Random User-Agent
- *  - Health check faucet (last payment age)
- *  - STOP otomatis kalau "insufficient funds"
+ *  TRONBLOW.site Auto Claim Bot v6.1 (Final Fixed)
+ *  - Cookie Jar enabled (Wajib untuk CSRF)
+ *  - Static UA per cycle (Mencegah deteksi anti-bot)
  * ===============================================================
  */
 
-// Suppress deprecation warnings (curl_close dll di PHP 8.5)
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
 
 if (PHP_VERSION_ID < 80000) {
@@ -20,14 +16,9 @@ if (PHP_VERSION_ID < 80000) {
 }
 if (!extension_loaded('curl')) {
     fwrite(STDERR, "ERROR: ext-curl gak ada.\n");
-    fwrite(STDERR, "  Debian/Ubuntu : sudo apt install php-curl\n");
-    fwrite(STDERR, "  Termux        : pkg install php-curl\n");
     exit(1);
 }
 
-// ===============================================================
-//  COLOR
-// ===============================================================
 const RST = "\033[0m";
 const BOLD = "\033[1m";
 const DIM  = "\033[2m";
@@ -45,13 +36,9 @@ function vlen(string $s): int {
     return mb_strlen(preg_replace('/\033\[[0-9;]*m/', '', $s));
 }
 function pad_to(string $s, int $w): string {
-    $len = vlen($s);
-    return $s . str_repeat(' ', max(0, $w - $len));
+    return $s . str_repeat(' ', max(0, $w - vlen($s)));
 }
 
-// ===============================================================
-//  STATE
-// ===============================================================
 $STATE = [
     'email'         => '-',
     'claims'        => 0,
@@ -92,9 +79,6 @@ function fmt_duration(int $sec): string {
     return sprintf('%02d:%02d:%02d', $h, $m, $s);
 }
 
-// ===============================================================
-//  RENDER BOX
-// ===============================================================
 function render_box(): void {
     global $STATE;
     $W = 62;
@@ -154,11 +138,9 @@ function render_box_clear(): void {
     render_box();
 }
 
-// ===============================================================
-//  CONFIG
-// ===============================================================
 $CONFIG_FILE  = __DIR__ . "/tronblow_config.json";
 $COUNTER_FILE = __DIR__ . "/tronblow_counter.json";
+$COOKIE_FILE  = __DIR__ . "/tronblow_session.txt";
 
 const DAILY_LIMIT = 200;
 const BASE_URL    = 'https://tronblow.site';
@@ -176,9 +158,6 @@ function random_ua(): string {
     return $UA_POOL[array_rand($UA_POOL)];
 }
 
-// ===============================================================
-//  IO HELPERS
-// ===============================================================
 function read_line(string $prompt = ""): string {
     if ($prompt) echo $prompt;
     $line = fgets(STDIN);
@@ -225,9 +204,6 @@ function increment_counter(): array {
     return $c;
 }
 
-// ===============================================================
-//  PRE-FLIGHT
-// ===============================================================
 function preflight(): bool {
     state_log("PHP " . PHP_VERSION . " - OK", 'PRE');
     state_log("ext-curl - OK", 'PRE');
@@ -244,7 +220,6 @@ function preflight(): bool {
     curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    // No curl_close() — deprecated PHP 8.5
 
     if ($err) {
         state_log("Koneksi gagal: $err", 'ERR');
@@ -258,9 +233,6 @@ function preflight(): bool {
     return true;
 }
 
-// ===============================================================
-//  HTTP (tanpa cookie jar - stateless request)
-// ===============================================================
 function base_headers(): array {
     return [
         'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -277,7 +249,7 @@ function base_headers(): array {
     ];
 }
 
-function fetch_page(string $url): array {
+function fetch_page(string $url, string $ua, string $cookie_file): array {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -288,13 +260,14 @@ function fetch_page(string $url): array {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_ENCODING       => '',
-        CURLOPT_USERAGENT      => random_ua(),
+        CURLOPT_USERAGENT      => $ua,
         CURLOPT_HTTPHEADER     => base_headers(),
+        CURLOPT_COOKIEJAR      => $cookie_file,
+        CURLOPT_COOKIEFILE     => $cookie_file,
     ]);
     $html = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    // No curl_close()
 
     if ($err || $code !== 200 || empty($html)) {
         return ['html' => false, 'http_code' => $code, 'err' => $err];
@@ -302,7 +275,7 @@ function fetch_page(string $url): array {
     return ['html' => $html, 'http_code' => $code, 'err' => ''];
 }
 
-function submit_claim(string $url, string $email, string $csrf, int $answer): array {
+function submit_claim(string $url, string $email, string $csrf, int $answer, string $ua, string $cookie_file): array {
     $post = http_build_query([
         'action'      => 'claim',
         'csrf_token'  => $csrf,
@@ -331,19 +304,17 @@ function submit_claim(string $url, string $email, string $csrf, int $answer): ar
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_ENCODING       => '',
-        CURLOPT_USERAGENT      => random_ua(),
+        CURLOPT_USERAGENT      => $ua,
         CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_COOKIEJAR      => $cookie_file,
+        CURLOPT_COOKIEFILE     => $cookie_file,
     ]);
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    // No curl_close()
     return ['code' => $code, 'body' => (string) $body, 'err' => $err];
 }
 
-// ===============================================================
-//  PARSER
-// ===============================================================
 function extract_csrf_token(string $html): ?string {
     $patterns = [
         '/<input\s+type="hidden"\s+name="csrf_token"\s+value="([^"]+)"/i',
@@ -422,9 +393,6 @@ function detect_login_wall(string $html): bool {
         || strpos($low, 'sign in to continue') !== false;
 }
 
-// ===============================================================
-//  RESPONSE PARSER
-// ===============================================================
 function parse_alert_message(string $html): array {
     $out = ['success' => null, 'error' => null];
     if (preg_match('/<div[^>]*class="[^"]*alert-success[^"]*"[^>]*>(.*?)<\/div>/is', $html, $m)) {
@@ -490,7 +458,7 @@ function check_response(string $html): array {
         $low = strtolower($msg);
         if (strpos($low, 'math') !== false || strpos($low, 'captcha') !== false
             || strpos($low, 'wrong') !== false || strpos($low, 'incorrect') !== false
-            || strpos($low, 'invalid') !== false) {
+            || strpos($low, 'invalid') !== false || strpos($low, 'expired') !== false) {
             return ['status' => 'wrong', 'msg' => $msg];
         }
         return ['status' => 'error', 'msg' => $msg];
@@ -506,9 +474,6 @@ function check_response(string $html): array {
     return ['status' => 'unknown', 'msg' => 'Unclear response'];
 }
 
-// ===============================================================
-//  SETUP
-// ===============================================================
 function interactive_setup(): array {
     echo "\n" . CYN . "=== FIRST TIME SETUP ===" . RST . "\n\n";
     $email = '';
@@ -525,14 +490,10 @@ function interactive_setup(): array {
     ];
 }
 
-// ===============================================================
-//  MAIN
-// ===============================================================
 render_box_clear();
 echo CYN . "  + TRONBLOW AUTO CLAIM ENGINE v6.1\n" . RST;
 echo DIM . "  --- Souu Engine ---\n\n" . RST;
 
-// PRE-FLIGHT
 state_log("Running pre-flight check...", 'PRE');
 render_box_clear();
 if (!preflight()) {
@@ -541,7 +502,6 @@ if (!preflight()) {
     exit(1);
 }
 
-// LOAD CONFIG
 $config = load_config();
 if ($config) {
     echo GRN . "  v Config found\n" . RST;
@@ -567,8 +527,11 @@ render_box_clear();
 $cycle = 0;
 $consecutive_parse_fails = 0;
 
+if (file_exists($COOKIE_FILE)) {
+    @unlink($COOKIE_FILE);
+}
+
 while (true) {
-    // Daily limit
     $counter = load_counter();
     $STATE['daily_count'] = $counter['count'];
     if ($counter['count'] >= DAILY_LIMIT) {
@@ -582,14 +545,12 @@ while (true) {
         continue;
     }
 
-    // Max runtime
     if ((time() - $STATE['runtime_start']) >= $STATE['max_runtime']) {
         state_log("Max runtime reached, exiting", 'WARN');
         render_box_clear();
         break;
     }
 
-    // Max failures
     if ($STATE['failures'] >= $STATE['max_failures']) {
         state_log("Max failures reached, exiting", 'ERR');
         render_box_clear();
@@ -600,8 +561,9 @@ while (true) {
     state_log("Cycle #$cycle starting...", 'INFO');
     render_box_clear();
 
-    // FETCH
-    $result = fetch_page($config['base_url']);
+    $current_ua = random_ua();
+
+    $result = fetch_page($config['base_url'], $current_ua, $COOKIE_FILE);
     if (!$result['html']) {
         state_log("Fetch failed (HTTP {$result['http_code']}) {$result['err']}", 'ERR');
         $STATE['failures']++;
@@ -611,7 +573,6 @@ while (true) {
     }
     $html = $result['html'];
 
-    // CLOUDFLARE
     if (detect_cloudflare($html)) {
         state_log("Cloudflare challenge detected", 'WARN');
         render_box_clear();
@@ -623,7 +584,6 @@ while (true) {
         continue;
     }
 
-    // LOGIN WALL
     if (detect_login_wall($html)) {
         state_log("Login wall - email mungkin belum set", 'WARN');
         $STATE['failures']++;
@@ -632,7 +592,6 @@ while (true) {
         continue;
     }
 
-    // HEALTH CHECK
     state_log("Checking faucet health...", 'HEALTH');
     render_box_clear();
     $health = check_faucet_health($html, 30);
@@ -648,23 +607,10 @@ while (true) {
             $STATE['faucet_status'] = 'dead';
             state_log("FATAL: {$pre['error']}", 'ERR');
             render_box_clear();
-            echo "\n" . RED . "  +--------------------------------------------------+\n" . RST;
-            echo RED   . "  |  x FAUCET SUDAH TIDAK BISA BAYAR                |\n" . RST;
-            echo RED   . "  |  Bot dihentikan otomatis.                        |\n" . RST;
-            echo RED   . "  +--------------------------------------------------+\n\n" . RST;
-            break;
-        }
-
-        echo "\n" . YEL . "  ! Faucet kelihatan gak bayar (" . ($health['age_min'] ?? '?') . " menit).\n" . RST;
-        $ans = read_line(YEL . "  Lanjut claim? (y/n): " . RST);
-        if (strtolower($ans) !== 'y') {
-            state_log("Stopped by user", 'WARN');
-            render_box_clear();
             break;
         }
     }
 
-    // CSRF
     $csrf = extract_csrf_token($html);
     if (!$csrf) {
         $STATE['failures']++;
@@ -672,9 +618,7 @@ while (true) {
         state_log("CSRF token not found (attempt $consecutive_parse_fails/3)", 'ERR');
         render_box_clear();
         if ($consecutive_parse_fails >= 3) {
-            state_log("3x gagal parse - mundur 60s", 'WARN');
             $consecutive_parse_fails = 0;
-            render_box_clear();
             sleep(60);
         } else {
             sleep(15);
@@ -682,7 +626,6 @@ while (true) {
         continue;
     }
 
-    // MATH
     $math = extract_math_question($html);
     if (!$math) {
         $STATE['failures']++;
@@ -695,11 +638,10 @@ while (true) {
     state_log("Math: {$math['q1']} {$math['op']} {$math['q2']} = $answer", 'VERIFY');
     render_box_clear();
 
-    // SUBMIT
     state_log("Claiming 1000 SAT...", 'CLAIM');
     render_box_clear();
 
-    $submit = submit_claim($config['base_url'], $config['email'], $csrf, $answer);
+    $submit = submit_claim($config['base_url'], $config['email'], $csrf, $answer, $current_ua, $COOKIE_FILE);
     if ($submit['err']) {
         state_log("Submit curl error: {$submit['err']}", 'ERR');
         $STATE['failures']++;
@@ -732,10 +674,6 @@ while (true) {
             $STATE['faucet_status'] = 'dead';
             state_log("FATAL: {$status['msg']}", 'ERR');
             render_box_clear();
-            echo "\n" . RED . "  +--------------------------------------------------+\n" . RST;
-            echo RED   . "  |  x FAUCET SUDAH TIDAK BISA BAYAR                |\n" . RST;
-            echo RED   . "  |  Bot dihentikan otomatis.                        |\n" . RST;
-            echo RED   . "  +--------------------------------------------------+\n\n" . RST;
             exit(2);
 
         case 'wait':
@@ -785,7 +723,10 @@ while (true) {
     }
 }
 
+if (file_exists($COOKIE_FILE)) {
+    @unlink($COOKIE_FILE);
+}
+
 render_box_clear();
 echo "\n" . CYN . "  + Bot stopped.\n" . RST;
-echo DIM . "  Claims: {$STATE['claims']}  |  Failures: {$STATE['failures']}\n" . RST;
 echo "\n";
