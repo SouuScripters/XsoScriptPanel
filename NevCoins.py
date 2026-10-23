@@ -11,6 +11,7 @@
   - Clean SIGTSTP / Ctrl+Z handling
   - Human delay 6-7 min after success
   - Auto-stop 6 hours
+  - Auto-stop 3x Fatal API Error
 ============================================================
 """
 
@@ -30,6 +31,7 @@ RESET       = "\033[0m"
 BOLD        = "\033[1m"
 
 GREEN, YELLOW, CYAN, PINK, RED = NEON_GREEN, NEON_YELLOW, NEON_CYAN, NEON_PINK, NEON_PINK
+AQUA_COLOR = NEON_CYAN  # alias untuk log balance
 
 # ═══════════════════ CONFIG ═══════════════════
 BASE_URL         = "https://nevcoins.club"
@@ -216,10 +218,12 @@ def solve_captcha(apikey, sitekey, page_url):
         }, timeout=30)
         res = r.json()
     except Exception as e:
-        log("captcha", f"Submit err: {e}", PINK); return None
+        log("captcha", f"Submit err: {e}", PINK); return "CONNECTION_ERROR"
 
     if res.get("status") != 1:
-        log("captcha", f"Submit fail: {res.get('request','?')}", PINK); return None
+        err_msg = res.get('request','?')
+        log("captcha", f"Submit fail: {err_msg}", PINK)
+        return err_msg  # Return error string
 
     task_id = res.get("request")
     log("captcha", f"Task ID: {task_id}", GRAY)
@@ -246,10 +250,12 @@ def solve_captcha(apikey, sitekey, page_url):
             return pr.get("request")
         if "CAPCHA_NOT_READY" in str(pr.get("request", "")).upper():
             continue
-        progress_done("captcha", f"✖ Err: {pr.get('request')}", PINK)
-        return None
+        
+        err_msg = pr.get('request')
+        progress_done("captcha", f"✖ Err: {err_msg}", PINK)
+        return err_msg  # Return error string
     progress_done("captcha", "✖ Timeout", PINK)
-    return None
+    return "TIMEOUT"
 
 
 # ═══════════════════ HUMAN WAIT ═══════════════════
@@ -283,6 +289,7 @@ class NevBot:
             "Referer":         BASE_URL + "/",
         })
         self._parse_cookies(cfg.get("cookie", ""))
+        self.api_fail_count = 0  # Tambahan buat track error API
 
     def _parse_cookies(self, cstr):
         for part in cstr.split(";"):
@@ -407,8 +414,26 @@ class NevBot:
 
         captcha = solve_captcha(self.cfg.get("apikey", ""), sitekey,
                                 f"{BASE_URL}/claim.html")
-        if not captcha:
-            log("claim", "Captcha solve failed", PINK); return False
+        
+        # ═══ HANDLE SOLVER ERRORS ═══
+        if not captcha or captcha.startswith("ERROR"):
+            log("claim", f"Solver Error: {captcha}", PINK)
+            
+            # Daftar error yang bikin bot berhenti kalau nyampe 3x
+            fatal_errors = ["ERROR_CAPTCHA_UNSOLVABLE", "ERROR_WRONG_USER_KEY", 
+                            "ERROR_ZERO_BALANCE", "ERROR_KEY_DOES_NOT_EXIST"]
+            
+            if any(e in captcha for e in fatal_errors):
+                self.api_fail_count += 1
+                log("claim", f"Fatal API Error Streak: {self.api_fail_count}/3", YELLOW)
+                if self.api_fail_count >= 3:
+                    return "STOP"
+            else:
+                log("claim", "Non-fatal solver error, retrying...", YELLOW)
+            return False
+            
+        # Reset counter kalau sukses dapet captcha
+        self.api_fail_count = 0
 
         self.s.headers["X-Requested-With"] = "XMLHttpRequest"
         self.s.headers["Referer"]          = f"{BASE_URL}/claim.html"
@@ -489,7 +514,12 @@ def run_farming(cfg):
 
             log("check", f"✔ Faucet READY ({status.get('source','?')}) — claiming now", GREEN)
 
-            if bot.claim():
+            res = bot.claim()
+            
+            if res == "STOP":
+                log("bot", "AUTO-STOP: 3x Fatal API / Solver Errors detected.", PINK)
+                break
+            elif res:
                 ok += 1
 
                 # ═══ AUTO BALANCE CHECK AFTER CLAIM ═══
@@ -519,7 +549,7 @@ def run_farming(cfg):
         # ── final summary ──
         final_bal = bot.get_balance()
         print(f"\n{GREEN}{BOLD}============================================================{RESET}")
-        print(f"{GREEN}{BOLD}  {RUN_HOURS}H DONE{RESET}")
+        print(f"{GREEN}{BOLD}  FARMING ENDED{RESET}")
         print(f"{GREEN}  Claims OK: {ok} | FAIL: {fail}{RESET}")
         if "error" not in final_bal and start_balance is not None:
             total = (final_bal["balance"] or 0) - start_balance
@@ -534,8 +564,6 @@ def run_farming(cfg):
         print(f"\n{PINK}Stopped by user.{RESET}")
         print(f"{GREEN}  Session: OK: {ok} | FAIL: {fail} | Earned: +{earned_total:.2f} Coins{RESET}")
         return
-
-AQUA_COLOR = NEON_CYAN  # alias untuk log balance
 
 
 # ═══════════════════ MAIN MENU ═══════════════════
