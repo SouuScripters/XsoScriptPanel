@@ -169,9 +169,9 @@
           "runner": "node"
         },
         "27": {
-          "label": "Coming Soon ⏳",
-          "file": "ComingSoon27.php",
-          "runner": "php"
+          "label": "CoinAdPay 🟢",
+          "file": "Coinadpay.py",
+          "runner": "python3"
         },
         "28": {
           "label": "Coming Soon ⏳",
