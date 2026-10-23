@@ -164,7 +164,7 @@
           "runner": "python3"
         },
         "26": {
-          "label": "CoinFalo ⏳",
+          "label": "CoinFalo 🟢",
           "file": "Coinfalo.js",
           "runner": "node"
         },
