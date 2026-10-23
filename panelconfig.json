@@ -159,9 +159,24 @@
           "runner": "php"
         },
         "25": {
+          "label": "NocidFun 🟢",
+          "file": "Nocid.py",
+          "runner": "python3"
+        },
+        "26": {
           "label": "Coming Soon ⏳",
-          "file": "ComingSoon25.php",
+          "file": "ComingSoon26.js",
+          "runner": "node"
+        },
+        "27": {
+          "label": "Coming Soon ⏳",
+          "file": "ComingSoon27.php",
           "runner": "php"
+        },
+        "28": {
+          "label": "Coming Soon ⏳",
+          "file": "ComingSoon28.py",
+          "runner": "python3"
         }
       }
     },
