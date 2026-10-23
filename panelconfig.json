@@ -164,7 +164,7 @@
           "runner": "python3"
         },
         "26": {
-          "label": "CoinFalo 🟢",
+          "label": "No use",
           "file": "Coinfalo.js",
           "runner": "node"
         },
