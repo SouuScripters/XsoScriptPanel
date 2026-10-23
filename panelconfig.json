@@ -164,8 +164,8 @@
           "runner": "python3"
         },
         "26": {
-          "label": "Coming Soon ⏳",
-          "file": "ComingSoon26.js",
+          "label": "CoinFalo ⏳",
+          "file": "Coinfalo.js",
           "runner": "node"
         },
         "27": {
