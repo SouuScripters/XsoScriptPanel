@@ -94,7 +94,7 @@
           "runner": "php"
         },
         "12": {
-          "label": "PayubVideo 🔴",
+          "label": "PayupVideo 🟢",
           "file": "Payub.php",
           "runner": "php"
         },
