@@ -29,9 +29,9 @@
           "runner": "python3"
         },
         "6": {
-          "label": "Coming Soon ⏳",
-          "file": "ComingSoon6.php",
-          "runner": "php"
+          "label": "CryptoFuture 🟢",
+          "file": "Cryptofuture.py",
+          "runner": "python3"
         }
       }
     },
