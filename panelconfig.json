@@ -174,9 +174,9 @@
           "runner": "python3"
         },
         "28": {
-          "label": "Coming Soon ⏳",
-          "file": "ComingSoon28.py",
-          "runner": "python3"
+          "label": "Lootiyz 🟢",
+          "file": "Lootiyz.php",
+          "runner": "php"
         }
       }
     },
