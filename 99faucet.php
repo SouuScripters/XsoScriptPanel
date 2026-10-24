@@ -1,8 +1,9 @@
 <?php
 /**
- * 99FAUCET AUTO BOT v2.0
+ * 99FAUCET AUTO BOT v2.1
  * - Solver: WARYONO.MY.ID
- * - Detection pattern dari script kedua (Good job!, Invalid, dll)
+ * - Swal parser (akurat deteksi sukses/gagal/insufficient/cooldown)
+ * - Structured debug → folder debug/ (JSON + 10KB HTML only)
  * - Total claim per coin + earning USD
  * - IP display + stats persistent
  */
@@ -24,14 +25,14 @@ const UNGU   = "\033[1;35m";
 const ABU    = "\033[0;90m";
 
 // ═══════════════ CONFIG ═══════════════
-const BASE_URL      = 'https://99faucet.com';
-const API_IN        = 'https://api.waryono.my.id/in.php';
-const API_OUT       = 'https://api.waryono.my.id/res.php';
-const CONFIG_FILE   = 'config_99.json';
-const STATS_FILE    = 'stats_99.json';
-const COOKIE_FILE   = 'cookie_99.txt';
-const SUCCESS_WAIT  = 20;
-const FAIL_WAIT     = 11;
+const BASE_URL       = 'https://99faucet.com';
+const API_IN         = 'https://api.waryono.my.id/in.php';
+const API_OUT        = 'https://api.waryono.my.id/res.php';
+const CONFIG_FILE    = 'config_99.json';
+const STATS_FILE     = 'stats_99.json';
+const COOKIE_FILE    = 'cookie_99.txt';
+const SUCCESS_WAIT   = 12;   // 99faucet cooldown 10s + buffer
+const FAIL_WAIT      = 11;
 const PRICE_PER_CLAIM = 0.0001;   // USDT
 
 const FALLBACK_SITEKEY = 'e6ca07e2-687c-4fca-b47c-d5fc5ed2e188';
@@ -197,13 +198,35 @@ function save_stats($s) {
 
 function record_claim($coin, $amount_usd = PRICE_PER_CLAIM) {
     $s = load_stats();
-    if (!isset($s['coins'][$coin])) $s['coins'][$coin] = ['claims' => 0, 'usd' => 0.0];
+    if (!isset($s['coins'][$coin])) {
+        $s['coins'][$coin] = ['claims' => 0, 'usd' => 0.0, 'last' => '-'];
+    }
     $s['coins'][$coin]['claims']++;
-    $s['coins'][$coin]['usd'] += $amount_usd;
+    $s['coins'][$coin]['usd']    += $amount_usd;
+    $s['coins'][$coin]['last']    = date('Y-m-d H:i:s');
     $s['total_claims']++;
     $s['total_usd'] += $amount_usd;
     save_stats($s);
     return $s;
+}
+
+// ═══════════════ SWEETALERT PARSER ═══════════════
+function extract_swal($html) {
+    if (!preg_match_all('/Swal\.fire\s*\(\s*\{([\s\S]*?)\}\s*\)/i', $html, $matches)) {
+        return null;
+    }
+    // Ambil Swal terakhir (paling baru di response)
+    $block = end($matches[1]);
+
+    $title = null;
+    $text  = null;
+    $icon  = null;
+
+    if (preg_match('/title\s*:\s*[\'"`]([^\'"`]*?)[\'"`]/i', $block, $t))  $title = $t[1];
+    if (preg_match('/(?:text|html)\s*:\s*[\'"`]([^\'"`]*?)[\'"`]/i', $block, $t)) $text = $t[1];
+    if (preg_match('/icon\s*:\s*[\'"`]([^\'"`]*?)[\'"`]/i', $block, $t))   $icon  = $t[1];
+
+    return ['title' => $title, 'text' => $text, 'icon' => $icon];
 }
 
 // ═══════════════ WARYONO SOLVER ═══════════════
@@ -225,7 +248,7 @@ function solve_hcaptcha($apikey, $sitekey, $pageurl) {
 
         if (!$id || strpos($id, "ERROR_") !== false) {
             $err = $json["request"] ?? "no response";
-            echo MERAH . "[!] Submit gagal ($err) — retry #$attempt" . RESET . "\n";
+            echo MERAH . "[!] Submit gagal (" . $err . ") — retry #" . $attempt . RESET . "\n";
             if (is_string($err) && (
                 strpos($err, 'ERROR_KEY') !== false ||
                 strpos($err, 'ERROR_WRONG_USER_KEY') !== false ||
@@ -238,7 +261,7 @@ function solve_hcaptcha($apikey, $sitekey, $pageurl) {
             continue;
         }
 
-        echo KUNING . "[+] Task ID    : $id" . RESET . "\n";
+        echo KUNING . "[+] Task ID    : " . $id . RESET . "\n";
         echo CYAN  . "[*] hCaptcha    : WAITING..." . RESET . "\n";
 
         for ($i = 1; $i <= 60; $i++) {
@@ -300,7 +323,7 @@ function print_banner($ip, $stats) {
     $lines = [
         "",
         CYAN . "╔══════════════════════════════════════════════════════════╗" . RESET,
-        CYAN . "║" . RESET . BOLD . KUNING . "              🍪 99FAUCET AUTO BOT v2.0                   " . RESET . CYAN . "║" . RESET,
+        CYAN . "║" . RESET . BOLD . KUNING . "              🍪 99FAUCET AUTO BOT v2.1                   " . RESET . CYAN . "║" . RESET,
         CYAN . "║" . RESET . DIM . PUTIH . "              Solver: WARYONO.MY.ID                        " . RESET . CYAN . "║" . RESET,
         CYAN . "╠══════════════════════════════════════════════════════════╣" . RESET,
         CYAN . "║" . RESET . PUTIH . " 🌐 IP Address  : " . HIJAU . str_pad($ip, 38) . RESET . CYAN . "║" . RESET,
@@ -345,7 +368,7 @@ function login(CookieJar &$jar, $email, $password, $apikey) {
     if (!$jar->get('uf')) $jar->set('uf', generate_uf());
 
     $sitekey = get_sitekey($home) ?: FALLBACK_SITEKEY;
-    echo KUNING . "[+] Sitekey    : $sitekey" . RESET . "\n";
+    echo KUNING . "[+] Sitekey    : " . $sitekey . RESET . "\n";
 
     $captcha = solve_hcaptcha($apikey, $sitekey, BASE_URL);
     if (!$captcha) return false;
@@ -384,7 +407,6 @@ function get_coins(CookieJar &$jar) {
     preg_match_all('/href="https:\/\/99faucet\.com\/faucet\/([^"\/]+)"/', $result, $m);
     if (!empty($m[1])) {
         $coins = array_values(array_unique($m[1]));
-        // filter yang bukan dashboard/links
         $coins = array_filter($coins, function($c) {
             return !in_array($c, ['', 'dashboard', 'links', 'logout', 'login']);
         });
@@ -397,7 +419,7 @@ function get_coins(CookieJar &$jar) {
 
 // ═══════════════ GET FAUCET PAGE ═══════════════
 function get_faucet_page(CookieJar &$jar, $coin, &$finalUrl = null) {
-    $url = BASE_URL . "/faucet/$coin";
+    $url = BASE_URL . "/faucet/" . $coin;
     $result = http_request($url, 'GET', [], [], $jar, $finalUrl);
     if (!$result) return null;
 
@@ -438,36 +460,43 @@ function wait_for_cooldown(CookieJar &$jar, $coin) {
     return false;
 }
 
-// ═══════════════ CLAIM (detection dari script 2) ═══════════════
+// ═══════════════ CLAIM (Swal parser + structured debug) ═══════════════
 function claim_faucet(CookieJar &$jar, $coin, $apikey) {
-    echo CYAN . "[*] Claim      : PROCESSING... (coin: " . strtoupper($coin) . ")" . RESET . "\n";
+    $coin_upper = strtoupper($coin);
+    echo CYAN . "[*] Claim      : PROCESSING... (coin: " . $coin_upper . ")" . RESET . "\n";
 
     $finalUrl = null;
     $page = get_faucet_page($jar, $coin, $finalUrl);
-    if (!$page) { echo MERAH . "[!] Gagal ambil halaman faucet." . RESET . "\n"; return false; }
-    if ($page['status'] === 'shortlink') return 'SHORTLINK';
+    if (!$page) {
+        echo MERAH . "[!] Gagal ambil halaman faucet." . RESET . "\n";
+        return ['status' => 'error', 'message' => 'page fetch failed'];
+    }
+    if ($page['status'] === 'shortlink') return ['status' => 'shortlink'];
 
     $cd = wait_for_cooldown($jar, $coin);
-    if ($cd === 'SHORTLINK') return 'SHORTLINK';
-    if (!$cd) { echo MERAH . "[!] Gagal menunggu cooldown." . RESET . "\n"; return false; }
+    if ($cd === 'SHORTLINK') return ['status' => 'shortlink'];
+    if (!$cd) {
+        echo MERAH . "[!] Gagal menunggu cooldown." . RESET . "\n";
+        return ['status' => 'error', 'message' => 'cooldown wait failed'];
+    }
 
     $page = get_faucet_page($jar, $coin);
-    if (!$page || $page['status'] === 'shortlink') return 'SHORTLINK';
+    if (!$page || $page['status'] === 'shortlink') return ['status' => 'shortlink'];
 
     $token = $page['token'];
     $sitekey = $page['sitekey'];
 
     if (!$token || !$sitekey) {
         echo MERAH . "[!] Token / sitekey kosong." . RESET . "\n";
-        return false;
+        return ['status' => 'error', 'message' => 'token/sitekey empty'];
     }
 
-    echo KUNING . "[+] Token      : $token" . RESET . "\n";
+    echo KUNING . "[+] Token      : " . $token . RESET . "\n";
     echo KUNING . "[+] Sitekey    : " . substr($sitekey, 0, 20) . "..." . RESET . "\n";
 
-    $url = BASE_URL . "/faucet/$coin";
+    $url = BASE_URL . "/faucet/" . $coin;
     $captcha = solve_hcaptcha($apikey, $sitekey, $url);
-    if (!$captcha) return false;
+    if (!$captcha) return ['status' => 'error', 'message' => 'captcha failed'];
 
     $data = [
         'ci_csrf_token'         => '',
@@ -487,57 +516,127 @@ function claim_faucet(CookieJar &$jar, $coin, $apikey) {
         'Referer: ' . $url,
     ], $jar);
 
-    if (!$result) { echo MERAH . "[!] Gagal claim (no response)." . RESET . "\n"; return false; }
-
-    // ─── DETECTION (dari script 2) ───
-    if (strpos($result, 'Good job!') !== false) {
-        $msg = '';
-        if (preg_match('/text:\s*[\'"]?([^\'"<]+)/', $result, $r)) $msg = $r[1];
-        echo HIJAU . "[+] Claim      : SUCCESS ✓" . RESET . "\n";
-        if ($msg) echo KUNING . "[+] Message    : $msg" . RESET . "\n";
-        return true;
+    if (!$result) {
+        echo MERAH . "[!] Gagal claim (no response)." . RESET . "\n";
+        return ['status' => 'error', 'message' => 'no response'];
     }
 
-    if (stripos($result, 'Invalid') !== false) {
-        echo MERAH . "[!] Invalid captcha / claim!" . RESET . "\n";
-        return 'INVALID';
+    // ─── 1. PARSE SWEETALERT (signal terkuat) ───
+    $swal = extract_swal($result);
+    if ($swal) {
+        $icon  = strtolower($swal['icon']  ?? '');
+        $title = strtolower($swal['title'] ?? '');
+        $text  = strtolower($swal['text']  ?? '');
+        $msg   = trim($swal['text'] ?? $swal['title'] ?? '');
+        $all   = $title . ' ' . $text;
+
+        echo ABU . "[D] Alert      : icon=" . ($icon ?: '-') . " | " . substr($msg, 0, 50) . RESET . "\n";
+
+        // Success
+        if ($icon === 'success' || strpos($title, 'success') !== false || strpos($all, 'good job') !== false || strpos($all, 'congrats') !== false) {
+            echo HIJAU . "[+] Claim      : SUCCESS ✓" . RESET . "\n";
+            if ($msg) echo KUNING . "[+] Message    : " . $msg . RESET . "\n";
+            return ['status' => 'success', 'message' => $msg];
+        }
+
+        // Insufficient funds
+        if (strpos($text, 'insufficient') !== false || strpos($text, 'fund') !== false || strpos($text, 'balance') !== false || strpos($text, 'empty') !== false) {
+            echo KUNING . "[!] Faucet kehabisan dana." . RESET . "\n";
+            if ($msg) echo KUNING . "[!] Message    : " . $msg . RESET . "\n";
+            return ['status' => 'insufficient', 'message' => $msg];
+        }
+
+        // Invalid captcha
+        if (strpos($text, 'invalid') !== false || strpos($text, 'captcha') !== false || strpos($text, 'wrong') !== false || strpos($text, 'incorrect') !== false) {
+            echo MERAH . "[!] Captcha invalid." . RESET . "\n";
+            return ['status' => 'invalid', 'message' => $msg];
+        }
+
+        // Cooldown
+        if (strpos($text, 'cooldown') !== false || strpos($text, 'wait') !== false || strpos($text, 'too fast') !== false) {
+            preg_match('/(\d+)\s*(?:second|sec|s)\b/i', $text, $m);
+            $cd = (int)($m[1] ?? 10);
+            if ($cd < 1) $cd = 10;
+            echo KUNING . "[!] Cooldown " . $cd . "s." . RESET . "\n";
+            return ['status' => 'cooldown', 'wait' => $cd, 'message' => $msg];
+        }
+
+        // Session expired
+        if (strpos($text, 'login') !== false || strpos($text, 'session') !== false || strpos($text, 'expired') !== false) {
+            return ['status' => 'expired', 'message' => $msg];
+        }
+
+        // Error / warning
+        if ($icon === 'error' || $icon === 'warning') {
+            echo MERAH . "[!] Error: " . $msg . RESET . "\n";
+            return ['status' => 'error', 'message' => $msg];
+        }
+
+        // Info (unknown)
+        echo KUNING . "[?] Alert info: " . $msg . RESET . "\n";
+        return ['status' => 'info', 'message' => $msg];
     }
 
-    if (stripos($result, 'insufficient funds') !== false) {
-        echo KUNING . "[!] Faucet kehabisan dana (insufficient funds)." . RESET . "\n";
-        return 'INSUFFICIENT';
+    // ─── 2. FALLBACK PATTERNS (nggak ada Swal) ───
+    if (strpos($result, 'Good job!') !== false || strpos($result, 'has been sent') !== false) {
+        echo HIJAU . "[+] Claim      : SUCCESS ✓ (pattern)" . RESET . "\n";
+        return ['status' => 'success', 'message' => 'good job'];
     }
 
-    if (is_shortlink_page($result)) return 'SHORTLINK';
+    if (is_shortlink_page($result)) return ['status' => 'shortlink'];
 
-    // Cooldown pattern
+    if (stripos($result, 'insufficient') !== false && stripos($result, 'fund') !== false) {
+        return ['status' => 'insufficient'];
+    }
+
+    // ─── 3. Cooldown timer di halaman ───
     preg_match('/id="minute">(\d+)/', $result, $min);
     preg_match('/id="second">(\d+)/', $result, $sec);
     if (!empty($min) && !empty($sec)) {
         $wait = (int)$min[1] * 60 + (int)$sec[1];
-        if ($wait > 0) { echo KUNING . "[!] Cooldown $wait detik." . RESET . "\n"; return 'COOLDOWN'; }
+        if ($wait > 0) {
+            echo KUNING . "[!] Cooldown " . $wait . "s (page timer)." . RESET . "\n";
+            return ['status' => 'cooldown', 'wait' => $wait];
+        }
     }
 
-    if (strpos($result, 'has been sent') !== false || stripos($result, 'success') !== false) {
-        echo HIJAU . "[+] Claim      : SUCCESS ✓" . RESET . "\n";
-        return true;
-    }
-
+    // ─── 4. Session check ───
     if (stripos($result, 'login') !== false && strlen($result) < 500) {
-        echo MERAH . "[!] Session expired." . RESET . "\n";
-        return 'EXPIRED';
+        return ['status' => 'expired'];
     }
 
-    echo MERAH . "[?] Claim tidak jelas → claim_debug_99.html" . RESET . "\n";
-    file_put_contents("claim_debug_99.html", $result);
-    return false;
+    // ─── 5. UNKNOWN → structured debug (JSON + 10KB HTML only) ───
+    if (!is_dir('debug')) @mkdir('debug', 0777, true);
+    $ts = date('Ymd_His');
+    $debug = [
+        'timestamp'  => date('c'),
+        'coin'       => $coin,
+        'http_len'   => strlen($result),
+        'final_url'  => $finalUrl,
+        'keywords'   => [
+            'success'      => stripos($result, 'success')      !== false,
+            'error'        => stripos($result, 'error')        !== false,
+            'captcha'      => stripos($result, 'captcha')      !== false,
+            'cooldown'     => stripos($result, 'cooldown')     !== false,
+            'insufficient' => stripos($result, 'insufficient') !== false,
+            'invalid'      => stripos($result, 'invalid')      !== false,
+            'ready'        => preg_match('/Ready\s*\(/i', $result) ? true : false,
+            'verify_form'  => strpos($result, '/faucet/verify') !== false,
+        ],
+        'first_line' => substr(trim(strip_tags(substr($result, 0, 800))), 0, 300),
+    ];
+    file_put_contents("debug/claim_" . $ts . "_" . $coin . ".json", json_encode($debug, JSON_PRETTY_PRINT));
+    file_put_contents("debug/claim_" . $ts . "_" . $coin . ".html", substr($result, 0, 10000));
+
+    echo MERAH . "[?] Claim tidak jelas → debug/claim_" . $ts . "_" . $coin . ".{json,html}" . RESET . "\n";
+    return ['status' => 'unknown', 'message' => 'no pattern matched'];
 }
 
 // ═══════════════ MAIN ═══════════════
 clear();
 $ip = get_public_ip();
 $stats = load_stats();
-$stats['ip'] = $ip;   // simpan IP terakhir
+$stats['ip'] = $ip;
 
 $config = get_config();
 
@@ -555,7 +654,6 @@ if ($config && isset($config['login_method'])) {
             'cookie'       => $config['cookie']   ?? ''
         ];
     } else {
-        // ── Setup baru ──
         clear();
         print_banner($ip, $stats);
         echo "\n" . PUTIH . "Pilih metode login:\n";
@@ -680,11 +778,12 @@ while (true) {
     $stats = load_stats();
     $stats['ip'] = $ip;
 
-    echo "\n" . CYAN . "┌─[ ROUND $count ]─── " . date('H:i:s') . " ──" . RESET . "\n";
+    echo "\n" . CYAN . "┌─[ ROUND " . $count . " ]─── " . date('H:i:s') . " ──" . RESET . "\n";
 
     $result = claim_faucet($jar, $coin, $login_data['apikey']);
+    $status = is_array($result) ? ($result['status'] ?? 'unknown') : $result;
 
-    if ($result === 'EXPIRED') {
+    if ($status === 'expired') {
         echo KUNING . "[*] Session expired. Refresh..." . RESET . "\n";
         if ($login_data['login_method'] === 'email') {
             if (login($jar, $login_data['email'], $login_data['password'], $login_data['apikey'])) {
@@ -693,13 +792,15 @@ while (true) {
                 echo HIJAU . "[+] Session refresh sukses!" . RESET . "\n";
                 continue;
             }
-        } else {
-            echo MERAH . "[!] Cookie expired. Update cookie di config." . RESET . "\n";
-            break;
+            echo MERAH . "[!] Refresh login gagal, lanjut retry..." . RESET . "\n";
+            timer(FAIL_WAIT, "🔄 Retry in");
+            continue;
         }
+        echo MERAH . "[!] Cookie expired. Update cookie di config." . RESET . "\n";
+        break;
     }
 
-    if ($result === 'SHORTLINK') {
+    if ($status === 'shortlink') {
         echo MERAH . "[!] Shortlink terdeteksi!" . RESET . "\n";
         echo KUNING . "[*] Selesaikan shortlink manual di browser:" . RESET . "\n";
         echo PUTIH . "    " . BASE_URL . "/links/" . $coin . RESET . "\n";
@@ -708,33 +809,40 @@ while (true) {
         continue;
     }
 
-    if ($result === 'INSUFFICIENT') {
+    if ($status === 'insufficient') {
         echo KUNING . "⚠ Faucet kehabisan dana. Coba coin lain atau tunggu." . RESET . "\n";
         timer(60, "⏳ Retry in");
         continue;
     }
 
-    if ($result === 'INVALID') {
+    if ($status === 'invalid') {
         echo KUNING . "⚠ Captcha invalid, retry..." . RESET . "\n";
         timer(FAIL_WAIT, "🔄 Retry in");
         continue;
     }
 
-    if ($result === 'COOLDOWN') {
-        timer(FAIL_WAIT, "🔄 Retry in");
+    if ($status === 'cooldown') {
+        $cd = is_array($result) ? ($result['wait'] ?? FAIL_WAIT) : FAIL_WAIT;
+        timer($cd, "⏳ Cooldown");
         continue;
     }
 
-    if ($result === true) {
+    if ($status === 'success') {
         $session_claims++;
         $stats = record_claim($coin);
         $stats['ip'] = $ip;
+        // refresh saved cookie biar nggak stale
+        $login_data['cookie'] = $jar->toString();
+        save_config($login_data);
+
         echo HIJAU . "✅ Claim sukses! (" . $session_claims . " session total)" . RESET . "\n";
         echo KUNING . "💰 Coin " . strtoupper($coin) . " : " . ($stats['coins'][$coin]['claims'] ?? 0) . " claims = " . number_format($stats['coins'][$coin]['usd'] ?? 0, 6) . " USDT" . RESET . "\n";
         echo UNGU  . "📊 GRAND TOTAL : " . $stats['total_claims'] . " claims = " . number_format($stats['total_usd'], 6) . " USDT" . RESET . "\n";
         timer(SUCCESS_WAIT, "🔄 Next in");
-    } else {
-        echo KUNING . "🔄 Retry in " . FAIL_WAIT . "s..." . RESET . "\n";
-        timer(FAIL_WAIT, "🔄 Retry in");
+        continue;
     }
+
+    // unknown / info / error / fallback
+    echo KUNING . "🔄 Retry in " . FAIL_WAIT . "s..." . RESET . "\n";
+    timer(FAIL_WAIT, "🔄 Retry in");
 }
