@@ -64,7 +64,7 @@
           "runner": "php"
         },
         "6": {
-          "label": "99Faucet 🟢",
+          "label": "99Faucet 🔴",
           "file": "99faucet.php",
           "runner": "php"
         },
@@ -164,12 +164,12 @@
           "runner": "python3"
         },
         "26": {
-          "label": "CoinFalo 🟢",
+          "label": "CoinFalo 🔴",
           "file": "Coinfalo.js",
           "runner": "node"
         },
         "27": {
-          "label": "CoinAdPay 🟢",
+          "label": "CoinAdPay 🔴",
           "file": "Coinadpay.py",
           "runner": "python3"
         },
