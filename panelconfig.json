@@ -14,21 +14,16 @@
           "runner": "python3"
         },
         "3": {
-          "label": "Aruble 🔴",
-          "file": "aruble.php",
-          "runner": "php"
-        },
-        "4": {
           "label": "FreeFlareCrypto 🟢",
           "file": "FreeFlareCrypto.py",
           "runner": "python3"
         },
-        "5": {
+        "4": {
           "label": "HotFaucet 🟢",
           "file": "HotFaucet.py",
           "runner": "python3"
         },
-        "6": {
+        "5": {
           "label": "CryptoFuture 🟢",
           "file": "Cryptofuture.py",
           "runner": "python3"
@@ -49,131 +44,101 @@
           "runner": "python3"
         },
         "3": {
-          "label": "Makeyoutask 🔴",
+          "label": "Makeyoutask 🟢",
           "file": "myt.php",
           "runner": "php"
         },
         "4": {
-          "label": "PlusCryptoFaucet 🟢",
-          "file": "Plus.py",
-          "runner": "python3"
-        },
-        "5": {
           "label": "TronPick 🟢",
           "file": "pick.php",
           "runner": "php"
         },
-        "6": {
-          "label": "99Faucet 🔴",
-          "file": "99faucet.php",
-          "runner": "php"
-        },
-        "7": {
+        "5": {
           "label": "TaraKing X Gobrya 🟢",
           "file": "3in.php",
           "runner": "php"
         },
-        "8": {
+        "6": {
           "label": "LightMiner 🟢",
           "file": "miner.php",
           "runner": "php"
         },
-        "9": {
+        "7": {
           "label": "LimeFaucet 🟢",
           "file": "lime.php",
           "runner": "php"
         },
-        "10": {
-          "label": "NeedBux 🟢",
-          "file": "NeedBux.php",
-          "runner": "php"
-        },
-        "11": {
+        "8": {
           "label": "Earnbitmoon 🟢",
           "file": "Earnbitmoon.php",
           "runner": "php"
         },
-        "12": {
+        "9": {
           "label": "PayupVideo 🟢",
           "file": "Payub.php",
           "runner": "php"
         },
-        "13": {
-          "label": "BuxFaucet 🟢",
-          "file": "buxfaucet.php",
-          "runner": "php"
-        },
-        "14": {
+        "10": {
           "label": "Coinadster 🟢",
           "file": "coinadster.php",
           "runner": "php"
         },
-        "15": {
+        "11": {
           "label": "TRXMiner 🟢",
           "file": "trxminer.py",
           "runner": "python3"
         },
-        "16": {
+        "12": {
           "label": "DRFaucet 🟢",
           "file": "DrFaucet.py",
           "runner": "python3"
         },
-        "17": {
+        "13": {
           "label": "GainLTC 🟢",
           "file": "GainLTC.py",
           "runner": "python3"
         },
-        "18": {
+        "14": {
           "label": "FireFaucet 🟢",
           "file": "FireFaucet.php",
           "runner": "php"
         },
-        "19": {
+        "15": {
           "label": "MiniTasky 🟢",
           "file": "MiniTasky.py",
           "runner": "python3"
         },
-        "20": {
+        "16": {
           "label": "Altcryp 🟢",
           "file": "Altcryp.php",
           "runner": "php"
         },
-        "21": {
+        "17": {
           "label": "Tap-Coin.de 🟢",
           "file": "Tap-Coin.de.py",
           "runner": "python3"
         },
-        "22": {
+        "18": {
           "label": "BtcAdSpace 🟢",
           "file": "Btcadspace.py",
           "runner": "python3"
         },
-        "23": {
+        "19": {
           "label": "Nevcoins 🟢",
           "file": "NevCoins.py",
           "runner": "python3"
         },
-        "24": {
+        "20": {
           "label": "HateCoins 🟢",
           "file": "Hatecoin.php",
           "runner": "php"
         },
-        "25": {
+        "21": {
           "label": "NocidFun 🟢",
           "file": "Nocid.py",
           "runner": "python3"
         },
-        "26": {
-          "label": "CoinFalo 🔴",
-          "file": "Coinfalo.js",
-          "runner": "node"
-        },
-        "27": {
-          "label": "CoinAdPay 🔴",
-          "file": "Coinadpay.py",
-          "runner": "python3"
-        },
-        "28": {
+        "22": {
           "label": "Lootiyz 🟢",
           "file": "Lootiyz.php",
           "runner": "php"
@@ -244,36 +209,31 @@
           "runner": "python3"
         },
         "13": {
-          "label": "NewTube 🔴",
-          "file": "newtube.py",
-          "runner": "python3"
-        },
-        "14": {
           "label": "AdTubesBot 🟡",
           "file": "AdTubesBot.py",
           "runner": "python3"
         },
-        "15": {
+        "14": {
           "label": "Adclickers 🟢",
           "file": "Adclickers.php",
           "runner": "php"
         },
-        "16": {
+        "15": {
           "label": "FarmBuddies 🟢",
           "file": "FarmBuddiesBot.py",
           "runner": "python3"
         },
-        "17": {
+        "16": {
           "label": "Btc Faucet 🟡",
           "file": "btcFaucet.py",
           "runner": "python3"
         },
-        "18": {
+        "17": {
           "label": "VipFaucet 🟢",
           "file": "VipFaucet.py",
           "runner": "python3"
         },
-        "19": {
+        "18": {
           "label": "VirtualMine 🟢",
           "file": "VirtualMine.py",
           "runner": "python3"
