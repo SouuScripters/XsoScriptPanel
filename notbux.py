@@ -2,27 +2,38 @@
 # -*- coding: utf-8 -*-
 """
 ╔══════════════════════════════════════════════════════════════╗
-║   NOTBUX AUTO WATCH — SOUU ENGINE Edition v4.2               ║
+║   NOTBUX AUTO WATCH — SOUU ENGINE Edition v4.6               ║
 ║   FIX : banner numpuk (clear scrollback)                     ║
 ║   FIX : merge ads dari /earn/data + /tasks/available         ║
+║   FIX : POST /start sebelum WATCH + CLAIM (claim 400 fix)    ║
 ║   FEAT : live dashboard watch ads                            ║
 ║   FEAT : auto-loop sampe semua iklan habis                   ║
-║   NEW : auto re-auth kalau init_data expired                 ║
+║   FEAT : auto re-auth kalau init_data expired                ║
+║   NEW  : aviso_youtube via direct aviso (userId + userSig)   ║
+║   NEW  : aviso start payload matches real client body        ║
+║   NEW  : startup menu (Start All / Aviso Only / Config)      ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 
 import requests, re, json, time, sys, os, random, signal
+import urllib.parse
+import urllib3
 from datetime import datetime
 from collections import deque
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from colorama import init, Fore, Style
 init(autoreset=True)
+urllib3.disable_warnings()
 
-VERSION = "4.2"
+VERSION = "4.6"
 HOST = "https://notbux.click"
 API = f"{HOST}/api"
 CONFIG_FILE = "config_notbux.json"
+
+AVISO_API = "https://aviso.bz/api/v1"
+AVISO_ORIGIN = "https://notbux.click"
+AVISO_PLATFORM = "Linux aarch64"
 
 BOX_WIDTH = 62
 LOG_LINES = 8
@@ -42,7 +53,15 @@ HUMAN_PAUSE_MAX = 5
 MAX_EMPTY_CYCLES = 3
 MAX_REAUTH = 3
 
+AVISO_FALLBACK_WATCH = 35
+AVISO_CD_NO_TASK = 60
+AVISO_CD_AUTH_FAIL = 120
+AVISO_CD_START_FAIL = 45
+AVISO_CD_COMPLETE_FAIL = 30
+
 CLEAR = "\033[2J\033[3J\033[H"
+
+_IN_MENU = False
 
 
 class InitDataExpired(Exception):
@@ -57,6 +76,7 @@ class UI:
         "title": "NOTBUX AUTO WATCH",
         "subtitle": "─────── SOUU ENGINE ───────",
         "running": False,
+        "stop_requested": False,
         "cycle": 0,
         "host": HOST,
         "user": "-",
@@ -142,7 +162,6 @@ class UI:
         buf += UI.row(UI.dim(s["subtitle"])) + "\n"
         buf += UI.mid() + "\n"
 
-        # USER
         buf += UI.row(UI.bold("USER")) + "\n"
         buf += UI.row("├─ " + UI.pad("Name", 11) + ": " + UI.trunc(UI.fg(226, str(s["user"])), 30)) + "\n"
         buf += UI.row("├─ " + UI.pad("TG ID", 11) + ": " + UI.trunc(UI.fg(226, str(s["user_id"])), 30)) + "\n"
@@ -151,7 +170,6 @@ class UI:
         buf += UI.row("└─ " + UI.pad("Started", 11) + ": " + UI.fg(213, str(int(s['start_balance']))) + " coins") + "\n"
         buf += UI.mid() + "\n"
 
-        # ADS
         buf += UI.row(UI.bold("AD NETWORKS")) + "\n"
         ads = s.get("ads_summary", [])
         if not ads:
@@ -174,6 +192,8 @@ class UI:
                     color, tag = 240, "LIMIT"
                 elif st == "watching":
                     color, tag = 213, "WATCH"
+                elif st == "skip":
+                    color, tag = 240, "SKIP"
                 else:
                     color, tag = 226, st.upper()
 
@@ -183,7 +203,6 @@ class UI:
                 buf += UI.row(line) + "\n"
         buf += UI.mid() + "\n"
 
-        # WATCHING
         buf += UI.row(UI.bold("WATCHING")) + "\n"
         wname = s.get("watching_name", "-")
         wrew = s.get("watching_reward", "-")
@@ -203,7 +222,6 @@ class UI:
                       "  " + UI.pad("Sisa", 5) + ": " + UI.fg(208, f"{remain}s")) + "\n"
         buf += UI.mid() + "\n"
 
-        # SESSION
         buf += UI.row(UI.bold("SESSION")) + "\n"
         buf += UI.row("├─ " + UI.pad("Cycle", 11) + ": " + UI.fg(226, str(s["cycle"]))) + "\n"
         buf += UI.row("├─ " + UI.pad("Ads watched", 11) + ": " + UI.fg(226, str(s["session_ads"]))) + "\n"
@@ -214,7 +232,6 @@ class UI:
         buf += UI.row("└─ " + UI.pad("Re-auth", 11) + ": " + UI.fg(213, str(s.get("reauth_count", 0)))) + "\n"
         buf += UI.mid() + "\n"
 
-        # STATUS
         phase = str(s["phase"])
         if int(s["cooldown"]) > 0: phase += f" · {int(s['cooldown'])}s"
         state_color = {"RUNNING": 46, "WAITING": 208, "ERROR": 196,
@@ -225,7 +242,6 @@ class UI:
         buf += UI.row("└─ " + UI.pad("Phase", 11) + ": " + UI.trunc(UI.fg(208, phase), 30)) + "\n"
         buf += UI.mid() + "\n"
 
-        # LOGS
         logs = list(UI.logs)[-LOG_LINES:]
         for i in range(LOG_LINES):
             if i < len(logs): buf += UI.row(UI.fmt_log(logs[i])) + "\n"
@@ -234,8 +250,7 @@ class UI:
         buf += UI.bot() + "\n"
         buf += "\n   " + UI.bold(UI.fg(46, "BOT RUNNING")) + " " + UI.dim("•") + " " + \
                UI.fg(51, datetime.now().strftime("%H:%M:%S")) + "\n"
-        buf += "   " + UI.dim("By Power ") + UI.fg(213, "@SouuXso") + UI.dim(" • ") + \
-               UI.fg(46, "NotBux Edition") + "\n\n"
+        buf += "   " + UI.dim("CTRL+C = balik ke menu") + "\n\n"
         sys.stdout.write(buf); sys.stdout.flush()
 
     @staticmethod
@@ -283,6 +298,7 @@ class UI:
     @staticmethod
     def countdown(seconds, label):
         for i in range(int(seconds), 0, -1):
+            if UI.state.get("stop_requested"): return
             UI.set(phase=label, cooldown=i)
             if UI.state["running"]: UI.render()
             time.sleep(1)
@@ -294,7 +310,7 @@ class UI:
                watching_total=duration, watching_progress=0.0,
                state="WATCHING")
         for i in range(1, duration + 1):
-            if not UI.state["running"]: break
+            if not UI.state["running"] or UI.state.get("stop_requested"): break
             UI.set(watching_progress=i / duration,
                    phase=f"watch {name} {i}/{duration}")
             UI.render()
@@ -310,33 +326,125 @@ class UI:
                 "br_red": 196, "br_green": 46, "br_yellow": 226, "br_cyan": 51}
         return f"\033[{cmap.get(color, 0)}m{text}\033[0m"
 
-    @staticmethod
-    def banner():
-        W_ = BOX_WIDTH
-        def line(c): return UI.fg(51, "║") + UI.pad(" " + c, W_) + UI.fg(51, "║")
-        print(CLEAR, end="")
-        print(UI.fg(51, "╔" + "═" * W_ + "╗"))
-        print(line(UI.bold(UI.gradient("NOTBUX AUTO WATCH", 51, 213))))
-        print(line(UI.dim("─────── SOUU ENGINE ───────")))
-        print(UI.fg(51, "╠" + "═" * W_ + "╣"))
-        print(line(UI.bold("ABOUT")))
-        print(line("├─ " + UI.pad("Host", 11) + ": " + HOST))
-        print(line("├─ " + UI.pad("Watch", 11) + f": {AD_WATCH_MIN}-{AD_WATCH_MAX}s"))
-        print(line("├─ " + UI.pad("Retry", 11) + f": {HTTP_MAX_RETRY}x backoff"))
-        print(line("├─ " + UI.pad("Re-auth", 11) + f": auto up to {MAX_REAUTH}x"))
-        print(line("└─ " + UI.pad("Version", 11) + ": v" + VERSION))
-        print(UI.fg(51, "╠" + "═" * W_ + "╣"))
-        print(line(UI.bold("AUTHOR")))
-        print(line("└─ " + UI.pad("By", 11) + ": " + UI.fg(213, "@SouuXso")))
-        print(UI.fg(51, "╚" + "═" * W_ + "╝"))
-        print()
+
+# ═══════════════════════════════════════════════════════════════
+#  MENU
+# ═══════════════════════════════════════════════════════════════
+def _menu_header():
+    W_ = BOX_WIDTH
+    def line(c): return UI.fg(51, "║") + UI.pad(" " + c, W_) + UI.fg(51, "║")
+    print(UI.fg(51, "╔" + "═" * W_ + "╗"))
+    print(line(UI.bold(UI.gradient("NOTBUX AUTO WATCH — MENU", 51, 213))))
+    print(line(UI.dim("─────── SOUU ENGINE v" + VERSION + " ───────")))
+    print(UI.fg(51, "╠" + "═" * W_ + "╣"))
+    print(line(UI.fg(46, "  [1]") + "  Start All " + UI.dim("(kecuali aviso)")))
+    print(line(UI.fg(46, "  [2]") + "  Aviso Only"))
+    print(line(UI.fg(46, "  [3]") + "  Config initData"))
+    print(line(UI.fg(196, "  [0]") + "  Exit"))
+    print(UI.fg(51, "╚" + "═" * W_ + "╝"))
+    print()
+
+
+def menu():
+    global _IN_MENU
+    while True:
+        _IN_MENU = True
+        os.system('cls' if os.name == 'nt' else 'clear')
+        _menu_header()
+        try:
+            choice = input(UI.c("  pilih > ", "br_cyan")).strip()
+        except EOFError:
+            _IN_MENU = False
+            return "0"
+        if choice in ("1", "2", "3", "0"):
+            _IN_MENU = False
+            return choice
+        # invalid — loop
 
 
 # ═══════════════════════════════════════════════════════════════
-#  RE-AUTH PROMPT
+#  CONFIG EDITOR
+# ═══════════════════════════════════════════════════════════════
+def config_menu():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print()
+    print(UI.c("═" * BOX_WIDTH, "br_cyan"))
+    print(UI.c("  CONFIG — initData", "br_cyan"))
+    print(UI.c("═" * BOX_WIDTH, "br_cyan"))
+    print()
+
+    cfg = {}
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE) as f:
+                cfg = json.load(f)
+        except Exception:
+            pass
+
+    cur = cfg.get("init_data", "").strip()
+    if cur:
+        preview = cur[:56] + ("…" if len(cur) > 56 else "")
+        print(UI.c(f"  current : {preview}", "gray"))
+        try:
+            kv = dict(p.split("=", 1) for p in cur.split("&") if "=" in p)
+            ad = int(kv.get("auth_date", "0"))
+            if ad:
+                age = int(time.time()) - ad
+                print(UI.c(f"           age {age//60}m {age%60}s", "gray"))
+            uname = kv.get("user", "")
+            if uname:
+                try:
+                    u = json.loads(urllib.parse.unquote(uname))
+                    nm = u.get("username") or u.get("first_name") or "?"
+                    print(UI.c(f"           user {nm}", "gray"))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    else:
+        print(UI.c("  current : (kosong)", "gray"))
+    print()
+    print(UI.c("  Ambil dari Telegram Desktop:", "white"))
+    print(UI.c("  Console (Ctrl+Shift+I) → copy(Telegram.WebApp.initData)", "br_cyan"))
+    print(UI.c("  atau Network tab → cari notbux.click → copy header 'authorization'", "gray"))
+    print()
+    print(UI.c("  Kosongkan + Enter buat batal.", "gray"))
+    print()
+    print(UI.c("  init_data baru > ", "white"), end="")
+
+    try:
+        new = input().strip()
+    except EOFError:
+        new = ""
+    except KeyboardInterrupt:
+        return
+
+    if not new:
+        print(UI.c("\n  batal.\n", "gray"))
+        time.sleep(1)
+        return
+
+    required = ['user', 'auth_date']
+    missing = [k for k in required if f"{k}=" not in new]
+    if missing:
+        print(UI.c(f"\n  ✖ gak lengkap: missing {', '.join(missing)}", "br_red"))
+        time.sleep(2)
+        return
+
+    cfg["init_data"] = new
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(cfg, f, indent=2)
+        print(UI.c("\n  ✓ saved.\n", "br_green"))
+    except Exception as e:
+        print(UI.c(f"\n  ✖ gagal: {e}\n", "br_red"))
+    time.sleep(1)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  RE-AUTH PROMPT (in-run)
 # ═══════════════════════════════════════════════════════════════
 def prompt_new_init_data():
-    """Prompt user paste init_data baru. Return string atau None kalau kosong/batal."""
     was_running = UI.state["running"]
     UI.state["running"] = False
     sys.stdout.write(CLEAR)
@@ -349,55 +457,33 @@ def prompt_new_init_data():
     print(UI.c("  Ambil init_data baru dari Telegram Desktop:", "white"))
     print(UI.c("  → Ctrl+Shift+I → Console → ketik:", "gray"))
     print(UI.c("     copy(Telegram.WebApp.initData)", "br_cyan"))
-    print(UI.c("  atau dari DevTools → Network → cari request ke notbux.click,", "gray"))
-    print(UI.c("     copy header 'authorization'", "gray"))
     print()
-    print(UI.c("  Kosongkan + Enter buat batal & keluar.", "gray"))
+    print(UI.c("  Kosongkan + Enter buat stop (balik ke menu).", "gray"))
     print()
     print(UI.c("  init_data : ", "white"), end="")
 
     try:
         new_init = input().strip()
-    except EOFError:
+    except (EOFError, KeyboardInterrupt):
         new_init = ""
 
     if not new_init:
         UI.state["running"] = was_running
         return None
 
-    # Validasi minimal
-    required = ['query_id', 'user', 'auth_date']
+    required = ['user', 'auth_date']
     missing = [k for k in required if f"{k}=" not in new_init]
     if missing:
         print(UI.c(f"\n  ✖ init_data gak lengkap. Missing: {', '.join(missing)}", "br_red"))
-        print(UI.c("  Tekan Enter buat tetep lanjut, atau Ctrl+C buat batal...", "gray"), end="")
+        print(UI.c("  Tekan Enter buat tetep lanjut...", "gray"), end="")
         try: input()
-        except EOFError: pass
-
-    # Cek umur
-    try:
-        kv = dict(p.split("=", 1) for p in new_init.split("&") if "=" in p)
-        ad = int(kv.get("auth_date", "0"))
-        age = int(time.time()) - ad
-        if age > 300:
-            print(UI.c(f"\n  ⚠ init_data udah umur {age//60} menit — mungkin tetep expired.", "yellow"))
-            print(UI.c("  Lanjut? (y/N): ", "white"), end="")
-            try:
-                ans = input().strip().lower()
-            except EOFError:
-                ans = "n"
-            if ans not in ("y", "ya", "yes"):
-                UI.state["running"] = was_running
-                return None
-    except Exception:
-        pass
+        except (EOFError, KeyboardInterrupt): pass
 
     UI.state["running"] = was_running
     return new_init
 
 
 def save_init_data(new_init):
-    """Update config file dengan init_data baru."""
     try:
         cfg = {}
         if os.path.exists(CONFIG_FILE):
@@ -430,7 +516,7 @@ def make_session():
 class NotBuxBot:
     AD_ORDER = ["adsgram", "monetag", "taskgram", "onclicka", "adexium"]
 
-    def __init__(self, init_data):
+    def __init__(self, init_data, include_aviso=True, aviso_only=False):
         self.session = make_session()
         self.init_data = init_data
         self.user = {}
@@ -439,7 +525,15 @@ class NotBuxBot:
         self.username = "-"
         self.balance = 0
         self.start_balance = 0
+        self.include_aviso = include_aviso
+        self.aviso_only = aviso_only
 
+        self._aviso_keys = None
+        self._aviso_identified = False
+        self._aviso_session = None
+        self.aviso_cooldown = 0.0
+
+    # ── HEADERS / RETRY / AUTH-ERR ─────────────────────────────
     def _headers(self):
         return {
             "authorization": self.init_data,
@@ -532,32 +626,8 @@ class NotBuxBot:
         try: return r.json()
         except Exception: return {"_raw": r.text[:200]}
 
-    def get_config(self):
-        if not os.path.exists(CONFIG_FILE):
-            print(CLEAR, end="")
-            print(UI.c("\n  ⚙  SETUP — NOTBUX", "br_cyan"))
-            print(UI.c("  " + "─" * 50, "br_cyan") + "\n")
-            print(UI.c("  Telegram Desktop → Console:", "white"))
-            print(UI.c("  copy(Telegram.WebApp.initData)", "br_cyan"))
-            print(UI.c("  atau ambil dari DevTools → Network → authorization header\n", "white"))
-            print(UI.c("  init_data : ", "white"), end="")
-            idata = input().strip()
-            if not idata:
-                print(UI.c("  ✖ kosong\n", "br_red")); sys.exit(1)
-            cfg = {"init_data": idata}
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(cfg, f, indent=2)
-            print(UI.c(f"\n  ✓ Saved\n", "br_green"))
-            time.sleep(1)
-            return cfg
-        with open(CONFIG_FILE) as f:
-            return json.load(f)
-
-    # ── RE-AUTH ──
+    # ── RE-AUTH ────────────────────────────────────────────────
     def reauth(self):
-        """
-        Minta init_data baru, update header, reset state. Return True kalau sukses.
-        """
         UI.warn("AUTH", "init_data expired — minta paste baru")
         try:
             new_init = prompt_new_init_data()
@@ -565,31 +635,37 @@ class NotBuxBot:
             raise
 
         if not new_init:
-            UI.err("AUTH", "user gak kasih init_data baru — stop")
+            UI.err("AUTH", "no init_data — stop")
             return False
 
-        # Update header & session
         self.init_data = new_init
         try: self.session.close()
         except Exception: pass
         self.session = make_session()
 
-        # Reset state
-        self.app_key = ""  # kalo ada di script lain
         self.user = {}
         self.ads = []
         self.balance = 0
 
-        # Simpen ke config
+        self._aviso_keys = None
+        self._aviso_identified = False
+        self.aviso_cooldown = 0.0
+        try:
+            if self._aviso_session is not None:
+                self._aviso_session.close()
+        except Exception:
+            pass
+        self._aviso_session = None
+
         if save_init_data(new_init):
             UI.ok("AUTH", "init_data baru disimpan")
         else:
             UI.warn("AUTH", "gagal simpen, tetep lanjut pakai yang baru")
 
-        # Update counter
         UI.set(reauth_count=int(UI.state.get("reauth_count", 0)) + 1)
         return True
 
+    # ── FETCH USER / ADS ───────────────────────────────────────
     def fetch_user(self):
         UI.step("USER", "GET /api/user/me")
         code, j, txt = self.api_get("/user/me")
@@ -630,7 +706,6 @@ class NotBuxBot:
         }
 
     def fetch_ads(self):
-        """Gabung dari /earn/data + /tasks/available."""
         merged = {}
 
         code, j, txt = self.api_get("/earn/data")
@@ -656,13 +731,30 @@ class NotBuxBot:
 
     def _ads_summary(self):
         out = []
+        now_ts = time.time()
         for a in self.ads:
+            aid = a.get("id")
+
+            # filter per mode
+            if self.aviso_only and aid != "aviso_youtube":
+                continue
+
             mx = a.get("maxViews", 0)
             views = a.get("views", 0)
             cd = a.get("cooldown", 0)
             watching = a.get("isWatching", False)
 
-            if mx and views >= mx:
+            if aid == "aviso_youtube":
+                if not self.include_aviso and not self.aviso_only:
+                    st = "skip"
+                elif now_ts < self.aviso_cooldown:
+                    st = "cooldown"
+                    cd = int(self.aviso_cooldown - now_ts)
+                elif watching:
+                    st = "watching"
+                else:
+                    st = "ready"
+            elif mx and views >= mx:
                 st = "limited"
             elif watching:
                 st = "watching"
@@ -672,15 +764,311 @@ class NotBuxBot:
                 st = "ready"
 
             out.append({
-                "id": a["id"], "name": a["name"],
+                "id": aid, "name": a["name"],
                 "views": views, "max": mx,
                 "cd": cd, "status": st,
                 "reward": a.get("reward", 0),
             })
         return out
 
+    # ═══════════════════════════════════════════════════════════
+    #  AVISO (direct)
+    # ═══════════════════════════════════════════════════════════
+    def _get_aviso_session(self):
+        if self._aviso_session is None:
+            s = make_session()
+            s.verify = False
+            self._aviso_session = s
+        return self._aviso_session
+
+    def _aviso_headers(self, keys, extra=None):
+        h = {
+            "Host": "aviso.bz",
+            "User-Agent": TELEGRAM_UA,
+            "Accept": "*/*",
+            "Accept-Language": "en",
+            "Content-Type": "application/json",
+            "Origin": AVISO_ORIGIN,
+            "Referer": AVISO_ORIGIN + "/",
+            "X-API-Key": keys["api_key"],
+            "X-Requested-With": "org.telegram.messenger.web",
+            "Sec-Ch-Ua": '"Android WebView";v="155", "Chromium";v="155", "Not(A:Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?1",
+            "Sec-Ch-Ua-Platform": '"Android"',
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+            "Priority": "u=1, i",
+        }
+        if extra:
+            h.update(extra)
+        return h
+
+    def _aviso_get_keys(self):
+        code, j, txt = self.api_get("/tasks/aviso/auth")
+        if code == 200 and isinstance(j, dict) and j.get("api_key"):
+            return {
+                "api_key": j["api_key"],
+                "user_hash": j.get("user_hash", ""),
+                "user_id": str(j.get("user_id", "")),
+                "user_sig": j.get("user_sig", ""),
+            }
+        UI.err("AVISO", f"auth HTTP {code}: {txt[:40]}")
+        return None
+
+    def _aviso_identify(self, keys):
+        fp = {
+            "fp": "d0de63b9837a4b9c5f7236b8bc7318d0",
+            "hashFont": "f730c0cc627b3b3d7db9f459836db692",
+            "langs": "id, en-US, en",
+            "timezone": "Asia/Jakarta",
+            "platform": AVISO_PLATFORM,
+            "gpu": "Qualcomm~Adreno (TM) 640",
+            "screen": "1080x2400",
+            "memory": 8,
+            "cpuCores": 8,
+        }
+        body = {
+            "hash": keys["user_hash"],
+            "ip": None,
+            "userAgent": TELEGRAM_UA,
+            "fingerprint": fp,
+        }
+        try:
+            r = self._get_aviso_session().post(
+                f"{AVISO_API}/youtube/tasks/identify",
+                data=json.dumps(body),
+                headers=self._aviso_headers(keys),
+                timeout=REQUEST_TIMEOUT,
+            )
+            return r.json() if r.status_code < 400 else None
+        except Exception as e:
+            UI.warn("AVISO", f"identify err: {str(e)[:40]}")
+            return None
+
+    def _aviso_available(self, keys):
+        q = urllib.parse.urlencode({
+            "hash": keys["user_hash"],
+            "platform": AVISO_PLATFORM,
+        })
+        try:
+            r = self._get_aviso_session().get(
+                f"{AVISO_API}/youtube/tasks/available?{q}",
+                headers=self._aviso_headers(keys),
+                timeout=REQUEST_TIMEOUT,
+            )
+            return r.json() if r.status_code < 400 else None
+        except Exception as e:
+            UI.warn("AVISO", f"available err: {str(e)[:40]}")
+            return None
+
+    def _aviso_start(self, keys, task_id, typ="ads"):
+        body = {
+            "taskId": task_id,
+            "hash": keys["user_hash"],
+            "type": typ,
+            "platform": AVISO_PLATFORM,
+            "userId": keys["user_id"],
+            "userSig": keys["user_sig"],
+        }
+        try:
+            r = self._get_aviso_session().post(
+                f"{AVISO_API}/youtube/tasks/start",
+                data=json.dumps(body),
+                headers=self._aviso_headers(keys),
+                timeout=REQUEST_TIMEOUT,
+            )
+            if r.status_code >= 400:
+                UI.warn("AVISO", f"start HTTP {r.status_code}: {r.text[:50]}")
+                return None
+            return r.json()
+        except Exception as e:
+            UI.warn("AVISO", f"start err: {str(e)[:40]}")
+            return None
+
+    def _aviso_timer(self, keys, attempt_id, watched, token):
+        body = {"attemptId": attempt_id, "action": "complete", "watchedTime": watched}
+        h = self._aviso_headers(keys)
+        if token:
+            h.pop("X-API-Key", None)
+            h["X-Attempt-Token"] = token
+        try:
+            r = self._get_aviso_session().post(
+                f"{AVISO_API}/youtube/tasks/timer-status",
+                data=json.dumps(body),
+                headers=h,
+                timeout=REQUEST_TIMEOUT,
+            )
+            return r.json() if r.status_code < 400 else None
+        except Exception:
+            return None
+
+    def _aviso_complete(self, keys, attempt_id, token):
+        body = {"attemptId": attempt_id}
+        h = self._aviso_headers(keys)
+        if token:
+            h.pop("X-API-Key", None)
+            h["X-Attempt-Token"] = token
+        try:
+            r = self._get_aviso_session().post(
+                f"{AVISO_API}/youtube/tasks/complete",
+                data=json.dumps(body),
+                headers=h,
+                timeout=REQUEST_TIMEOUT,
+            )
+            if r.status_code >= 400:
+                UI.warn("AVISO", f"complete HTTP {r.status_code}: {r.text[:50]}")
+                return None
+            return r.json()
+        except Exception as e:
+            UI.warn("AVISO", f"complete err: {str(e)[:40]}")
+            return None
+
+    def _aviso_extract_token(self, url):
+        if not url:
+            return ""
+        try:
+            q = urllib.parse.urlparse(url).query
+            p = urllib.parse.parse_qs(q)
+            return p.get("token", [""])[0]
+        except Exception:
+            return ""
+
+    def _find_aviso_youtube_task(self, avail):
+        if not isinstance(avail, dict):
+            return None
+        for key in ("ads", "youtube", "like"):
+            for t in (avail.get(key) or []):
+                if not isinstance(t, dict):
+                    continue
+                url = t.get("url") or ""
+                if "youtube.com" in url or "youtu.be" in url:
+                    return t
+                title = (t.get("title") or "").lower()
+                if "youtube" in title:
+                    return t
+        return None
+
+    def _watch_aviso(self):
+        if not self._aviso_keys:
+            self._aviso_keys = self._aviso_get_keys()
+        if not self._aviso_keys:
+            self.aviso_cooldown = time.time() + AVISO_CD_AUTH_FAIL
+            return "FAIL"
+
+        keys = self._aviso_keys
+        UI.dbg("AVISO", f"hash {keys['user_hash'][:12]}… id {keys['user_id']}")
+
+        if not self._aviso_identified:
+            UI.step("AVISO", "POST tasks/identify")
+            ident = self._aviso_identify(keys)
+            if ident and (ident.get("id") or ident.get("ok")):
+                self._aviso_identified = True
+                UI.dbg("AVISO", f"identified id={ident.get('id','?')}")
+            else:
+                UI.warn("AVISO", "identify returned nothing — tetap lanjut")
+
+        UI.step("AVISO", "GET tasks/available")
+        avail = self._aviso_available(keys)
+        if not avail:
+            self.aviso_cooldown = time.time() + AVISO_CD_NO_TASK
+            return "RETRY"
+
+        task = self._find_aviso_youtube_task(avail)
+        if not task:
+            UI.warn("AVISO", "no youtube task in aviso pool")
+            self.aviso_cooldown = time.time() + AVISO_CD_NO_TASK
+            return "RETRY"
+
+        try:
+            tid = int(task.get("id") or 0)
+        except (ValueError, TypeError):
+            tid = 0
+        title = str(task.get("title") or task.get("name") or f"yt#{tid}")[:24]
+        if tid <= 0:
+            self.aviso_cooldown = time.time() + AVISO_CD_NO_TASK
+            return "RETRY"
+
+        UI.step("AVISO", f"start #{tid} {title}")
+        s = self._aviso_start(keys, tid, "ads")
+        if not s:
+            self.aviso_cooldown = time.time() + AVISO_CD_START_FAIL
+            return "FAIL"
+
+        try:
+            attempt_id = int(s.get("attemptId") or 0)
+        except (ValueError, TypeError):
+            attempt_id = 0
+        try:
+            duration = int(s.get("duration") or 0)
+        except (ValueError, TypeError):
+            duration = 0
+        url = str(s.get("url") or "")
+        token = self._aviso_extract_token(url)
+
+        if attempt_id <= 0:
+            UI.err("AVISO", "no attemptId in start response")
+            self.aviso_cooldown = time.time() + AVISO_CD_START_FAIL
+            return "FAIL"
+
+        if duration <= 0:
+            duration = random.randint(30, AVISO_FALLBACK_WATCH)
+
+        UI.step("AVISO", f"watch {duration}s • {title}")
+        UI.watch_timer(duration, f"Aviso · {title}", f"#{tid}")
+
+        try:
+            self._aviso_timer(keys, attempt_id, duration, token)
+        except Exception:
+            pass
+
+        UI.step("AVISO", f"complete #{tid}")
+        cres = self._aviso_complete(keys, attempt_id, token)
+        if not cres:
+            self.aviso_cooldown = time.time() + AVISO_CD_COMPLETE_FAIL
+            return "FAIL"
+
+        if cres.get("code") == "task_already_processed":
+            UI.ok("AVISO", f"✓ #{tid} already done")
+            self.aviso_cooldown = 0
+            return "done"
+
+        earned = cres.get("earned")
+        if earned is None:
+            earned = cres.get("amount")
+        cur = str(cres.get("currency", "usd"))
+        if earned is not None:
+            try:
+                human = (f"+${float(earned):.5f}" if cur == "usd"
+                         else f"+{float(earned):.3f}{cur.upper()}")
+            except (ValueError, TypeError):
+                human = str(earned)
+        else:
+            human = "ok"
+
+        UI.ok("AVISO", f"✓ {title}: {human}")
+        self.aviso_cooldown = 0
+
+        try:
+            self.fetch_user()
+        except InitDataExpired:
+            pass
+
+        UI.set(
+            session_ads=int(UI.state.get("session_ads", 0)) + 1,
+            last_reward=human,
+        )
+        return human
+
+    # ═══════════════════════════════════════════════════════════
+    #  WATCH AD — dispatch
+    # ═══════════════════════════════════════════════════════════
     def watch_ad(self, ad):
         aid = ad.get("id")
+
+        if aid == "aviso_youtube":
+            return self._watch_aviso()
+
         name = ad.get("name") or aid
         reward = ad.get("reward", 0)
 
@@ -692,7 +1080,36 @@ class NotBuxBot:
             UI.countdown(wait_s, f"cd {name}")
             return "RETRY"
 
-        duration = random.randint(AD_WATCH_MIN, AD_WATCH_MAX)
+        UI.step("START", f"POST /tasks/ads/{aid}/start")
+        code, j, txt = self.api_post(f"/tasks/ads/{aid}/start", None)
+        if code != 200:
+            detail = ""
+            if isinstance(j, dict):
+                detail = str(j.get("detail") or j.get("message") or "")
+                if not detail and "_raw" in j:
+                    detail = str(j["_raw"])[:80]
+            elif txt:
+                detail = txt[:80]
+            UI.err("START", f"{name}: HTTP {code} {detail[:40]}")
+            low = detail.lower()
+            if "cooldown" in low or "watching" in low or "already" in low:
+                ad["cooldown"] = 60
+                return "RETRY"
+            return "FAIL"
+
+        server_duration = 0
+        if isinstance(j, dict):
+            try:
+                server_duration = int(j.get("duration") or 0)
+            except (ValueError, TypeError):
+                server_duration = 0
+            if j.get("status") not in ("started", "success", None):
+                UI.warn("START", f"{name}: status={j.get('status')}")
+
+        if server_duration > 0:
+            duration = server_duration + 2
+        else:
+            duration = random.randint(AD_WATCH_MIN, AD_WATCH_MAX)
         UI.step("WATCH", f"{name} • {duration}s • +{reward} coins")
         UI.watch_timer(duration, name, f"+{reward}")
 
@@ -700,7 +1117,22 @@ class NotBuxBot:
         code, j, txt = self.api_post(f"/tasks/ads/{aid}/claim", None)
 
         if code != 200:
-            UI.err("CLAIM", f"{name}: HTTP {code}: {txt[:50]}")
+            detail = ""
+            if isinstance(j, dict):
+                detail = str(j.get("detail") or j.get("message") or "")
+                if not detail and "_raw" in j:
+                    detail = str(j["_raw"])[:80]
+            elif txt:
+                detail = txt[:80]
+            UI.err("CLAIM", f"{name}: HTTP {code} {detail[:60]}")
+            low = detail.lower()
+            if ("not completed" in low or "watch" in low
+                    or "duration" in low or "too short" in low):
+                ad["cooldown"] = 45
+                return "RETRY"
+            if "cooldown" in low or "already" in low:
+                ad["cooldown"] = 60
+                return "RETRY"
             return "FAIL"
 
         new_bal = None
@@ -711,56 +1143,71 @@ class NotBuxBot:
                 got_reward = new_bal - self.balance
                 if got_reward < 0: got_reward = reward
             elif j.get("status") == "success":
-                new_bal = j.get("balance", self.balance + reward)
+                new_bal = j.get("balance", self.balance + (reward if isinstance(reward, int) else 0))
                 got_reward = j.get("reward", reward)
 
         if new_bal is not None:
             self.balance = new_bal
             UI.set(balance=self.balance)
 
+        try:
+            got_reward_int = int(got_reward)
+        except (ValueError, TypeError):
+            got_reward_int = 0
+
         UI.set(
-            session_reward=int(UI.state.get("session_reward", 0)) + int(got_reward),
+            session_reward=int(UI.state.get("session_reward", 0)) + got_reward_int,
             session_ads=int(UI.state.get("session_ads", 0)) + 1,
-            last_reward=f"+{int(got_reward)}",
+            last_reward=f"+{got_reward_int}",
         )
-        UI.ok("DONE", f"{name}: +{int(got_reward)} coins • bal {self.balance}")
-        return got_reward
+        UI.ok("DONE", f"{name}: +{got_reward_int} coins • bal {self.balance}")
+        return got_reward_int
 
-    def run(self):
-        UI.set(state="INIT", session_reward=0, session_ads=0,
-               last_reward="-", net_retry=0, reauth_count=0)
-        UI.start_panel()
-
-        # ── 1. Initial fetch user, dengan re-auth loop ──
+    # ═══════════════════════════════════════════════════════════
+    #  INIT HELPERS
+    # ═══════════════════════════════════════════════════════════
+    def _init_user(self):
         reauth_tries = 0
         while True:
+            if UI.state.get("stop_requested"): return False
             try:
                 if self.fetch_user():
-                    break
-                UI.err("FATAL", "gagal fetch user — bukan auth error")
-                UI.stop_panel(); return
+                    return True
+                UI.err("FATAL", "gagal fetch user")
+                return False
             except InitDataExpired:
                 reauth_tries += 1
                 if reauth_tries > MAX_REAUTH:
-                    UI.err("FATAL", f"re-auth gagal {MAX_REAUTH}x — keluar")
-                    UI.stop_panel(); return
+                    UI.err("FATAL", f"re-auth gagal {MAX_REAUTH}x")
+                    return False
                 if not self.reauth():
-                    UI.err("FATAL", "user gak mau kasih init_data baru")
-                    UI.stop_panel(); return
+                    return False
 
-        self.start_balance = self.balance
-
-        # ── 2. Initial fetch ads ──
+    def _init_ads(self):
         while True:
+            if UI.state.get("stop_requested"): return False
             try:
-                if self.fetch_ads():
-                    break
-                UI.warn("ADS", "fetch_ads gagal")
-                break
+                return self.fetch_ads()
             except InitDataExpired:
                 if not self.reauth():
-                    UI.err("FATAL", "reauth gagal di fetch_ads")
-                    UI.stop_panel(); return
+                    return False
+
+    # ═══════════════════════════════════════════════════════════
+    #  RUN — Start All (exclude aviso unless include_aviso)
+    # ═══════════════════════════════════════════════════════════
+    def run(self):
+        UI.set(state="INIT", session_reward=0, session_ads=0,
+               last_reward="-", net_retry=0, reauth_count=0,
+               stop_requested=False)
+        UI.logs.clear()
+        UI.start_panel()
+
+        if not self._init_user():
+            UI.stop_panel(); return
+        self.start_balance = self.balance
+
+        if not self._init_ads():
+            UI.stop_panel(); return
 
         UI.set(ads_summary=self._ads_summary())
 
@@ -768,16 +1215,11 @@ class NotBuxBot:
         stop_reason = "finished"
         empty_cycles = 0
 
-        while True:
-            if not UI.state["running"]:
-                stop_reason = "stopped"
-                break
-
+        while not UI.state.get("stop_requested") and UI.state["running"]:
             cycle += 1
             UI.set(cycle=cycle, state="RUNNING", phase="-")
             UI.info("CYCLE", f"#{cycle}")
 
-            # ── Refresh ads tiap cycle ──
             try:
                 self.fetch_ads()
                 UI.set(ads_summary=self._ads_summary())
@@ -788,10 +1230,21 @@ class NotBuxBot:
                     break
                 continue
 
-            ready = [a for a in self.ads
-                     if a.get("cooldown", 0) == 0
-                     and (a.get("maxViews", 0) == 0 or a.get("views", 0) < a.get("maxViews", 0))
-                     and not a.get("isWatching", False)]
+            now_ts = time.time()
+            ready = []
+            for a in self.ads:
+                aid = a.get("id")
+                if aid == "aviso_youtube" and not self.include_aviso:
+                    continue
+                if a.get("cooldown", 0) > 0:
+                    continue
+                if a.get("maxViews", 0) and a.get("views", 0) >= a.get("maxViews", 0):
+                    continue
+                if a.get("isWatching", False):
+                    continue
+                if aid == "aviso_youtube" and now_ts < self.aviso_cooldown:
+                    continue
+                ready.append(a)
 
             def sort_key(a):
                 try:
@@ -801,12 +1254,16 @@ class NotBuxBot:
             ready.sort(key=sort_key)
 
             if not ready:
-                has_cd = any(a.get("cooldown", 0) > 0 for a in self.ads
-                             if a.get("maxViews", 0) == 0 or a.get("views", 0) < a.get("maxViews", 0))
+                has_cd = any(
+                    a.get("cooldown", 0) > 0
+                    for a in self.ads
+                    if (a.get("maxViews", 0) == 0 or a.get("views", 0) < a.get("maxViews", 0))
+                    and not (a.get("id") == "aviso_youtube" and not self.include_aviso)
+                )
                 if has_cd:
                     min_cd = min(
                         (a.get("cooldown", 0) for a in self.ads if a.get("cooldown", 0) > 0),
-                        default=60
+                        default=60,
                     )
                     wait_s = min(int(min_cd) + 2, 90)
                     UI.warn("IDLE", f"semua cooldown — tunggu {wait_s}s")
@@ -816,20 +1273,21 @@ class NotBuxBot:
                 else:
                     empty_cycles += 1
                     if empty_cycles >= MAX_EMPTY_CYCLES:
-                        UI.ok("DONE", "semua iklan habis — bot stop")
+                        UI.ok("DONE", "semua iklan habis — stop")
                         UI.set(state="DONE", phase="all done")
                         stop_reason = "all_done"
                         break
-                    UI.warn("IDLE", f"kosong {empty_cycles}/{MAX_EMPTY_CYCLES} — tunggu 30s")
+                    UI.warn("IDLE", f"kosong {empty_cycles}/{MAX_EMPTY_CYCLES} — 30s")
                     UI.set(state="WAITING")
                     UI.countdown(30, "idle wait")
                     continue
 
             empty_cycles = 0
-            claimed_this_cycle = 0
+            claimed = 0
 
             for ad in ready:
-                if not UI.state["running"]: break
+                if UI.state.get("stop_requested") or not UI.state["running"]:
+                    break
 
                 try:
                     result = self.watch_ad(ad)
@@ -838,21 +1296,20 @@ class NotBuxBot:
                     if not self.reauth():
                         stop_reason = "reauth_failed"
                         break
-                    break  # keluar for loop, cycle bakal restart
+                    break
 
                 if result == "FAIL":
-                    UI.warn("SKIP", f"{ad.get('name', ad.get('id'))} — fail, skip")
+                    UI.warn("SKIP", f"{ad.get('name', ad.get('id'))} — fail")
                 elif result == "RETRY":
                     pass
                 else:
-                    claimed_this_cycle += 1
+                    claimed += 1
 
-                # Refresh ads (ignore auth error di sini biar gak ganggu loop)
                 try:
                     self.fetch_ads()
                     UI.set(ads_summary=self._ads_summary())
                 except InitDataExpired:
-                    UI.warn("REFRESH", "auth expired — bakal re-auth next cycle")
+                    UI.warn("REFRESH", "auth expired — re-auth next cycle")
                     break
                 except Exception:
                     pass
@@ -865,14 +1322,83 @@ class NotBuxBot:
             if stop_reason == "reauth_failed":
                 break
 
-            if claimed_this_cycle == 0:
-                UI.warn("CYCLE", "gak ada reward — tunggu 15s")
+            if claimed == 0 and not UI.state.get("stop_requested"):
+                UI.warn("CYCLE", "gak ada reward — 15s")
                 UI.set(state="WAITING")
                 UI.countdown(15, "retry cycle")
 
         UI.set(state="DONE", phase=stop_reason)
         UI.stop_panel()
+        self._summary(stop_reason)
 
+    # ═══════════════════════════════════════════════════════════
+    #  RUN — Aviso Only
+    # ═══════════════════════════════════════════════════════════
+    def run_aviso_only(self):
+        self.include_aviso = True
+        self.aviso_only = True
+
+        UI.set(state="INIT", session_reward=0, session_ads=0,
+               last_reward="-", net_retry=0, reauth_count=0,
+               stop_requested=False)
+        UI.logs.clear()
+        UI.start_panel()
+
+        if not self._init_user():
+            UI.stop_panel(); return
+        self.start_balance = self.balance
+
+        if not self._init_ads():
+            UI.stop_panel(); return
+        UI.set(ads_summary=self._ads_summary())
+
+        cycle = 0
+        stop_reason = "stopped"
+
+        while not UI.state.get("stop_requested") and UI.state["running"]:
+            cycle += 1
+            UI.set(cycle=cycle, state="RUNNING", phase="-")
+            UI.info("CYCLE", f"aviso #{cycle}")
+
+            try:
+                result = self._watch_aviso()
+            except InitDataExpired:
+                UI.warn("AVISO", "init_data expired")
+                if not self.reauth():
+                    stop_reason = "reauth_failed"
+                    break
+                continue
+            except Exception as e:
+                UI.err("AVISO", f"err: {str(e)[:40]}")
+                result = "FAIL"
+
+            try:
+                self.fetch_ads()
+                UI.set(ads_summary=self._ads_summary())
+            except Exception:
+                pass
+
+            if UI.state.get("stop_requested") or not UI.state["running"]:
+                break
+
+            now_ts = time.time()
+            if now_ts < self.aviso_cooldown:
+                wait_s = int(self.aviso_cooldown - now_ts) + 2
+                UI.set(state="WAITING")
+                UI.countdown(wait_s, "aviso cd")
+            elif result == "RETRY":
+                UI.set(state="WAITING")
+                UI.countdown(30, "no task idle")
+            else:
+                pause = random.randint(HUMAN_PAUSE_MIN, HUMAN_PAUSE_MAX)
+                UI.set(state="PAUSE")
+                UI.countdown(pause, "pause")
+
+        UI.set(state="DONE", phase=stop_reason)
+        UI.stop_panel()
+        self._summary(stop_reason)
+
+    def _summary(self, stop_reason):
         print()
         print(UI.c("═" * 64, "br_cyan"))
         print(UI.c("  ✓ BOT SELESAI", "br_green"))
@@ -880,59 +1406,102 @@ class NotBuxBot:
         print(UI.c(f"  Reason      : {stop_reason}", "white"))
         print(UI.c(f"  User        : {UI.state['user']}", "white"))
         print(UI.c(f"  Balance     : {self.balance} coins", "br_yellow"))
-        print(UI.c(f"  Session     : +{int(UI.state['session_reward'])} coins ({UI.state['session_ads']} ads)", "br_green"))
+        print(UI.c(f"  Session     : {UI.state['session_ads']} ads watched", "br_green"))
         print(UI.c(f"  Net retries : {UI.state['net_retry']}", "yellow"))
         print(UI.c(f"  Re-auth     : {UI.state.get('reauth_count', 0)}x", "yellow"))
         print(UI.c("═" * 64, "br_cyan"))
         print()
+        print(UI.c("  (enter buat balik ke menu)", "gray"))
+        try:
+            input()
+        except (EOFError, KeyboardInterrupt):
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════
 #  ENTRY
 # ═══════════════════════════════════════════════════════════════
-def main():
-    os.system('cls' if os.name == 'nt' else 'clear')
-    UI.banner()
+def _load_init_data():
+    if not os.path.exists(CONFIG_FILE):
+        return None
     try:
-        if not os.path.exists(CONFIG_FILE):
-            bot_tmp = NotBuxBot("")
-            bot_tmp.get_config()
         with open(CONFIG_FILE) as f:
             cfg = json.load(f)
-        init_data = cfg.get("init_data", "").strip()
-        if not init_data:
-            print(UI.c("  ✖ init_data kosong\n", "br_red")); return
-        bot = NotBuxBot(init_data)
-        bot.run()
-    except KeyboardInterrupt:
-        raise
+        return cfg.get("init_data", "").strip() or None
+    except Exception:
+        return None
+
+
+def _run_mode(include_aviso: bool, aviso_only: bool):
+    if not os.path.exists(CONFIG_FILE):
+        print(UI.c("\n  ⚙ belum ada config — isi initData dulu.\n", "yellow"))
+        time.sleep(1)
+        config_menu()
+        if not os.path.exists(CONFIG_FILE):
+            return
+
+    init_data = _load_init_data()
+    if not init_data:
+        print(UI.c("\n  ✖ init_data kosong.\n", "br_red"))
+        time.sleep(1.5)
+        return
+
+    try:
+        bot = NotBuxBot(init_data, include_aviso=include_aviso, aviso_only=aviso_only)
+        if aviso_only:
+            bot.run_aviso_only()
+        else:
+            bot.run()
     except InitDataExpired:
         UI.stop_panel()
-        print(f"\n{Fore.RED}  ✖ init_data expired — keluar{RESET}\n")
+        print(f"\n{Fore.RED}  ✖ init_data expired{RESET}\n")
+        time.sleep(1.5)
     except Exception as e:
         UI.stop_panel()
         print(f"\n{Fore.RED}  ✖ fatal: {e}{RESET}\n")
         import traceback
         traceback.print_exc()
-    finally:
-        pass
+        time.sleep(2)
 
 
 def _on_sigint(sig, frame):
-    try: signal.signal(signal.SIGINT, signal.SIG_DFL)
-    except Exception: pass
-    try: UI.stop_panel()
-    except Exception: pass
+    global _IN_MENU
+    if _IN_MENU:
+        try: UI.stop_panel()
+        except Exception: pass
+        try:
+            sys.stdout.write(f"\n{Fore.YELLOW}  ! exit{RESET}\n\n")
+            sys.stdout.flush()
+        except Exception: pass
+        os._exit(0)
+    UI.set(running=False, stop_requested=True)
     try:
-        sys.stdout.write(f"\n{Fore.YELLOW}  ! CTRL+C — keluar{RESET}\n\n")
+        sys.stdout.write(f"\n{Fore.YELLOW}  ! stopping, balik ke menu setelah ini…{RESET}\n")
         sys.stdout.flush()
-    except Exception: pass
-    os._exit(0)
+    except Exception:
+        pass
 
 
-if __name__ == '__main__':
+def main():
     signal.signal(signal.SIGINT, _on_sigint)
+    while True:
+        choice = menu()
+        if choice == "0":
+            print()
+            print(UI.c("  bye bro.\n", "br_cyan"))
+            return
+        if choice == "1":
+            _run_mode(include_aviso=False, aviso_only=False)
+        elif choice == "2":
+            _run_mode(include_aviso=True, aviso_only=True)
+        elif choice == "3":
+            config_menu()
+
+
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        _on_sigint(signal.SIGINT, None)
+        try: UI.stop_panel()
+        except Exception: pass
+        sys.stdout.write(f"\n{Fore.YELLOW}  ! interrupted{RESET}\n\n")
