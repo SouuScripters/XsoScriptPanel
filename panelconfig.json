@@ -142,6 +142,26 @@
           "label": "Lootiyz 🟢",
           "file": "Lootiyz.php",
           "runner": "php"
+        },
+        "23": {
+          "label": "99Faucet 🟢",
+          "file": "99faucet.php",
+          "runner": "php"
+        },
+        "24": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
+        },
+        "25": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
+        },
+        "26": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
         }
       }
     },
@@ -237,6 +257,21 @@
           "label": "VirtualMine 🟢",
           "file": "VirtualMine.py",
           "runner": "python3"
+        },
+        "19": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
+        },
+        "20": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
+        },
+        "21": {
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
         }
       }
     },
