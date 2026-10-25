@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HOTFAUCET.in AutoClaimer — Python port
-- Login:  GET / → skip jika cookie udah auth → else solve icaptcha → POST /auth/login
+HOTFAUCET.in AutoClaimer — Python port v3
+- Login:  probe /dashboard → skip jika logged → else solve icaptcha → POST /auth/login
 - Faucet: GET /faucet/currency/{coin} → solve icaptcha → POST /faucet/verify/{coin}
 - Solver: IconCaptcha v4.0.1 direct (brute force coordinate, no API)
+- FIX   : login success = probe dashboard (bukan string match homepage)
+- FIX   : form_time fresh tiap attempt (hindari stale-timestamp rejection)
+- FIX   : cookie murni via session (no header injection, no duplicate state)
+- FIX   : cache-bust homepage GET (hindari CF cache return token basi)
+- NEW   : diagnose_verify() — alasan gagal claim
 """
 
 import os
@@ -27,7 +32,7 @@ HOST          = "https://hotfaucet.in"
 DOMAIN        = "hotfaucet.in"
 SCRIPT_NAME   = "HOTFAUCET.in"
 ICAP_ENDPOINT = "https://hotfaucet.in/icaptcha/req"
-CONFIG_FILE   = "hotfaucet_config.json"      # ← pisah dari config.json feyorra
+CONFIG_FILE   = "hotfaucet_config.json"
 
 DEFAULT_UA = (
     "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
@@ -43,25 +48,51 @@ CYAN   = "\033[0;36m"
 PUTIH  = "\033[0;37m"
 RESET  = "\033[0m"
 
+DEBUG_DIR = "hotfaucet_debug"
+
+
 # ═══════════════════════════════════════════════════════════
 # UTILS
 # ═══════════════════════════════════════════════════════════
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+
 def now_ms():
     return int(time.time() * 1000)
+
 
 def b64_json(obj):
     return base64.b64encode(
         json.dumps(obj, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
     ).decode('utf-8')
 
+
 def b64_decode_json(s):
     try:
         return json.loads(base64.b64decode(s.strip()).decode('utf-8'))
     except Exception:
         return None
+
+
+def ensure_debug_dir():
+    if not os.path.exists(DEBUG_DIR):
+        try:
+            os.makedirs(DEBUG_DIR, exist_ok=True)
+        except Exception:
+            pass
+
+
+def save_debug(name, content):
+    ensure_debug_dir()
+    try:
+        path = os.path.join(DEBUG_DIR, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content or "")
+        return path
+    except Exception:
+        return None
+
 
 def timer(seconds, prefix="[!] please wait"):
     seconds = int(seconds)
@@ -86,6 +117,7 @@ def timer(seconds, prefix="[!] please wait"):
     sys.stdout.write("\r" + " " * 50 + "\r")
     sys.stdout.flush()
 
+
 def build_session():
     s = requests.Session()
     adapter = HTTPAdapter(pool_connections=4, pool_maxsize=8)
@@ -93,8 +125,113 @@ def build_session():
     s.mount("http://", adapter)
     return s
 
+
 # ═══════════════════════════════════════════════════════════
-# CONFIG — with safety keys
+# VERIFY DIAGNOSIS
+# ═══════════════════════════════════════════════════════════
+def _extract_swal(body):
+    if not body:
+        return None
+    m = re.search(r"Swal\.fire\s*\(\s*\{(.*?)\}\s*\)", body, re.DOTALL)
+    if not m:
+        return None
+    block = m.group(1)
+
+    def _get_field(field):
+        pat = re.search(rf"{field}\s*:\s*(['\"`])(.*?)\1", block, re.DOTALL)
+        if not pat:
+            return None
+        val = pat.group(2)
+        val = val.replace("\\n", "\n").replace("\\'", "'").replace('\\"', '"')
+        clean = re.sub(r"<[^>]+>", " ", val)
+        clean = re.sub(r"\s+", " ", clean).strip()
+        return clean
+
+    title = _get_field("title")
+    html  = _get_field("html")
+    if title or html:
+        return (title or "", html or "")
+    return None
+
+
+def diagnose_verify(body, http_code):
+    if not body:
+        return ("unknown", f"empty body (http {http_code})", "retry")
+
+    b = body
+
+    if "has been sent to your FaucetPay" in b:
+        m = re.search(r"html:\s*'([^']+)'", b)
+        msg = (m.group(1) if m else "Claimed!").strip()
+        return ("ok", msg, "continue")
+
+    swal = _extract_swal(b)
+    swal_title = swal[0] if swal else ""
+    swal_html  = swal[1] if swal else ""
+
+    blob = b.lower()
+
+    checks = [
+        (["insufficient funds", "not have sufficient", "faucet is empty",
+          "faucet has run out", "no funds"],
+         "soft_fail", "Faucet saldo kosong", "wait"),
+
+        (["complete atleast 1 shortlink", "complete at least 1 shortlink",
+          "shortlink required", "must complete a shortlink",
+          "need to complete 1 shortlink"],
+         "hard_fail", "Wajib selesaikan 1 shortlink dulu (200-claim rule)", "shortlink"),
+
+        (["you need to join", "join our telegram", "must join telegram",
+          "verify your telegram", "telegram not verified", "not verified"],
+         "hard_fail", "Akun belum join / verify Telegram", "verify"),
+
+        (["invalid captcha", "captcha incorrect", "wrong captcha",
+          "iconcaptcha invalid", "captcha failed", "invalid token"],
+         "soft_fail", "Captcha salah / token invalid", "retry"),
+
+        (["you need to wait", "cooldown", "try again in", "you can claim again in"],
+         "soft_fail", "Cooldown aktif", "cooldown"),
+
+        (["ip already", "same ip", "multiple accounts", "vpn detected",
+          "proxy detected", "ip blacklist"],
+         "hard_fail", "IP kena rate-limit / flagged (VPN?)", "quit"),
+
+        (["country not supported", "not available in your country",
+          "geo blocked", "region not allowed"],
+         "hard_fail", "Negara tidak didukung / geo block", "quit"),
+
+        (["invalid wallet", "wallet not valid", "faucetpay email",
+          "wallet address invalid"],
+         "hard_fail", "Wallet / FaucetPay email invalid", "quit"),
+
+        (["account banned", "suspended", "banned", "blacklisted"],
+         "hard_fail", "Akun kena ban / suspend", "quit"),
+
+        (["payout processing failed", "please try again in a moment"],
+         "soft_fail", "Server payout gagal (transient)", "wait"),
+
+        (["not logged in", "please login", "session expired", "unauthorized"],
+         "hard_fail", "Session expired / belum login", "relogin"),
+    ]
+
+    for kws, status, reason, hint in checks:
+        if any(k in blob for k in kws):
+            return (status, reason, hint)
+
+    if swal:
+        label = swal_title or "alert"
+        return ("soft_fail", f"{label}: {swal_html or '(no detail)'}", "retry")
+
+    if 'name="claim_token"' in b or 'id="claim_token"' in b:
+        return ("soft_fail",
+                f"Server balikin form lagi tanpa alert (http {http_code}) — token/captcha/antibot reject",
+                "retry")
+
+    return ("unknown", f"response tidak dikenali (http {http_code}, {len(b)} byte)", "retry")
+
+
+# ═══════════════════════════════════════════════════════════
+# CONFIG
 # ═══════════════════════════════════════════════════════════
 def get_config():
     if not os.path.exists(CONFIG_FILE):
@@ -121,7 +258,6 @@ def get_config():
         print(f"{MERAH}config.json korup: {e}. Hapus dan run ulang.")
         sys.exit(1)
 
-    # ── SAFETY: setdefault semua key wajib ──
     changed = False
     if not cfg.get("user_agent"):
         cfg["user_agent"] = DEFAULT_UA
@@ -136,7 +272,6 @@ def get_config():
         with open(CONFIG_FILE, 'w') as f:
             json.dump(cfg, f, indent=2)
 
-    # Kalau wallet atau cookie kosong, prompt ulang
     if not cfg.get("wallet"):
         print(f"{KUNING}FaucetPay Email belum di-set{RESET}")
         cfg["wallet"] = input(f"{PUTIH}FaucetPay Email : {KUNING}").strip()
@@ -150,6 +285,7 @@ def get_config():
 
     return cfg
 
+
 def save_config(cfg):
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -157,25 +293,27 @@ def save_config(cfg):
     except Exception:
         pass
 
+
 def banner():
     print(f"{PUTIH}─────────────────────────────────────────────")
     print(f"{PUTIH} Script  : {CYAN}{SCRIPT_NAME}{PUTIH} AutoClaim")
     print(f"{PUTIH} Captcha : {KUNING}IconCaptcha v4.0.1 (direct solver)")
+    print(f"{PUTIH} Diag    : {HIJAU}on — alasan gagal bakal di-print")
     print(f"{PUTIH}─────────────────────────────────────────────\n")
 
+
 # ═══════════════════════════════════════════════════════════
-# HEADER HELPER — with safe .get() fallback
+# HEADER + COOKIE (murni via session)
 # ═══════════════════════════════════════════════════════════
-def base_headers(cfg, referer=None, content_type=None, origin=None, host_header=None):
+def base_headers(cfg, referer=None, content_type=None, origin=None):
+    """Cookie TIDAK di-inject via header — pakai session.cookies."""
     ua = cfg.get("user_agent") or DEFAULT_UA
     h = {
-        "host": host_header or DOMAIN,
         "user-agent": ua,
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "accept-language": "id-ID,id;q=0.9,en;q=0.8",
         "upgrade-insecure-requests": "1",
         "cache-control": "max-age=0",
-        "cookie": cfg.get("cookie", ""),
     }
     if referer:
         h["referer"] = referer
@@ -184,6 +322,63 @@ def base_headers(cfg, referer=None, content_type=None, origin=None, host_header=
     if origin:
         h["origin"] = origin
     return h
+
+
+def merge_cookie(cookie_str, resp):
+    try:
+        set_cookies = resp.raw.headers.getlist('Set-Cookie')
+    except Exception:
+        return cookie_str
+    if not set_cookies:
+        return cookie_str
+
+    jar = {}
+    for part in cookie_str.split(';'):
+        part = part.strip()
+        if '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        jar[k.strip()] = v.strip()
+
+    for line in set_cookies:
+        first = line.split(';')[0]
+        if '=' not in first:
+            continue
+        k, v = first.split('=', 1)
+        jar[k.strip()] = v.strip()
+
+    return '; '.join(f"{k}={v}" for k, v in jar.items())
+
+
+def sync_session_cookies(session, cfg):
+    """Load cookie string ke session.cookies (source of truth)."""
+    session.cookies.clear()
+    for part in cfg.get("cookie", "").split(';'):
+        part = part.strip()
+        if '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        try:
+            session.cookies.set(k.strip(), v.strip(), domain=DOMAIN)
+        except Exception:
+            pass
+
+
+def sync_back_from_session(cfg, session):
+    """Tarik cookie terbaru dari session.cookies → cfg string."""
+    jar = {}
+    for part in cfg.get("cookie", "").split(';'):
+        part = part.strip()
+        if '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        jar[k.strip()] = v.strip()
+    for c in session.cookies:
+        if DOMAIN in (c.domain or ""):
+            jar[c.name] = c.value or ""
+    cfg["cookie"] = '; '.join(f"{k}={v}" for k, v in jar.items())
+    save_config(cfg)
+
 
 # ═══════════════════════════════════════════════════════════
 # ICONCAPTCHA SOLVER
@@ -202,10 +397,8 @@ def solve_icaptcha(endpoint, icon_token, cfg, session, host_url=HOST):
         "Origin": host_url,
         "User-Agent": ua,
         "Accept": "*/*",
-        "cookie": cfg.get("cookie", ""),
     }
 
-    # ── LOAD ──
     load_dict = {
         "widgetId": widget_id,
         "action": "LOAD",
@@ -221,9 +414,10 @@ def solve_icaptcha(endpoint, icon_token, cfg, session, host_url=HOST):
         headers = dict(base_h)
         headers["Content-Type"] = "application/x-www-form-urlencoded"
         try:
+            sync_session_cookies(session, cfg)
             res = session.post(endpoint, data={"payload": encoded},
                                headers=headers, timeout=15)
-            cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), res)
+            sync_back_from_session(cfg, session)
             if res.text:
                 decoded = b64_decode_json(res.text)
                 if decoded and decoded.get("identifier"):
@@ -240,7 +434,6 @@ def solve_icaptcha(endpoint, icon_token, cfg, session, host_url=HOST):
         print(f"{PUTIH}[!] {MERAH}ic LOAD fail")
         return None
 
-    # ── SELECTION (wider spread) ──
     icon_centers = [27, 80, 133, 187, 240, 293]
     attempts = []
     for _ in range(3):
@@ -276,9 +469,10 @@ def solve_icaptcha(endpoint, icon_token, cfg, session, host_url=HOST):
         headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
 
         try:
+            sync_session_cookies(session, cfg)
             res = session.post(endpoint, data=mp_body.encode('utf-8'),
                                headers=headers, timeout=15)
-            cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), res)
+            sync_back_from_session(cfg, session)
             if res.text:
                 decoded = b64_decode_json(res.text)
                 if decoded and decoded.get("completed") is True:
@@ -299,75 +493,89 @@ def solve_icaptcha(endpoint, icon_token, cfg, session, host_url=HOST):
     print(f"{PUTIH}[!] {MERAH}ic SELECTION exhausted")
     return None
 
+
 # ═══════════════════════════════════════════════════════════
-# COOKIE HELPERS
+# DASHBOARD PROBE — deteksi logged-in
 # ═══════════════════════════════════════════════════════════
-def merge_cookie(cookie_str, resp):
+def _probe_dashboard(cfg, session, quiet=False):
+    """
+    Return True jika cookie valid (session logged in).
+    Tanda: body dashboard mengandung link /logout.
+    """
+    sync_session_cookies(session, cfg)
     try:
-        set_cookies = resp.raw.headers.getlist('Set-Cookie')
-    except Exception:
-        return cookie_str
-    if not set_cookies:
-        return cookie_str
+        r = session.get(
+            HOST + "/dashboard",
+            headers=base_headers(cfg, referer=HOST + "/"),
+            timeout=20, allow_redirects=True
+        )
+    except Exception as e:
+        if not quiet:
+            print(f"{PUTIH}[!] {MERAH}dash probe error: {e}")
+        return False
 
-    jar = {}
-    for part in cookie_str.split(';'):
-        part = part.strip()
-        if '=' not in part:
-            continue
-        k, v = part.split('=', 1)
-        jar[k.strip()] = v.strip()
+    sync_back_from_session(cfg, session)
 
-    for line in set_cookies:
-        first = line.split(';')[0]
-        if '=' not in first:
-            continue
-        k, v = first.split('=', 1)
-        jar[k.strip()] = v.strip()
+    if r.status_code != 200:
+        if not quiet:
+            print(f"{PUTIH}[!] dash probe http {r.status_code}")
+        return False
 
-    return '; '.join(f"{k}={v}" for k, v in jar.items())
+    body = r.text or ""
 
-def sync_session_cookies(session, cfg):
-    session.cookies.clear()
-    for part in cfg.get("cookie", "").split(';'):
-        part = part.strip()
-        if '=' not in part:
-            continue
-        k, v = part.split('=', 1)
-        try:
-            session.cookies.set(k.strip(), v.strip(), domain=DOMAIN)
-        except Exception:
-            pass
+    # marker paling reliable: link logout ada di semua page yg authenticated
+    if "/logout" in body or ">Logout<" in body or "Logout" in body:
+        return True
+
+    # fallback markers
+    if "Dashboard | HOTFAUCET" in body and "Welcome" in body:
+        return True
+
+    return False
+
 
 # ═══════════════════════════════════════════════════════════
 # LOGIN
 # ═══════════════════════════════════════════════════════════
 def login(cfg, session):
+    # ── STEP 1: probe cookie yg ada ──
+    print(f"{PUTIH}[*] probing session...")
+    if _probe_dashboard(cfg, session):
+        print(f"{PUTIH}[+] {HIJAU}cookie valid — skip login step")
+        return True
+
+    print(f"{PUTIH}[*] cookie invalid — attempting fresh login")
+
+    # ── STEP 2: ambil homepage (cache-bust) ──
+    bust_ts = int(time.time())
+    home_url = f"{HOST}/?_={bust_ts}"
+    sync_session_cookies(session, cfg)
     try:
-        r = session.get(HOST + "/",
-                        headers=base_headers(cfg, referer=HOST + "/"),
-                        timeout=30, allow_redirects=True)
+        r = session.get(
+            home_url,
+            headers=base_headers(cfg, referer=HOST + "/"),
+            timeout=30, allow_redirects=True
+        )
     except Exception as e:
         print(f"{PUTIH}[!] {MERAH}homepage fetch error: {e}")
         return False
 
-    cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), r)
-    save_config(cfg)
+    sync_back_from_session(cfg, session)
 
     page = r.text or ""
     print(f"{PUTIH}[*] homepage: {HIJAU}{len(page)} byte{PUTIH} (http {r.status_code})")
 
-    if "Dashboard | HOTFAUCET" in page or "Welcome back" in page:
-        print(f"{PUTIH}[+] {HIJAU}cookie udah login (skip login step)")
+    # probe lagi — kadang cookie valid setelah hit homepage
+    if _probe_dashboard(cfg, session, quiet=True):
+        print(f"{PUTIH}[+] {HIJAU}cookie valid setelah refresh homepage — skip login")
         return True
 
     if 'name="wallet"' not in page and "_iconcaptcha-token" not in page:
         print(f"{PUTIH}[!] {KUNING}bukan login page & bukan dashboard")
-        with open("debug_home.html", "w", encoding="utf-8") as f:
-            f.write(page)
-        print(f"{PUTIH}[i] saved: debug_home.html")
+        save_debug("login_home.html", page)
         return False
 
+    # ── STEP 3: parse token ──
     icon_token = ""
     m = re.search(r"name\s*=\s*['\"]_iconcaptcha-token['\"][^>]*?value\s*=\s*['\"]([^'\"]+)['\"]",
                   page, re.IGNORECASE)
@@ -381,24 +589,22 @@ def login(cfg, session):
 
     if not icon_token:
         print(f"{PUTIH}[!] {MERAH}_iconcaptcha-token ga ketemu")
-        with open("debug_home.html", "w", encoding="utf-8") as f:
-            f.write(page)
+        save_debug("login_no_token.html", page)
         return False
 
-    form_time = int(time.time())
-    mf = re.search(r'name\s*=\s*["\']form_time["\'][^>]*?value\s*=\s*["\']([^"\']+)["\']',
-                   page, re.IGNORECASE)
-    if mf:
-        form_time = mf.group(1)
+    # form_time FRESH — jangan percaya HTML (bisa stale dari cache)
+    form_time = int(time.time()) - random.randint(2, 5)
 
     print(f"{PUTIH}[*] icon_token : {HIJAU}{icon_token[:24]}...")
+    print(f"{PUTIH}[*] form_time  : {HIJAU}{form_time} (fresh)")
 
+    # ── STEP 4: solve captcha ──
     solved = solve_icaptcha(ICAP_ENDPOINT, icon_token, cfg, session, host_url=HOST)
     if not solved:
         print(f"{PUTIH}[!] {MERAH}solve fail")
         return False
-    save_config(cfg)
 
+    # ── STEP 5: POST login ──
     payload = {
         "wallet": cfg.get("wallet", ""),
         "website": "",
@@ -412,45 +618,75 @@ def login(cfg, session):
         "ic-hp": "",
     }
 
-    h = base_headers(cfg, referer=HOST + "/",
-                     content_type="application/x-www-form-urlencoded",
-                     origin=HOST)
-
+    sync_session_cookies(session, cfg)
     try:
-        r = session.post(HOST + "/auth/login", data=payload, headers=h,
-                         timeout=30, allow_redirects=True)
+        r = session.post(
+            HOST + "/auth/login",
+            data=payload,
+            headers=base_headers(cfg, referer=HOST + "/",
+                                 content_type="application/x-www-form-urlencoded",
+                                 origin=HOST),
+            timeout=30, allow_redirects=True
+        )
     except Exception as e:
         print(f"{PUTIH}[!] {MERAH}login post error: {e}")
         return False
 
-    cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), r)
-    save_config(cfg)
+    sync_back_from_session(cfg, session)
 
     resp = r.text or ""
-    if ("Login Successful" in resp or "Welcome back" in resp or "Dashboard" in resp):
+    print(f"{PUTIH}[*] login post: {HIJAU}{len(resp)} byte{PUTIH} (http {r.status_code})")
+
+    # ── STEP 6: probe dashboard setelah login ──
+    if _probe_dashboard(cfg, session):
         print(f"{PUTIH}[+] {HIJAU}LOGIN OK")
         return True
 
-    print(f"{PUTIH}[!] {MERAH}login fail (http {r.status_code})")
-    with open("debug_login.html", "w", encoding="utf-8") as f:
-        f.write(resp)
+    # fail — simpan detail
+    print(f"{PUTIH}[!] {MERAH}login POST gagal — dashboard tetap tidak accessible")
+
+    # cek swal / error text
+    swal = _extract_swal(resp)
+    if swal:
+        print(f"{PUTIH}[i] swal.title: {KUNING}{swal[0][:80]}")
+        print(f"{PUTIH}[i] swal.html : {KUNING}{swal[1][:120]}")
+
+    # cek marker error umum
+    blob = resp.lower()
+    if "invalid wallet" in blob or "not registered" in blob:
+        print(f"{PUTIH}[i] {MERAH}wallet tidak terdaftar / salah")
+    elif "invalid captcha" in blob or "captcha" in blob and "error" in blob:
+        print(f"{PUTIH}[i] {MERAH}captcha rejected")
+    elif "too many" in blob:
+        print(f"{PUTIH}[i] {MERAH}rate limit / too many attempts")
+    elif "banned" in blob or "suspended" in blob:
+        print(f"{PUTIH}[i] {MERAH}akun banned")
+    else:
+        print(f"{PUTIH}[i] kemungkinan: form_time expired, cf_clearance expired, atau bot-filter")
+        print(f"{PUTIH}[i] saran: re-grab cookie dari browser (cf_clearance rotasi)")
+
+    save_debug(f"login_fail_{int(time.time())}.html", resp)
     return False
+
 
 # ═══════════════════════════════════════════════════════════
 # GET CURRENCIES
 # ═══════════════════════════════════════════════════════════
 def get_currencies(cfg, session):
-    h = base_headers(cfg, referer=HOST + "/")
+    sync_session_cookies(session, cfg)
     try:
-        r = session.get(HOST + "/dashboard", headers=h, timeout=30)
+        r = session.get(HOST + "/dashboard",
+                        headers=base_headers(cfg, referer=HOST + "/"),
+                        timeout=30)
     except Exception as e:
         print(f"{PUTIH}[!] dash fetch error: {e}")
         return None
 
+    sync_back_from_session(cfg, session)
+
     dash = r.text or ""
-    if "Welcome back" not in dash and "Dashboard" not in dash:
-        with open("debug_dash.html", "w", encoding="utf-8") as f:
-            f.write(dash)
+    if "/logout" not in dash and "Dashboard" not in dash:
+        save_debug("dash_fail.html", dash)
         return None
 
     raw = re.findall(r'href="' + re.escape(HOST) + r'/faucet/currency/([^"]+)"', dash)
@@ -461,19 +697,21 @@ def get_currencies(cfg, session):
     currencies.sort(key=len)
     return currencies
 
+
 # ═══════════════════════════════════════════════════════════
 # CLAIM ONE
 # ═══════════════════════════════════════════════════════════
 def claim_one(cfg, session, coin):
-    h = base_headers(cfg, referer=HOST + "/dashboard")
+    sync_session_cookies(session, cfg)
     try:
-        r = session.get(HOST + f"/faucet/currency/{coin}", headers=h, timeout=30)
+        r = session.get(HOST + f"/faucet/currency/{coin}",
+                        headers=base_headers(cfg, referer=HOST + "/dashboard"),
+                        timeout=30)
     except Exception as e:
         print(f"{PUTIH}[!] faucet fetch error: {e}")
         return "retry"
 
-    cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), r)
-    save_config(cfg)
+    sync_back_from_session(cfg, session)
 
     page = r.text or ""
     print(f"{PUTIH}[*] faucet page: {HIJAU}{len(page)} byte")
@@ -486,8 +724,8 @@ def claim_one(cfg, session, coin):
             timer(wait, "[*] cooling")
             return "cooldown"
 
-    if "Complete Atleast 1 Shortlinks" in page:
-        print(f"{PUTIH}[!] {KUNING}perlu shortlink manual")
+    if "Complete Atleast 1 Shortlinks" in page or "Complete at least 1 Shortlink" in page:
+        print(f"{PUTIH}[!] {KUNING}perlu shortlink manual — {CYAN}{HOST}/links/currency/{coin}")
         return "shortlink"
 
     icon_token = ""
@@ -525,9 +763,8 @@ def claim_one(cfg, session, coin):
         wallet = m.group(1)
 
     if not icon_token or not claim_token:
-        print(f"{PUTIH}[!] {MERAH}missing tokens")
-        with open("debug_faucet.html", "w", encoding="utf-8") as f:
-            f.write(page)
+        print(f"{PUTIH}[!] {MERAH}missing tokens (icon={bool(icon_token)}, claim={bool(claim_token)})")
+        save_debug(f"faucet_{coin}_no_tokens.html", page)
         return "retry"
 
     print(f"{PUTIH}[*] claim_token: {HIJAU}{claim_token[:20]}...")
@@ -536,7 +773,6 @@ def claim_one(cfg, session, coin):
     if not solved:
         print(f"{PUTIH}[!] {MERAH}solve fail")
         return "retry"
-    save_config(cfg)
 
     payload = {
         "_email_confirm": "",
@@ -551,29 +787,30 @@ def claim_one(cfg, session, coin):
         "wallet": wallet,
     }
 
-    h = base_headers(cfg, referer=HOST + f"/faucet/currency/{coin}",
-                     content_type="application/x-www-form-urlencoded",
-                     origin=HOST)
-
+    sync_session_cookies(session, cfg)
     try:
         r = session.post(HOST + f"/faucet/verify/{coin}", data=payload,
-                         headers=h, timeout=30, allow_redirects=True)
+                         headers=base_headers(cfg, referer=HOST + f"/faucet/currency/{coin}",
+                                              content_type="application/x-www-form-urlencoded",
+                                              origin=HOST),
+                         timeout=30, allow_redirects=True)
     except Exception as e:
         print(f"{PUTIH}[!] verify post error: {e}")
         return "retry"
 
-    cfg["cookie"] = merge_cookie(cfg.get("cookie", ""), r)
-    save_config(cfg)
+    sync_back_from_session(cfg, session)
 
     resp = r.text or ""
+    http = r.status_code
 
-    with open("debug_verify_last.html", "w", encoding="utf-8") as f:
-        f.write(resp)
+    status, reason, hint = diagnose_verify(resp, http)
 
-    if "has been sent to your FaucetPay" in resp:
-        mm = re.search(r"html:\s*'([^']+)'", resp)
-        msg = mm.group(1) if mm else "Claimed!"
-        print(f"{PUTIH}[+] {HIJAU}CLAIM OK: {msg.strip()}")
+    safe_reason = re.sub(r"[^a-zA-Z0-9_-]", "_", reason)[:40]
+    dbg_name = f"verify_{coin}_{int(time.time())}_{safe_reason}.html"
+    save_debug(dbg_name, resp)
+
+    if status == "ok":
+        print(f"{PUTIH}[+] {HIJAU}CLAIM OK: {reason.strip()}")
         wait = 10
         mw = re.search(r'var wait\s*=\s*(\d+)\s*-\s*1', resp)
         if mw:
@@ -581,21 +818,30 @@ def claim_one(cfg, session, coin):
         timer(wait, "[*] next")
         return "ok"
 
-    if "does not have sufficient funds" in resp:
-        print(f"{PUTIH}[!] {KUNING}faucet kosong")
-        return "empty"
+    color = MERAH if status == "hard_fail" else KUNING
+    print(f"{PUTIH}[!] {color}CLAIM FAIL [{status}] — {reason}")
+    print(f"{PUTIH}[i] hint: {CYAN}{hint}{PUTIH} | http={http} | saved {HIJAU}{dbg_name}")
 
-    if "Invalid" in resp:
-        print(f"{PUTIH}[!] {MERAH}invalid captcha/token")
-        time.sleep(2)
-        return "retry"
+    swal = _extract_swal(resp)
+    if swal:
+        print(f"{PUTIH}[i] swal.title: {KUNING}{swal[0][:80]}")
+        print(f"{PUTIH}[i] swal.html : {KUNING}{swal[1][:120]}")
 
-    if "not verified" in resp:
-        print(f"{PUTIH}[!] {MERAH}akun belum verify telegram")
+    if hint == "quit":
+        return "fatal"
+    if hint == "shortlink":
+        return "shortlink"
+    if hint == "verify":
         return "unverified"
-
-    print(f"{PUTIH}[?] {KUNING}response unknown (http {r.status_code})")
+    if hint == "cooldown":
+        return "cooldown"
+    if hint == "wait":
+        timer(30, "[*] cooling")
+        return "retry"
+    if hint == "relogin":
+        return "relogin"
     return "retry"
+
 
 # ═══════════════════════════════════════════════════════════
 # MAIN
@@ -603,6 +849,7 @@ def claim_one(cfg, session, coin):
 def main():
     clear()
     banner()
+    ensure_debug_dir()
 
     cfg = get_config()
     session = build_session()
@@ -613,7 +860,9 @@ def main():
     while not login(cfg, session):
         tries += 1
         if tries >= 3:
-            print(f"{MERAH}login gagal 3x. cek debug files.")
+            print(f"{MERAH}login gagal 3x. cek {DEBUG_DIR}/")
+            print(f"{PUTIH}saran: {KUNING}cookie browser expired — re-grab dari DevTools")
+            print(f"{PUTIH}        (cf_clearance biasanya cuma bertahan beberapa jam)")
             input(f"\n{PUTIH}Press Enter to continue...")
             return
         print(f"{PUTIH}[!] retry login ({tries}/3)...")
@@ -622,7 +871,6 @@ def main():
     clear()
     banner()
 
-    sync_session_cookies(session, cfg)
     currencies = get_currencies(cfg, session)
     if not currencies:
         print(f"{MERAH}gagal ambil daftar coin")
@@ -637,7 +885,7 @@ def main():
         sys.stdout.write(f"{PUTIH}({n:>2}) {HIJAU}{cur.upper():<6}{PUTIH}")
         if (i + 1) % cols == 0 or i == total - 1:
             sys.stdout.write("\n")
-    print(f"{PUTIH}\nchosee: {MERAH}", end="")
+    print(f"{PUTIH}\nchoose: {MERAH}", end="")
     choice = input().strip()
 
     if not choice.isdigit():
@@ -673,10 +921,11 @@ def main():
             errs = 0
         elif res == "cooldown":
             errs = 0
-        elif res == "empty":
-            print(f"{PUTIH}faucet kosong. enter=retry, q=quit: ", end="")
+        elif res == "fatal":
+            print(f"{PUTIH}{MERAH}fatal — stop.{PUTIH} enter=retry, q=quit: ", end="")
             if input().strip().lower() == 'q':
                 return
+            errs = 0
         elif res == "shortlink":
             print(f"{PUTIH}selesai shortlink? enter=lanjut, q=quit: ", end="")
             if input().strip().lower() == 'q':
@@ -686,6 +935,13 @@ def main():
             print(f"{PUTIH}enter=retry, q=quit: ", end="")
             if input().strip().lower() == 'q':
                 return
+        elif res == "relogin":
+            print(f"{PUTIH}session mati — relogin...")
+            tries = 0
+            while not login(cfg, session) and tries < 3:
+                tries += 1
+                time.sleep(3)
+            errs = 0
         else:
             errs += 1
             if errs >= 5:
@@ -695,6 +951,7 @@ def main():
                     return
                 errs = 0
             time.sleep(3)
+
 
 if __name__ == "__main__":
     try:
