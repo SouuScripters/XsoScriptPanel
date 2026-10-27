@@ -1,940 +1,589 @@
 #!/usr/bin/env php
 <?php
 /**
- * ═══════════════════════════════════════════════════════════════
- *  COINADSTER.com Auto Claim Bot v1.4 (CSRF FIX)
- *  - Auto login via email + password
- *  - Turnstile / hCaptcha solver via Waryono
- *  - Faucet claim with math anti-bot (sc_a + sc_b + 1234)
- *  - CSRF extract helper (handle 2 attribute order)
- *  - CSRF auto-retry kalau token expired antar request
- *  - Runtime: UNLIMITED (ikut limit server)
- *  - Human delay: 3-7s di tiap step penting
- *  - PHP 8.5 deprecation warning fix (curl_close removed)
- *  By Power @MoneyMaker_w
- * ═══════════════════════════════════════════════════════════════
+ * SouuEngine — Coinadster Edition v2.3
+ * Simple, no bullshit. Claim counter = balance tracker.
  */
 
 if (PHP_VERSION_ID < 80000) { fwrite(STDERR, "PHP 8.0+ required\n"); exit(1); }
-
-// Sembunyiin deprecation warning (PHP 8.5+)
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-// ═══════════════════════════════════════════════════════════════
-//  COLORS
-// ═══════════════════════════════════════════════════════════════
 const RST="\033[0m", BOLD="\033[1m", DIM="\033[2m";
 const RED="\033[38;5;196m", GRN="\033[38;5;46m", YEL="\033[38;5;226m";
 const CYN="\033[38;5;51m",  MAG="\033[38;5;201m", ORG="\033[38;5;208m";
 const WHT="\033[38;5;15m",  GRY="\033[38;5;240m", VIO="\033[38;5;141m";
 
-function vlen(string $s): int { return mb_strlen(preg_replace('/\033\[[0-9;]*m/','',$s)); }
-function pad_to(string $s, int $w): string { return $s . str_repeat(' ', max(0, $w - vlen($s))); }
+function vlen($s){return mb_strlen(preg_replace('/\033\[[0-9;]*m/','',$s));}
+function pad_to($s,$w){return $s.str_repeat(' ',max(0,$w-vlen($s)));}
+function fmt_dur($s){return sprintf('%02d:%02d:%02d',floor($s/3600),floor(($s%3600)/60),$s%60);}
 
-// ═══════════════════════════════════════════════════════════════
-//  HUMAN DELAY
-// ═══════════════════════════════════════════════════════════════
-function human_delay(int $extra_sec = 0): void {
-    $base = rand(3, 7);
-    $total = $base + $extra_sec;
-    usleep($total * 1000000);
-}
+const BOT_NAME    = "SouuEngine";
+const BOT_TAG     = "@MoneyMaker_w";
+const BOT_VERSION = "2.3";
+const REWARD      = 6.5;
 
-// ═══════════════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════════════
+const host          = "https://coinadster.com";
+const api_in        = "https://api.waryono.my.id/in.php";
+const api_res       = "https://api.waryono.my.id/res.php";
+const POLL_INTERVAL = 3;
+
+$CONFIG_FILE = __DIR__.'/SouuEngine_coinadster.json';
+$COOKIE_FILE = __DIR__.'/SouuEngine_cookies.txt';
+$LIMIT_LOG   = __DIR__.'/SouuEngine_limit.log';
+
+$UA = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36';
+$CHA = '"Chromium";v="127", "Not)A;Brand";v="99", "Microsoft Edge Simulate";v="127"';
+$LANG = 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7';
+
 $STATE = [
-    'user'          => 'Unknown',
-    'email'         => '-',
-    'bits'          => '0',
-    'credits'       => '0',
-    'claims'        => 0,
-    'rewards'       => 0,
-    'failures'      => 0,
-    'max_failures'  => 2,
-    'solve_attempt' => 0,
-    'max_solve'     => 3,
-    'runtime_start' => time(),
-    'max_runtime'   => 0,
-    'logs'          => [],
-    'faucet_status' => 'checking',
-    'captcha_type'  => '-',
+    'user'=>'Unknown','email'=>'-',
+    'bits_start'=>0.0,'bits_earned'=>0.0,
+    'claims'=>0,'failures'=>0,'max_failures'=>3,
+    'solve_attempt'=>0,'max_solve'=>3,
+    'runtime_start'=>time(),
+    'logs'=>[],'status_line'=>'','faucet_status'=>'checking',
 ];
 
-// ═══════════════════════════════════════════════════════════════
-//  LOG
-// ═══════════════════════════════════════════════════════════════
-function _log_tags(): array {
+function _log_tags() {
     return [
         'OK'=>GRN."● OK    ".RST, 'ERR'=>RED."● ERR   ".RST, 'WARN'=>YEL."● WARN  ".RST,
         'INFO'=>GRY."● INFO  ".RST, 'CLAIM'=>MAG."◉ CLAIM ".RST, 'SOLVE'=>CYN."◉ SOLVER".RST,
-        'VERIFY'=>VIO."◉ VERIFY".RST, 'CAP'=>YEL."◉ CAPTCHA".RST, 'WAIT'=>ORG."◉ WAIT  ".RST,
-        'AUTH'=>GRN."● AUTH  ".RST, 'LOGIN'=>CYN."◉ LOGIN ".RST, 'DEBUG'=>GRY."● DEBUG ".RST,
-        'HUMAN'=>ORG."● HUMAN ".RST,
+        'WAIT'=>ORG."◉ WAIT  ".RST, 'AUTH'=>GRN."● AUTH  ".RST, 'LOGIN'=>CYN."◉ LOGIN ".RST,
+        'LIMIT'=>RED."■ LIMIT ".RST,
     ];
 }
 
-function slog(string $msg, string $level = 'INFO', bool $replace_last = false): void {
+function slog($msg, $level='INFO') {
     global $STATE;
-    $ts = date('H:i:s');
     $tags = _log_tags();
     $tag = $tags[strtoupper($level)] ?? $tags['INFO'];
-    $new = GRY."[{$ts}] ".RST.$tag." ".WHT.$msg.RST;
-
-    if ($replace_last && !empty($STATE['logs'])) {
-        $idx = count($STATE['logs']) - 1;
-        if (strpos($STATE['logs'][$idx], $tags['WAIT']) !== false
-            || strpos($STATE['logs'][$idx], $tags['HUMAN']) !== false) {
-            $STATE['logs'][$idx] = $new;
-            return;
-        }
-    }
-
-    $STATE['logs'][] = $new;
+    $STATE['logs'][] = GRY."[".date('H:i:s')."] ".RST.$tag." ".WHT.$msg.RST;
     if (count($STATE['logs'])>7) array_shift($STATE['logs']);
 }
 
-function fmt_dur(int $s): string {
-    return sprintf('%02d:%02d:%02d', floor($s/3600), floor(($s%3600)/60), $s%60);
-}
+function set_status($s) { global $STATE; $STATE['status_line'] = $s; }
 
-// ═══════════════════════════════════════════════════════════════
-//  RENDER
-// ═══════════════════════════════════════════════════════════════
-function render(): void {
+function render() {
     global $STATE;
     $W=62; $bd=CYN;
-    $line=fn(string $c)=>$bd."║".RST.pad_to(" ".$c,$W).$bd."║".RST;
-    $top=$bd."╔".str_repeat('═',$W)."╗".RST;
-    $mid=$bd."╠".str_repeat('═',$W)."╣".RST;
-    $bot=$bd."╚".str_repeat('═',$W)."╝".RST;
+    $line=fn($c)=>$bd."║".RST.pad_to(" ".$c,$W).$bd."║".RST;
+    echo "\n".$bd."╔".str_repeat('═',$W)."╗".RST."\n";
+    echo $line(BOLD.WHT.BOT_NAME.RST)."\n";
+    echo $line(DIM."──── Coinadster Edition v".BOT_VERSION." ────".RST)."\n";
+    echo $bd."╠".str_repeat('═',$W)."╣".RST."\n";
 
-    echo "\n".$top."\n";
-    echo $line(BOLD.WHT."COINADSTER AUTO CLAIM".RST)."\n";
-    echo $line(DIM."─────── SOUU ENGINE v1.5 ───────".RST)."\n";
-    echo $mid."\n";
-
-    $hs_color=GRN; $hs_label='ONLINE';
-    if ($STATE['faucet_status']==='suspect')      { $hs_color=YEL; $hs_label='SUSPECT'; }
-    elseif ($STATE['faucet_status']==='dead')     { $hs_color=RED; $hs_label='DEAD'; }
-    elseif ($STATE['faucet_status']==='checking') { $hs_color=GRY; $hs_label='CHECKING'; }
-    elseif ($STATE['faucet_status']==='cooldown') { $hs_color=ORG; $hs_label='COOLDOWN'; }
+    $hs_c=GRN; $hs_l='ONLINE';
+    if ($STATE['faucet_status']==='dead')         { $hs_c=RED; $hs_l='DEAD'; }
+    elseif ($STATE['faucet_status']==='cooldown') { $hs_c=ORG; $hs_l='COOLDOWN'; }
+    elseif ($STATE['faucet_status']==='limit')    { $hs_c=RED; $hs_l='LIMIT'; }
+    elseif ($STATE['faucet_status']==='checking') { $hs_c=GRY; $hs_l='CHECKING'; }
 
     echo $line(VIO."FAUCET".RST)."\n";
-    echo $line("├─ Status   : ".$hs_color.$hs_label.RST)."\n";
-    echo $line("└─ Site     : ".CYN."coinadster.com".RST)."\n";
-    echo $mid."\n";
+    echo $line("├─ Status : ".$hs_c.$hs_l.RST)."\n";
+    echo $line("└─ Site   : ".CYN."coinadster.com".RST)."\n";
+    if (!empty($STATE['status_line'])) {
+        echo $line(ORG."  ◉ ".$STATE['status_line'].RST)."\n";
+    }
+    echo $bd."╠".str_repeat('═',$W)."╣".RST."\n";
 
-    echo $line(VIO."CAPTCHA".RST)."\n";
-    echo $line("├─ Type     : ".YEL.strtoupper($STATE['captcha_type']).RST)."\n";
-    echo $line("├─ Solver   : ".CYN."waryono".RST)."\n";
-    echo $line("└─ Attempt  : ".($STATE['solve_attempt']>0
-            ? YEL.$STATE['solve_attempt']."/".$STATE['max_solve'].RST
-            : DIM."-".RST))."\n";
-    echo $mid."\n";
+    $bits_now = $STATE['bits_start'] + $STATE['bits_earned'];
+    $earned_s = $STATE['bits_earned'] > 0 ? " ".GRN."(+".number_format($STATE['bits_earned'],2,'.','').")".RST : "";
 
     echo $line(VIO."ACCOUNT".RST)."\n";
-    echo $line("├─ User     : ".CYN.$STATE['user'].RST)."\n";
-    echo $line("├─ Email    : ".$STATE['email'])."\n";
-    echo $line("├─ Bits     : ".YEL.$STATE['bits'].RST)."\n";
-    echo $line("└─ Credits  : ".MAG.$STATE['credits'].RST)."\n";
-    echo $mid."\n";
+    echo $line("├─ User   : ".CYN.$STATE['user'].RST)."\n";
+    echo $line("├─ Email  : ".$STATE['email'])."\n";
+    echo $line("├─ Start  : ".GRY.number_format($STATE['bits_start'],2,'.','')." bits".RST)."\n";
+    echo $line("└─ Now    : ".YEL.number_format($bits_now,2,'.','')." bits".RST.$earned_s)."\n";
+    echo $bd."╠".str_repeat('═',$W)."╣".RST."\n";
 
     $run=time()-$STATE['runtime_start'];
-    $max_run_label = ($STATE['max_runtime'] > 0)
-        ? DIM.fmt_dur($STATE['max_runtime']).RST
-        : DIM."UNLIMITED".RST;
-
     echo $line(VIO."SYSTEM".RST)."\n";
-    echo $line("├─ Claims   : ".GRN.$STATE['claims'].RST)."\n";
-    echo $line("├─ Rewards  : ".GRN."+".$STATE['rewards']." bits".RST)."\n";
-    echo $line("├─ Failures : ".RED.$STATE['failures'].RST." / ".$STATE['max_failures'])."\n";
-    echo $line("└─ Runtime  : ".CYN.fmt_dur($run).RST." / ".$max_run_label)."\n";
-    echo $mid."\n";
+    echo $line("├─ Claims : ".GRN.$STATE['claims'].RST)."\n";
+    echo $line("├─ Fails  : ".RED.$STATE['failures'].RST." / ".$STATE['max_failures'])."\n";
+    echo $line("└─ Runtime: ".CYN.fmt_dur($run).RST)."\n";
+    echo $bd."╠".str_repeat('═',$W)."╣".RST."\n";
 
-    $logs=$STATE['logs'];
-    if (empty($logs)) {
-        echo $line(DIM."─ no activity yet ─".RST)."\n";
-    } else {
-        foreach ($logs as $l) echo $line($l)."\n";
-    }
-    echo $bot."\n";
-    echo "\n   ".GRN."BOT RUNNING".RST." ".DIM."•".RST." ".CYN.date('H:i:s').RST."\n";
-    echo "   ".DIM."By Power @MoneyMaker_w • CoinAdster Edition".RST."\n\n";
+    if (empty($STATE['logs'])) echo $line(DIM."─ no activity ─".RST)."\n";
+    else foreach ($STATE['logs'] as $l) echo $line($l)."\n";
+    echo $bd."╚".str_repeat('═',$W)."╝".RST."\n";
+    echo "\n   ".GRN.BOT_NAME." • ".CYN.date('H:i:s').RST."\n";
+    echo "   ".DIM."By ".BOT_TAG." • v".BOT_VERSION.RST."\n\n";
 }
 
-function clear_render(): void {
-    if (PHP_OS_FAMILY==='Windows') pclose(popen('cls','w'));
-    else system('clear');
-    render();
-}
+function clear_render(){ if(PHP_OS_FAMILY==='Windows') pclose(popen('cls','w')); else system('clear'); render(); }
 
-// ═══════════════════════════════════════════════════════════════
-//  CONST
-// ═══════════════════════════════════════════════════════════════
-const script_name = "coinadster.com";
-const host        = "https://coinadster.com";
-const api_in      = "https://api.waryono.my.id/in.php";
-const api_res     = "https://api.waryono.my.id/res.php";
-
-const TURNSTILE_KEY = "0x4AAAAAAAV-tgu1vT_isJ5Q";
-const HCAPTCHA_KEY  = "16c8fe32-6d50-4570-8f38-28748bacc5a8";
-
-const POLL_INTERVAL = 3;
-const POLL_TIMEOUT  = 180;
-const DEBUG         = true;
-
-$CONFIG_FILE  = __DIR__.'/config.json';
-$COOKIE_FILE  = __DIR__.'/cookies.txt';
-
-function load_config(): ?array {
+function load_config(){
     global $CONFIG_FILE;
     if (!file_exists($CONFIG_FILE)) return null;
-    $c = json_decode((string) file_get_contents($CONFIG_FILE), true);
+    $c = json_decode(file_get_contents($CONFIG_FILE), true);
     if (!is_array($c) || empty($c['email'])) return null;
-    $c['apikey']   = $c['apikey']   ?? '';
-    $c['password'] = $c['password'] ?? '';
     return $c;
 }
-function save_config(array $c): void {
-    global $CONFIG_FILE;
-    @file_put_contents($CONFIG_FILE, json_encode($c, JSON_PRETTY_PRINT));
-}
-function read_line(string $p = ""): string {
-    if ($p) echo $p;
-    return trim((string) fgets(STDIN));
-}
+function save_config($c){ global $CONFIG_FILE; @file_put_contents($CONFIG_FILE, json_encode($c, JSON_PRETTY_PRINT)); }
+function read_line($p=""){ if($p) echo $p; return trim((string)fgets(STDIN)); }
 
-// ═══════════════════════════════════════════════════════════════
-//  HTTP
-// ═══════════════════════════════════════════════════════════════
-function curl_request($url, $method = 'GET', $data = [], $headers = [], $nofollow = false) {
-    global $COOKIE_FILE;
+function curl_full($url, $method='GET', $data=[], $headers=[], $follow=false){
+    global $COOKIE_FILE, $UA;
     $ch = curl_init();
     $opts = [
-        CURLOPT_URL            => $url,
+        CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER         => false,
         CURLOPT_SSL_VERIFYHOST => 0,
         CURLOPT_SSL_VERIFYPEER => 0,
-        CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_CONNECTTIMEOUT => 30,
-        CURLOPT_TIMEOUT        => 60,
-        CURLOPT_COOKIEFILE     => $COOKIE_FILE,
-        CURLOPT_COOKIEJAR      => $COOKIE_FILE,
-        CURLOPT_ENCODING       => '',
-        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36'
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_COOKIEFILE => $COOKIE_FILE,
+        CURLOPT_COOKIEJAR => $COOKIE_FILE,
+        CURLOPT_ENCODING => 'gzip,deflate',
+        CURLOPT_USERAGENT => $UA,
     ];
-    if (!$nofollow) $opts[CURLOPT_FOLLOWLOCATION] = true;
+    if ($follow) $opts[CURLOPT_FOLLOWLOCATION] = true;
     if (strtoupper($method) === 'POST') {
         $opts[CURLOPT_POST] = true;
         $opts[CURLOPT_POSTFIELDS] = $data;
     }
     curl_setopt_array($ch, $opts);
-    $resp = curl_exec($ch);
-    // curl_close() dihapus — deprecated di PHP 8.5, auto-GC sejak PHP 8.0
-    return $resp ?: "";
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    return ['body'=>$body?:'','code'=>$code,'len'=>strlen($body?:'')];
 }
 
-/* ================= HEADERS ================= */
-function headers_html($referer = null) {
+function headers_html($ref=null){
+    global $UA, $CHA, $LANG;
     $h = [
-        'Host: '.script_name,
-        'Connection: keep-alive',
-        'sec-ch-ua: "Chromium";v="137", "Not/A)Brand";v="24"',
-        'sec-ch-ua-mobile: ?1',
-        'sec-ch-ua-platform: "Android"',
-        'Upgrade-Insecure-Requests: 1',
-        'User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Sec-Fetch-Site: same-origin',
-        'Sec-Fetch-Mode: navigate',
-        'Sec-Fetch-User: ?1',
-        'Sec-Fetch-Dest: document',
-        'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+        'Host: coinadster.com','Connection: keep-alive',
+        'sec-ch-ua: '.$CHA,'sec-ch-ua-mobile: ?1','sec-ch-ua-platform: "Android"',
+        'Upgrade-Insecure-Requests: 1','User-Agent: '.$UA,
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding: gzip, deflate',
+        'Sec-Fetch-Site: same-origin','Sec-Fetch-Mode: navigate','Sec-Fetch-User: ?1','Sec-Fetch-Dest: document',
+        'Accept-Language: '.$LANG,
     ];
-    if ($referer) $h[] = 'Referer: '.$referer;
+    if ($ref) $h[] = 'Referer: '.$ref;
     return $h;
 }
-function headers_form_post($url_referer) {
+function headers_post($ref){
+    global $UA, $CHA, $LANG;
     return [
-        'Host: '.script_name,
-        'Connection: keep-alive',
-        'Content-Type: application/x-www-form-urlencoded',
-        'Cache-Control: max-age=0',
-        'Origin: '.host,
-        'Upgrade-Insecure-Requests: 1',
-        'User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Sec-Fetch-Site: same-origin',
-        'Sec-Fetch-Mode: navigate',
-        'Sec-Fetch-User: ?1',
-        'Sec-Fetch-Dest: document',
-        'Referer: '.$url_referer,
-        'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-        'sec-ch-ua: "Chromium";v="137", "Not/A)Brand";v="24"',
-        'sec-ch-ua-mobile: ?1',
-        'sec-ch-ua-platform: "Android"'
+        'Host: coinadster.com','Connection: keep-alive',
+        'Content-Type: application/x-www-form-urlencoded','Origin: '.host,
+        'Upgrade-Insecure-Requests: 1','User-Agent: '.$UA,
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding: gzip, deflate',
+        'Sec-Fetch-Site: same-origin','Sec-Fetch-Mode: navigate','Sec-Fetch-User: ?1','Sec-Fetch-Dest: document',
+        'Referer: '.$ref,'Accept-Language: '.$LANG,
+        'sec-ch-ua: '.$CHA,'sec-ch-ua-mobile: ?1','sec-ch-ua-platform: "Android"',
     ];
 }
-function headers_ajax($referer = null) {
-    $h = [
-        'Host: '.script_name,
-        'Accept: application/json, text/javascript, */*; q=0.01',
-        'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-        'Origin: '.host,
-        'Sec-Fetch-Dest: empty',
-        'Sec-Fetch-Mode: cors',
-        'Sec-Fetch-Site: same-origin',
-        'User-Agent: Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        'X-Requested-With: XMLHttpRequest',
-        'sec-ch-ua: "Chromium";v="137", "Not/A)Brand";v="24"',
-        'sec-ch-ua-mobile: ?1',
-        'sec-ch-ua-platform: "Android"'
+function headers_ajax($ref=null){
+    global $UA, $CHA, $LANG;
+    return [
+        'Host: coinadster.com','Accept: application/json, text/javascript, */*; q=0.01',
+        'Accept-Language: '.$LANG,'Accept-Encoding: gzip, deflate',
+        'Content-Type: application/x-www-form-urlencoded; charset=UTF-8','Origin: '.host,
+        'Sec-Fetch-Dest: empty','Sec-Fetch-Mode: cors','Sec-Fetch-Site: same-origin',
+        'User-Agent: '.$UA,'X-Requested-With: XMLHttpRequest',
+        'sec-ch-ua: '.$CHA,'sec-ch-ua-mobile: ?1','sec-ch-ua-platform: "Android"',
+        'Referer: '.($ref ?: host.'/'),
     ];
-    $h[] = 'Referer: '.($referer ?: host.'/');
-    return $h;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  CSRF EXTRACT HELPERS
-// ═══════════════════════════════════════════════════════════════
-function extract_hidden_token($html, $id = null, $name = null) {
+function extract_hidden($html, $id=null, $name=null){
     if ($id) {
-        $qid = preg_quote($id, '/');
-        if (preg_match('/<input[^>]*\bid=["\']'.$qid.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i', $html, $m)) return $m[1];
-        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bid=["\']'.$qid.'["\']/i', $html, $m)) return $m[1];
+        $q = preg_quote($id,'/');
+        if (preg_match('/<input[^>]*\bid=["\']'.$q.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i',$html,$m)) return $m[1];
+        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bid=["\']'.$q.'["\']/i',$html,$m)) return $m[1];
     }
     if ($name) {
-        $qn = preg_quote($name, '/');
-        if (preg_match('/<input[^>]*\bname=["\']'.$qn.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i', $html, $m)) return $m[1];
-        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bname=["\']'.$qn.'["\']/i', $html, $m)) return $m[1];
+        $q = preg_quote($name,'/');
+        if (preg_match('/<input[^>]*\bname=["\']'.$q.'["\'][^>]*\bvalue=["\']([^"\']+)["\']/i',$html,$m)) return $m[1];
+        if (preg_match('/<input[^>]*\bvalue=["\']([^"\']+)["\'][^>]*\bname=["\']'.$q.'["\']/i',$html,$m)) return $m[1];
     }
     return null;
 }
 
-function extract_login_csrf($html) {
-    $tok = extract_hidden_token($html, 'ghadutmtbua');
-    if ($tok && preg_match('/^[a-f0-9]{32,}$/i', $tok)) return $tok;
+function extract_login_csrf($html){
+    foreach (['bjk6isimajk','ghadutmtbua'] as $id) {
+        $t = extract_hidden($html, $id);
+        if ($t && preg_match('/^[a-f0-9]{32,}$/i',$t)) return $t;
+    }
+    if (preg_match("/var token\s*=\s*'([a-f0-9]{32,})'/",$html,$m)) return $m[1];
+    if (preg_match_all('/<input[^>]*value=["\']([a-f0-9]{60,})["\']/i',$html,$all)) return $all[1][0];
+    return null;
+}
 
-    if (preg_match_all('/<input[^>]*\bid=["\']([a-z0-9]+)["\'][^>]*\bvalue=["\']([a-f0-9]{60,})["\']/i', $html, $matches, PREG_SET_ORDER)) {
-        foreach ($matches as $m) {
-            if (strcasecmp($m[1], 'ab4tgmx8puzi5ju') === 0) continue;
-            return $m[2];
-        }
-        return $matches[0][2];
+function extract_honeypot($html){
+    if (preg_match('/<input[^>]*name=["\'](f_[a-f0-9]+)["\'][^>]*id=["\']fg_hp["\']/i',$html,$m)) return $m[1];
+    if (preg_match('/<input[^>]*id=["\']fg_hp["\'][^>]*name=["\'](f_[a-f0-9]+)["\']/i',$html,$m)) return $m[1];
+    return null;
+}
+
+function fg_extract($html){
+    if (!preg_match('/function\s+fgTransform\s*\(\s*x\s*\)\s*\{([^}]+)\}/s',$html,$m)) return null;
+    if (!preg_match('/var\s+SEED\s*=\s*(\d+)/',$html,$ms)) return null;
+    $seed = (int)$ms[1];
+    $stmts = array_filter(array_map('trim', explode(';', $m[1])));
+    $php = '$x = $x & 0xFFFFFFFF; ';
+    foreach ($stmts as $s) {
+        if (preg_match('/^x\s*=\s*x\s*>>>\s*0$/',$s)) { $php.='$x=$x&0xFFFFFFFF;'; continue; }
+        if (preg_match('/^x\s*=\s*\(x\s*\+\s*(\d+)\)\s*>>>\s*0$/',$s,$mm)) { $php.='$x=($x+'.$mm[1].')&0xFFFFFFFF;'; continue; }
+        if (preg_match('/^x\s*=\s*\(x\s*\^\s*(\d+)\)\s*>>>\s*0$/',$s,$mm)) { $php.='$x=($x^'.$mm[1].')&0xFFFFFFFF;'; continue; }
+        if (preg_match('/^x\s*=\s*\(\(x\s*<<\s*(\d+)\)\s*\|\s*\(x\s*>>>\s*(\d+)\)\)\s*>>>\s*0$/',$s,$mm)) { $php.='$x=((($x<<'.$mm[1].')|($x>>'.$mm[2].'))&0xFFFFFFFF);'; continue; }
+        if (preg_match('/^x\s*=\s*Math\.imul\(x\s*,\s*(\d+)\)\s*>>>\s*0$/',$s,$mm)) { $php.='$x=(($x*'.$mm[1].')&0xFFFFFFFF);'; continue; }
+        if (preg_match('/^return\s+x\s*>>>\s*0$/',$s)) { $php.='return $x&0xFFFFFFFF;'; continue; }
+    }
+    $fn = @eval('return function($x){'.$php.'};');
+    if (!is_callable($fn)) return null;
+    try { return ['seed'=>$seed,'result'=>$fn($seed)]; } catch (Throwable $e) { return null; }
+}
+
+function pow_extract($html){
+    if (!preg_match('/var\s+NONCE\s*=\s*"([^"]+)"/',$html,$mn)) return null;
+    if (!preg_match('/var\s+BITS\s*=\s*(\d+)/',$html,$mb)) return null;
+    $nonce = $mn[1]; $bits = (int)$mb[1];
+    $fb = intdiv($bits,8); $rb = $bits%8;
+    for ($c=0; $c<60000000; $c++) {
+        $h = hash('sha256', $nonce.':'.$c, true);
+        $ok = true;
+        for ($i=0; $i<$fb; $i++) { if ($h[$i] !== "\x00") { $ok=false; break; } }
+        if ($ok && $rb>0) { if ((ord($h[$fb]) >> (8-$rb)) !== 0) $ok=false; }
+        if ($ok) return ['counter'=>$c];
     }
     return null;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  WARYONO SOLVER
-// ═══════════════════════════════════════════════════════════════
-function solve_captcha($apikey, $sitekey, $method = 'turnstile', $domain = host) {
-    $body = json_encode([
-        "apikey"  => $apikey,
-        "methods" => $method,
-        "domain"  => $domain,
-        "sitekey" => $sitekey,
-        "json"    => 1
-    ]);
-    $req = curl_request(api_in, "POST", $body, ["Content-Type: application/json"]);
-
-    if (strpos($req, "ERROR_") !== false) {
-        slog("captcha submit: ".trim($req), 'ERR');
-        return $req;
-    }
-
-    $json = json_decode($req, true);
-    $id   = $json["request"] ?? '';
-    if (!$id) {
-        slog("captcha: tidak dapat ID", 'ERR');
-        if (DEBUG) {
-            $raw = trim($req);
-            if (strlen($raw) > 150) $raw = substr($raw, 0, 150)."...";
-            slog("waryono raw: ".$raw, 'DEBUG');
-        }
-        return "ERROR_UNKNOWN";
-    }
-
+function solve_captcha($apikey, $sitekey, $method='turnstile'){
+    $body = json_encode(["apikey"=>$apikey,"methods"=>$method,"domain"=>host,"sitekey"=>$sitekey,"json"=>1]);
+    $req = curl_full(api_in, "POST", $body, ["Content-Type: application/json","Accept-Encoding: gzip, deflate"]);
+    if (strpos($req['body'],"ERROR_") !== false) return $req['body'];
+    $j = json_decode($req['body'], true);
+    $id = $j["request"] ?? '';
+    if (!$id) return "ERROR_UNKNOWN";
     $tries = 0;
     while ($tries < 40) {
-        $tries++;
-        sleep(POLL_INTERVAL);
-        $url = api_res."?apikey=".$apikey."&action=get&id=".$id."&json=1";
-        $res = curl_request($url, "GET", []);
-
-        if (strpos($res, "CAPCHA_NOT_READY") !== false) continue;
-        if (strpos($res, "ERROR_") !== false) {
-            slog("captcha poll: ".trim($res), 'ERR');
-            return $res;
-        }
-
-        $json = json_decode($res, true);
-        $tok  = $json["request"] ?? '';
+        $tries++; sleep(POLL_INTERVAL);
+        $res = curl_full(api_res."?apikey=".$apikey."&action=get&id=".$id."&json=1","GET",[]);
+        if (strpos($res['body'],"CAPCHA_NOT_READY") !== false) continue;
+        if (strpos($res['body'],"ERROR_") !== false) return $res['body'];
+        $j = json_decode($res['body'], true);
+        $tok = $j["request"] ?? '';
         if ($tok) return $tok;
     }
     return "ERROR_TIMEOUT";
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  LOGIN
-// ═══════════════════════════════════════════════════════════════
-function is_logged_in($html) {
-    return (strpos($html, 'cx-head') !== false
-         || strpos($html, 'id="bitBal"') !== false
-         || strpos($html, '?logout') !== false);
+function is_logged_in($h){
+    return strpos($h,'cx-head')!==false || strpos($h,'id="bitBal"')!==false || strpos($h,'?logout')!==false;
 }
 
-function do_login($apikey, $email, $password) {
-    slog("login required...", 'LOGIN');
-    clear_render();
+function parse_bits($h){
+    if (preg_match('~id="sbBalanceBits">([^<]+)</span>~',$h,$m)) return (float)str_replace(',','',trim($m[1]));
+    if (preg_match('~id="bitBal">([^<]+)<~',$h,$m)) return (float)str_replace(',','',trim($m[1]));
+    return null;
+}
 
-    $attempt = 0;
-    while ($attempt < 5) {
-        $attempt++;
-        slog("login attempt $attempt/5...", 'LOGIN');
-        clear_render();
-
-        slog("human delay sebelum GET home...", 'HUMAN');
-        clear_render();
-        human_delay();
-
-        $home = curl_request(host."/", "GET", [], headers_html());
-        if ($home === "" || strlen($home) < 500) {
-            slog("home response kosong, retry...", 'ERR');
-            clear_render();
-            sleep(5); continue;
-        }
-
-        $token = extract_login_csrf($home);
+function do_login($apikey,$email,$password){
+    @unlink($GLOBALS['COOKIE_FILE']);
+    slog("login...",'LOGIN'); clear_render();
+    for ($i=1; $i<=5; $i++) {
+        slog("attempt $i/5",'LOGIN'); clear_render();
+        $r = curl_full(host."/","GET",[],headers_html());
+        $token = $r['body'] ? extract_login_csrf($r['body']) : null;
         if (!$token) {
-            slog("gagal parse CSRF login (id=ghadutmtbua)", 'ERR');
-            if (DEBUG) {
-                if (preg_match_all('/<input[^>]*id="[^"]+"[^>]*value="[^"]*"/i', $home, $mm)) {
-                    foreach (array_slice($mm[0], 0, 5) as $s) {
-                        slog("input: ".substr($s, 0, 120), 'DEBUG');
-                    }
-                }
-            }
-            clear_render();
-            sleep(3); continue;
+            $alt = curl_full(host."/faucet.html","GET",[],headers_html(host."/"));
+            if ($alt['body']) $token = extract_login_csrf($alt['body']);
         }
-        slog("login token: ".substr($token, 0, 20)."...", 'DEBUG');
-        clear_render();
-
-        slog("human delay sebelum solve captcha...", 'HUMAN');
-        clear_render();
-        human_delay();
-
-        $capToken = solve_captcha($apikey, TURNSTILE_KEY, 'turnstile');
-        if (strpos($capToken, "ERROR_") !== false) {
-            slog("captcha gagal ($capToken), retry...", 'WARN');
-            clear_render();
-            sleep(3); continue;
+        if (!$token) { slog("CSRF gak ketemu",'ERR'); clear_render(); sleep(3); continue; }
+        $cap = solve_captcha($apikey,"0x4AAAAAAAV-tgu1vT_isJ5Q",'turnstile');
+        if (strpos($cap,"ERROR_")!==false) { slog("captcha gagal: $cap",'WARN'); clear_render(); sleep(3); continue; }
+        $data = http_build_query(["a"=>"login","token"=>$token,"username"=>$email,"password"=>$password,"remember"=>"on","recaptcha"=>$cap,"cap"=>"turnstile"]);
+        $r = curl_full(host."/system/ajax.php","POST",$data,headers_ajax(host."/"));
+        $j = json_decode(trim($r['body']),true);
+        if (!is_array($j)) { slog("bukan JSON",'ERR'); clear_render(); sleep(3); continue; }
+        $st = $j['status'] ?? -1;
+        $msg = strip_tags($j['msg'] ?? $j['message'] ?? '');
+        if ($st==1 || ($j['loggedin']??0)==1) { slog("login sukses",'OK'); clear_render(); return true; }
+        if ($st==2) { slog("akun 2FA",'ERR'); clear_render(); exit; }
+        slog("login gagal: ".$msg,'ERR'); clear_render();
+        if (stripos($msg,'password')!==false || stripos($msg,'wrong')!==false) {
+            @unlink($GLOBALS['COOKIE_FILE']); @unlink($GLOBALS['CONFIG_FILE']); exit;
         }
-
-        slog("human delay sebelum submit login...", 'HUMAN');
-        clear_render();
-        human_delay();
-
-        $data = http_build_query([
-            "a"         => "login",
-            "token"     => $token,
-            "username"  => $email,
-            "password"  => $password,
-            "remember"  => "on",
-            "recaptcha" => $capToken,
-            "cap"       => "turnstile"
-        ]);
-        $resp = curl_request(host."/system/ajax.php", "POST", $data, headers_ajax(host."/"));
-        $j = json_decode(trim($resp), true);
-
-        if (!is_array($j)) {
-            slog("response login bukan JSON", 'ERR');
-            if (DEBUG) slog("raw: ".substr(trim($resp), 0, 200), 'DEBUG');
-            clear_render();
-            sleep(5); continue;
-        }
-
-        $status = $j['status'] ?? -1;
-        $msg    = strip_tags($j['msg'] ?? $j['message'] ?? '');
-
-        if ($status == 1 || ($j['loggedin'] ?? 0) == 1) {
-            slog("login sukses", 'OK');
-            clear_render();
-            return true;
-        }
-        if ($status == 2) {
-            slog("akun pakai 2FA email. Matikan 2FA dulu di /account.html", 'ERR');
-            clear_render();
-            exit;
-        }
-
-        if (stripos($msg, 'token') !== false
-         || stripos($msg, 'csrf') !== false
-         || stripos($msg, 'expired') !== false
-         || stripos($msg, 'refresh') !== false) {
-            slog("CSRF expired, refetch halaman...", 'WARN');
-            clear_render();
-            sleep(2);
-            continue;
-        }
-
-        slog("login gagal: ".trim($msg), 'ERR');
-        clear_render();
-        if (stripos($msg, 'password') !== false || stripos($msg, 'wrong') !== false) {
-            @unlink($GLOBALS['COOKIE_FILE']);
-            @unlink($GLOBALS['CONFIG_FILE']);
-            exit;
-        }
-        sleep(5);
+        sleep(4);
     }
-    slog("login gagal setelah 5 percobaan", 'ERR');
-    clear_render();
-    exit;
+    slog("login gagal 5x",'ERR'); clear_render(); exit;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  BALANCE
-// ═══════════════════════════════════════════════════════════════
-function get_balance() {
-    $home = curl_request(host."/", "GET", [], headers_html());
-    $bits = null; $credits = null; $ajax_token = null;
-
-    if (preg_match("/var token = '([a-f0-9]+)';/", $home, $m)) $ajax_token = $m[1];
-    if (preg_match('~id="sbBalanceBits">([^<]+)</span>~', $home, $m)) $bits = trim($m[1]);
-    if (preg_match('~id="bitBal">([^<]+)<~', $home, $m)) $bits = trim($m[1]);
-    if (preg_match('~id="credBal">([^<]+)</span>~', $home, $m)) $credits = trim($m[1]);
-
-    return [
-        'bits'    => $bits,
-        'credits' => $credits,
-        'token'   => $ajax_token,
-        'html'    => $home
-    ];
+function is_daily_limit($m){
+    $l = strtolower($m);
+    foreach (['daily limit','max claims','maximum claim','claim limit','limit reached','daily cap','you have reached','come back tomorrow','per day','limit for today','daily maximum','out of claims','no more claims','quota','exhausted'] as $p) {
+        if (strpos($l,$p)!==false) return true;
+    }
+    return false;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  FAUCET CLAIM
-// ═══════════════════════════════════════════════════════════════
-function do_faucet_claim($apikey) {
-    global $STATE;
-    slog("buka /faucet.html...", 'INFO');
-    clear_render();
-
-    slog("human delay sebelum buka faucet...", 'HUMAN');
-    clear_render();
-    human_delay();
-
-    $html = curl_request(host."/faucet.html", "GET", [], headers_html(host."/"));
-
-    if (!is_logged_in($html)) {
-        slog("session expired, re-login...", 'WARN');
-        clear_render();
-        return 'RELOGIN';
+function classify_response($resp, $http_code){
+    if (preg_match('~alert-success[^>]*>([^<]+)<~i', $resp, $ok)) {
+        return ['status'=>'success','msg'=>trim(strip_tags($ok[1]))];
     }
-
-    if (strpos($html, 'countdown_timer') !== false && strpos($html, 'id="claimForm"') === false) {
-        preg_match('/var secondsLeft = (\d+);/', $html, $cd);
-        return ['status' => 'cooldown', 'wait' => intval($cd[1] ?? 300)];
-    }
-
-    $csrf_token = extract_hidden_token($html, null, 'csrf_token');
-    if (!$csrf_token) return 'PARSE_FAIL:csrf_token';
-
-    $sc_ts  = extract_hidden_token($html, null, 'sc_ts');
-    if (!$sc_ts) return 'PARSE_FAIL:sc_ts';
-
-    $sc_a   = extract_hidden_token($html, 'sc_a_val');
-    if (!$sc_a) return 'PARSE_FAIL:sc_a';
-    $sc_a   = intval($sc_a);
-
-    $sc_b   = extract_hidden_token($html, 'sc_b_val');
-    if (!$sc_b) return 'PARSE_FAIL:sc_b';
-    $sc_b   = intval($sc_b);
-
-    $sc_sig = extract_hidden_token($html, null, 'sc_sig');
-    if (!$sc_sig) return 'PARSE_FAIL:sc_sig';
-
-    $sc_res = $sc_a + $sc_b + 1234;
-    slog("math: $sc_a + $sc_b + 1234 = $sc_res", 'INFO');
-    clear_render();
-
-    $cap_type = null;
-    $cap_sitekey = null;
-
-    if (strpos($html, 'class="h-captcha"') !== false) {
-        $cap_type = 'hcaptcha';
-        $cap_sitekey = HCAPTCHA_KEY;
-        slog("form minta hCaptcha", 'WARN');
-    } elseif (strpos($html, 'class="cf-turnstile"') !== false) {
-        $cap_type = 'turnstile';
-        $cap_sitekey = TURNSTILE_KEY;
-        slog("form minta Turnstile", 'WARN');
-    } else {
-        slog("form tidak minta captcha", 'INFO');
-        $cap_type = 'none';
-    }
-    $STATE['captcha_type'] = $cap_type ?: '-';
-    clear_render();
-
-    slog("human delay (thinking)...", 'HUMAN');
-    clear_render();
-    human_delay();
-
-    $post_arr = [
-        "csrf_token"    => $csrf_token,
-        "sc_ts"         => $sc_ts,
-        "website_hp"    => "",
-        "sc_a"          => $sc_a,
-        "sc_b"          => $sc_b,
-        "sc_sig"        => $sc_sig,
-        "sc_res"        => $sc_res,
-        "claim_submit"  => ""
-    ];
-
-    if ($cap_type && $cap_sitekey) {
-        slog("solve $cap_type via Waryono...", 'SOLVE');
-        clear_render();
-        $token = solve_captcha($apikey, $cap_sitekey, $cap_type);
-        if (strpos($token, "ERROR_") !== false) {
-            slog("captcha gagal: $token", 'ERR');
-            clear_render();
-            return ['status' => 'failed', 'msg' => "captcha gagal: $token"];
-        }
-        $post_arr['g-recaptcha-response'] = $token;
-        $post_arr['h-captcha-response']   = $token;
-        if ($cap_type === 'turnstile') {
-            $post_arr['cf-turnstile-response'] = $token;
-        }
-        slog("captcha token didapat", 'OK');
-        clear_render();
-
-        slog("human delay sebelum submit claim...", 'HUMAN');
-        clear_render();
-        human_delay();
-    }
-
-    $post = http_build_query($post_arr);
-    $resp = curl_request(
-        host."/faucet.html",
-        "POST",
-        $post,
-        headers_form_post(host."/faucet.html"),
-        true
-    );
-
-    if (preg_match("~<div class='alert alert-success'>([^<]+)</div>~", $resp, $ok)) {
-        return ['status' => 'success', 'msg' => trim($ok[1])];
-    }
-
-    if (stripos($resp, 'token mismatch') !== false
-        || stripos($resp, 'csrf') !== false && stripos($resp, 'invalid') !== false
-        || (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)
-            && preg_match('/token|csrf|expired/i', $err[1]))
-    ) {
-        slog("CSRF expired → refetch form & retry", 'WARN');
-        clear_render();
-        return ['status' => 'too_fast', 'msg' => 'csrf_retry'];
-    }
-
-    if (preg_match("~<div class='alert alert-danger'>([^<]+)</div>~", $resp, $err)) {
-        $msg = trim(strip_tags($err[1]));
-
-        if (stripos($msg, 'too fast') !== false) {
-            return ['status' => 'too_fast', 'msg' => $msg];
-        }
-        if (stripos($msg, 'session expired') !== false) {
-            return 'RELOGIN';
-        }
-        if (stripos($msg, 'wait') !== false) {
-            preg_match('/(\d+)\s*(second|minute|hour)/i', $msg, $mm);
-            $w = intval($mm[1] ?? 300);
+    if (preg_match('~alert-danger[^>]*>([^<]+)<~i', $resp, $err)) {
+        $m = trim(strip_tags($err[1]));
+        if (is_daily_limit($m)) return ['status'=>'daily_limit','msg'=>$m];
+        if (stripos($m,'too fast')!==false) return ['status'=>'too_fast','msg'=>$m];
+        if (stripos($m,'session expired')!==false) return 'RELOGIN';
+        if (stripos($m,'captcha')!==false) return ['status'=>'captcha_bad','msg'=>$m];
+        if (stripos($m,'verification')!==false) return ['status'=>'verify_bad','msg'=>$m];
+        if (stripos($m,'wait')!==false) {
+            preg_match('/(\d+)\s*(second|minute|hour)/i',$m,$mm);
+            $w = intval($mm[1]??300);
             if (isset($mm[2])) {
-                if (stripos($mm[2], 'minute') !== false) $w *= 60;
-                if (stripos($mm[2], 'hour')   !== false) $w *= 3600;
+                if (stripos($mm[2],'minute')!==false) $w*=60;
+                if (stripos($mm[2],'hour')!==false) $w*=3600;
             }
-            return ['status' => 'cooldown', 'wait' => $w, 'msg' => $msg];
+            return ['status'=>'cooldown','wait'=>$w,'msg'=>$m];
         }
-        if (stripos($msg, 'limit') !== false || stripos($msg, 'daily') !== false) {
-            return ['status' => 'server_limit', 'msg' => $msg];
-        }
-        if (stripos($msg, 'banned') !== false || stripos($msg, 'suspend') !== false) {
-            return ['status' => 'banned', 'msg' => $msg];
-        }
-        return ['status' => 'failed', 'msg' => $msg];
+        if (stripos($m,'banned')!==false || stripos($m,'suspend')!==false) return ['status'=>'banned','msg'=>$m];
+        return ['status'=>'failed','msg'=>$m];
     }
-    if (preg_match("~<div class='alert alert-warning'>([^<]+)</div>~", $resp, $warn)) {
-        return ['status' => 'failed', 'msg' => trim(strip_tags($warn[1]))];
+    if (strpos($resp,'countdown_timer')!==false) {
+        $wait = 300;
+        if (preg_match('/data-left="(\d+)"/',$resp,$cd)) $wait = intval($cd[1]);
+        return ['status'=>'success','msg'=>'claimed','wait'=>$wait];
     }
-    if (strpos($resp, 'countdown_timer') !== false && strpos($resp, 'id="claimForm"') === false) {
-        preg_match('/var secondsLeft = (\d+);/', $resp, $cd);
-        return ['status' => 'cooldown', 'wait' => intval($cd[1] ?? 300)];
+    if (stripos($resp,'token mismatch')!==false || (stripos($resp,'csrf')!==false && stripos($resp,'invalid')!==false)) {
+        return ['status'=>'csrf_retry','msg'=>'csrf'];
     }
-    if (strpos($resp, 'id="claimForm"') !== false) {
-        if (preg_match('~<div id="messageArea">(.*?)</div>~s', $resp, $ma)) {
-            $msg = trim(strip_tags($ma[1]));
-            if ($msg) return ['status' => 'failed', 'msg' => $msg];
-        }
-        return ['status' => 'failed', 'msg' => 'form muncul kembali'];
+    if (strpos($resp,'id="claimForm"')!==false) return ['status'=>'failed','msg'=>'form rejected'];
+    return ['status'=>'unknown','msg'=>"HTTP $http_code"];
+}
+
+function do_claim($apikey){
+    slog("buka faucet...",'INFO'); clear_render();
+    sleep(1);
+    $page = curl_full(host."/faucet.html","GET",[],headers_html(host."/"));
+    $h = $page['body'];
+
+    if (!is_logged_in($h)) { slog("session drop",'WARN'); clear_render(); return 'RELOGIN'; }
+
+    if (preg_match('~alert-danger[^>]*>([^<]+)<~i',$h,$e)) {
+        $em = trim(strip_tags($e[1]));
+        if (is_daily_limit($em)) return ['status'=>'daily_limit','msg'=>$em];
     }
 
-    $preview = substr(trim($resp), 0, 800);
-    return [
-        'status'  => 'unknown',
-        'msg'     => 'response tidak dikenali',
-        'preview' => $preview,
-        'len'     => strlen($resp)
+    if (strpos($h,'countdown_timer')!==false && strpos($h,'id="claimForm"')===false) {
+        if (preg_match('/data-left="(\d+)"/',$h,$cd)) return ['status'=>'cooldown','wait'=>intval($cd[1])];
+        return ['status'=>'cooldown','wait'=>300];
+    }
+
+    $csrf = extract_hidden($h,null,'csrf_token');
+    $fg_t = extract_hidden($h,null,'fg_token');
+    if (!$csrf || !$fg_t) { slog("csrf/fg_token gak ketemu",'ERR'); clear_render(); return 'PARSE_FAIL:token'; }
+
+    $fg = fg_extract($h);
+    if (!$fg) { slog("fgTransform gagal",'ERR'); clear_render(); return 'PARSE_FAIL:fg'; }
+
+    $pow = pow_extract($h);
+    if (!$pow) { slog("PoW gagal",'ERR'); clear_render(); return 'PARSE_FAIL:pow'; }
+
+    $hp = extract_honeypot($h);
+    $sc_ts = extract_hidden($h,null,'sc_ts');
+    $sc_a  = (int)extract_hidden($h,'sc_a_val');
+    $sc_b  = (int)extract_hidden($h,'sc_b_val');
+    $sc_sg = extract_hidden($h,null,'sc_sig');
+    if (!$hp || !$sc_ts || !$sc_a || !$sc_b || !$sc_sg) { slog("field gak lengkap",'ERR'); clear_render(); return 'PARSE_FAIL:fields'; }
+    $sc_r = $sc_a + $sc_b + 1234;
+
+    $cap_type=null; $cap_key=null;
+    if (strpos($h,'class="h-captcha"')!==false) { $cap_type='hcaptcha'; $cap_key="16c8fe32-6d50-4570-8f38-28748bacc5a8"; }
+    elseif (strpos($h,'class="cf-turnstile"')!==false) { $cap_type='turnstile'; $cap_key="0x4AAAAAAAV-tgu1vT_isJ5Q"; }
+
+    $post = [
+        "csrf_token"=>$csrf,"fg_token"=>$fg_t,
+        "fg_res"=>(string)$fg['result'],"fg_pow"=>(string)$pow['counter'],
+        $hp=>"","sc_ts"=>$sc_ts,"sc_a"=>(string)$sc_a,"sc_b"=>(string)$sc_b,
+        "sc_sig"=>$sc_sg,"sc_res"=>(string)$sc_r,
+        "website_hp"=>"","claim_submit"=>"",
     ];
-}
 
-// ═══════════════════════════════════════════════════════════════
-//  SETUP WIZARD
-// ═══════════════════════════════════════════════════════════════
-function setup(): array {
-    echo "\n".CYN."═══ COINADSTER SETUP ═══".RST."\n\n";
-    echo DIM."Login pakai email + password + API key Waryono.\n\n".RST;
-
-    $email = '';
-    while (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $email = read_line(YEL."Email: ".RST);
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            echo RED."  ✗ Email gak valid\n".RST;
-        }
+    if ($cap_type) {
+        slog("solve $cap_type...",'SOLVE'); clear_render();
+        $tok = solve_captcha($apikey,$cap_key,$cap_type);
+        if (strpos($tok,"ERROR_")!==false) { slog("captcha gagal",'ERR'); clear_render(); return ['status'=>'failed','msg'=>"captcha"]; }
+        $post['g-recaptcha-response']=$tok;
+        $post['h-captcha-response']=$tok;
+        $post['cf-turnstile-response']=$tok;
     }
-    $password = read_line(YEL."Password: ".RST);
-    $apikey   = read_line(YEL."Waryono API key: ".RST);
-    return ['email' => $email, 'password' => $password, 'apikey' => $apikey];
+
+    slog("submit claim...",'CLAIM'); clear_render();
+    $r = curl_full(host."/faucet.html","POST",http_build_query($post),headers_post(host."/faucet.html"),true);
+
+    return classify_response($r['body'], $r['code']);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  LIVE WAIT
-// ═══════════════════════════════════════════════════════════════
-function live_wait(int $seconds, string $label = "cooldown", string $extra = ""): void {
+function live_wait($sec,$label="wait"){
     global $STATE;
-    if ($seconds < 1) return;
-    $STATE['faucet_status'] = 'cooldown';
-
-    slog("{$label} ".fmt_dur($seconds).($extra ? " ({$extra})" : ""), 'WAIT');
-    clear_render();
-
+    if ($sec<1) return;
+    $STATE['faucet_status']='cooldown';
     $start = time();
-    while ((time() - $start) < $seconds) {
-        $left = $seconds - (time() - $start);
-        slog("{$label} ".fmt_dur($left).($extra ? " ({$extra})" : ""), 'WAIT', true);
+    while ((time()-$start) < $sec) {
+        $left = $sec - (time()-$start);
+        set_status("$label ".fmt_dur($left));
         clear_render();
         sleep(1);
     }
-    $STATE['faucet_status'] = 'ok';
+    set_status("");
+    $STATE['faucet_status']='ok';
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  MAIN
-// ═══════════════════════════════════════════════════════════════
+function stop_banner($reason,$detail=''){
+    global $STATE,$LIMIT_LOG;
+    $STATE['faucet_status']='limit';
+    set_status("");
+    clear_render();
+    $W=62; $bd=RED;
+    echo "\n".$bd."╔".str_repeat('═',$W)."╗".RST."\n";
+    echo $bd."║".RST.pad_to(" ".BOLD.RED.BOT_NAME." STOPPED".RST,$W).$bd."║".RST."\n";
+    echo $bd."╠".str_repeat('═',$W)."╣".RST."\n";
+    echo $bd."║".RST.pad_to(" ".WHT."Reason : ".YEL.$reason.RST,$W).$bd."║".RST."\n";
+    if ($detail!=='') { $d = strlen($detail)>56?substr($detail,0,56).'...':$detail; echo $bd."║".RST.pad_to(" ".DIM."Detail : ".$d.RST,$W).$bd."║".RST."\n"; }
+    echo $bd."║".RST.pad_to(" ".WHT."Claims : ".GRN.$STATE['claims'].RST,$W).$bd."║".RST."\n";
+    echo $bd."║".RST.pad_to(" ".WHT."Earned : ".GRN."+".number_format($STATE['bits_earned'],2,'.','').RST,$W).$bd."║".RST."\n";
+    echo $bd."║".RST.pad_to(" ".WHT."Runtime: ".CYN.fmt_dur(time()-$STATE['runtime_start']).RST,$W).$bd."║".RST."\n";
+    echo $bd."╚".str_repeat('═',$W)."╝".RST."\n\n";
+    @file_put_contents($LIMIT_LOG,"[".date('Y-m-d H:i:s')."] $reason | user={$STATE['user']} claims={$STATE['claims']} earned={$STATE['bits_earned']} | $detail\n",FILE_APPEND);
+}
+
+function setup(){
+    echo "\n".CYN."═══ ".BOT_NAME." SETUP ═══".RST."\n\n";
+    $email='';
+    while (!filter_var($email,FILTER_VALIDATE_EMAIL)) {
+        $email = read_line(YEL."Email: ".RST);
+        if (!filter_var($email,FILTER_VALIDATE_EMAIL)) echo RED."  ✗ invalid\n".RST;
+    }
+    $pass = read_line(YEL."Password: ".RST);
+    $key  = read_line(YEL."Waryono key: ".RST);
+    return ['email'=>$email,'password'=>$pass,'apikey'=>$key];
+}
+
 clear_render();
 
-$config = load_config();
-if ($config) {
+$cfg = load_config();
+if ($cfg) {
     echo GRN."  ✓ Config found\n".RST;
-    echo DIM."    Email  : {$config['email']}\n".RST;
-    echo DIM."    APIKey : ".substr($config['apikey'], 0, 12)."...\n\n".RST;
-    $ans = read_line(YEL."  Use saved? (y/n): ".RST);
-    if (strtolower($ans) === 'n') $config = setup();
-} else {
-    $config = setup();
-}
-save_config($config);
+    echo DIM."    Email: {$cfg['email']}\n".RST;
+    echo DIM."    Key  : ".substr($cfg['apikey'],0,12)."...\n\n".RST;
+    if (strtolower(read_line(YEL."  Use saved? (y/n): ".RST))==='n') $cfg = setup();
+} else { $cfg = setup(); }
+save_config($cfg);
 
-$apikey   = $config['apikey'];
-$email    = $config['email'];
-$password = $config['password'];
-
+$apikey   = $cfg['apikey'];
+$email    = $cfg['email'];
+$password = $cfg['password'];
 $STATE['email'] = $email;
 
-/* Initial login check */
-$state = get_balance();
-if (!$state['html'] || !is_logged_in($state['html'])) {
-    do_login($apikey, $email, $password);
+$r = curl_full(host."/","GET",[],headers_html());
+$st_html = $r['body'];
+if (!is_logged_in($st_html)) {
+    do_login($apikey,$email,$password);
     sleep(2);
-    $state = get_balance();
-    if (!is_logged_in($state['html'])) {
-        slog("login selesai tapi dashboard tidak bisa diakses. Keluar.", 'ERR');
-        clear_render();
-        exit;
-    }
+    $r = curl_full(host."/","GET",[],headers_html());
+    $st_html = $r['body'];
+    if (!is_logged_in($st_html)) { slog("dashboard gak bisa diakses",'ERR'); clear_render(); exit; }
 }
 
-preg_match('~<div class="cx-uname">([^<]+)</div>~', $state['html'], $un);
-$STATE['user']    = trim($un[1] ?? 'unknown');
-$STATE['bits']    = $state['bits']    ?? '0';
-$STATE['credits'] = $state['credits'] ?? '0';
+preg_match('~<div class="cx-uname">([^<]+)</div>~',$st_html,$un);
+$STATE['user'] = trim($un[1] ?? 'unknown');
+$b = parse_bits($st_html);
+$STATE['bits_start'] = $b ?? 0.0;
 $STATE['faucet_status'] = 'ok';
 
-slog("session OK as {$STATE['user']}", 'AUTH');
+slog("session OK as {$STATE['user']} (start ".number_format($STATE['bits_start'],2,'.','')." bits)",'AUTH');
 clear_render();
 
-/* ================= LOOP ================= */
-$fail_streak = 0;
+$fail = 0; $csrf_r = 0;
 
 while (true) {
-    if ($STATE['max_runtime'] > 0 && (time() - $STATE['runtime_start']) >= $STATE['max_runtime']) {
-        slog("Max runtime reached", 'WARN'); clear_render(); break;
-    }
-    if ($STATE['failures'] >= $STATE['max_failures']) {
-        slog("Max failures reached ({$STATE['failures']})", 'ERR'); clear_render(); break;
-    }
-
+    if ($STATE['failures'] >= $STATE['max_failures']) { slog("max failures",'ERR'); clear_render(); break; }
     $STATE['solve_attempt'] = 0;
-    $res = do_faucet_claim($apikey);
+    $res = do_claim($apikey);
 
     if ($res === 'RELOGIN') {
         @unlink($GLOBALS['COOKIE_FILE']);
-        sleep(2);
-        do_login($apikey, $email, $password);
+        do_login($apikey,$email,$password);
         sleep(3);
         continue;
     }
-    if (is_string($res) && strpos($res, 'PARSE_FAIL') === 0) {
-        $fail_streak++;
-        $STATE['failures']++;
-        slog("parse form gagal: $res (streak: $fail_streak)", 'ERR');
-        clear_render();
-        if ($fail_streak >= 2) {
-            slog("2x gagal parse, re-login...", 'WARN');
-            clear_render();
-            @unlink($GLOBALS['COOKIE_FILE']);
-            sleep(2);
-            do_login($apikey, $email, $password);
-            $fail_streak = 0;
-        }
-        sleep(10);
+    if (is_string($res) && strpos($res,'PARSE_FAIL')===0) {
+        $fail++; $STATE['failures']++;
+        slog("parse fail ($fail/2): ".substr($res,11),'ERR'); clear_render();
+        if ($fail>=2) { @unlink($GLOBALS['COOKIE_FILE']); do_login($apikey,$email,$password); $fail=0; }
+        sleep(5);
         continue;
     }
-    if (!is_array($res)) {
-        $STATE['failures']++;
-        slog("response tidak valid", 'ERR');
-        clear_render();
-        sleep(10);
-        continue;
-    }
+    if (!is_array($res)) { $STATE['failures']++; sleep(5); continue; }
 
     switch ($res['status']) {
         case 'success':
-            $fail_streak = 0;
-            $STATE['failures'] = 0;
+            $fail=0; $csrf_r=0; $STATE['failures']=0;
             $STATE['claims']++;
-            sleep(1);
-            $state = get_balance();
-            $STATE['bits']    = $state['bits']    ?? $STATE['bits'];
-            $STATE['credits'] = $state['credits'] ?? $STATE['credits'];
-
-            slog($res['msg']." | bits: ".$STATE['bits'], 'OK');
+            $STATE['bits_earned'] += REWARD;
+            slog("CLAIMED +".number_format(REWARD,2,'.','')." | total ".number_format($STATE['bits_start']+$STATE['bits_earned'],2,'.',''),'OK');
             clear_render();
-
-            $cd = 300;
-            $info_html = curl_request(host."/", "GET", [], headers_html());
-            if (preg_match('/var secondsLeft = (\d+);/', $info_html, $im)) {
-                $server_cd = intval($im[1]);
-                if ($server_cd > 0) $cd = $server_cd;
-            }
-            if ($cd < 30) $cd = 30;
-            live_wait($cd, "next claim");
+            $w = $res['wait'] ?? (rand(300,360) + rand(-15,15));
+            if ($w<280) $w=280;
+            live_wait($w,"next claim");
             break;
+
+        case 'daily_limit':
+            slog("DAILY LIMIT",'LIMIT'); clear_render();
+            stop_banner('Daily claim limit',$res['msg']);
+            exit(0);
+
+        case 'csrf_retry':
+            $csrf_r++;
+            if ($csrf_r>3) { $STATE['failures']++; $fail++; $csrf_r=0; @unlink($GLOBALS['COOKIE_FILE']); do_login($apikey,$email,$password); }
+            else { sleep(2); }
+            continue 2;
 
         case 'too_fast':
-            if (($res['msg'] ?? '') === 'csrf_retry') {
-                slog("retry karena CSRF expired...", 'WARN');
-                clear_render();
-                sleep(2);
-                continue 2;
-            }
-            slog("server bilang terlalu cepat, retry 5s...", 'WARN');
-            clear_render();
-            sleep(5);
-            $retry = do_faucet_claim($apikey);
-            if (is_array($retry) && $retry['status'] === 'success') {
-                $fail_streak = 0;
-                $STATE['claims']++;
-                sleep(1);
-                $state = get_balance();
-                $STATE['bits']    = $state['bits']    ?? $STATE['bits'];
-                $STATE['credits'] = $state['credits'] ?? $STATE['credits'];
-                slog($retry['msg']." | bits: ".$STATE['bits'], 'OK');
-                clear_render();
-                live_wait(300, "next claim");
-            } else {
-                slog("retry gagal, tunggu 30s...", 'WARN');
-                clear_render();
-                sleep(30);
-            }
-            break;
+            sleep(5); continue 2;
+
+        case 'captcha_bad':
+        case 'verify_bad':
+            $STATE['solve_attempt']++;
+            if ($STATE['solve_attempt'] >= $STATE['max_solve']) { $STATE['failures']++; $fail++; sleep(20); }
+            else sleep(4);
+            continue 2;
 
         case 'cooldown':
-            $msg = $res['msg'] ?? '';
-            $wait = (int)($res['wait'] ?? 300);
-            live_wait($wait, "cooldown", $msg);
+            live_wait((int)($res['wait']??300),"cooldown");
             break;
 
         case 'server_limit':
-            slog("SERVER LIMIT: ".$res['msg'], 'WARN');
-            clear_render();
-            $STATE['faucet_status'] = 'suspect';
-            live_wait(1800, "server limit cooldown");
-            @unlink($GLOBALS['COOKIE_FILE']);
-            sleep(2);
-            do_login($apikey, $email, $password);
-            $fail_streak = 0;
-            break;
+            slog("SERVER LIMIT",'LIMIT'); clear_render();
+            stop_banner('Server limit',$res['msg']);
+            exit(0);
 
         case 'banned':
-            slog("BANNED/SUSPENDED: ".$res['msg'], 'ERR');
-            $STATE['faucet_status'] = 'dead';
-            clear_render();
-            slog("Bot stop — akun kena banned/suspend.", 'ERR');
-            clear_render();
-            exit;
+            slog("BANNED",'ERR'); clear_render();
+            stop_banner('Account banned',$res['msg']);
+            exit(1);
 
         case 'failed':
-            $STATE['failures']++;
-            $fail_streak++;
-            slog("claim gagal: ".($res['msg'] ?? ''), 'ERR');
-            clear_render();
-            if ($fail_streak >= 2) {
-                slog("2x gagal, re-login...", 'WARN');
-                clear_render();
-                @unlink($GLOBALS['COOKIE_FILE']);
-                sleep(2);
-                do_login($apikey, $email, $password);
-                $fail_streak = 0;
-            }
+            $STATE['failures']++; $fail++;
+            slog("failed: ".($res['msg']??''),'ERR'); clear_render();
+            if ($fail>=2) { @unlink($GLOBALS['COOKIE_FILE']); do_login($apikey,$email,$password); $fail=0; }
             sleep(10);
             break;
 
-        case 'unknown':
         default:
-            $STATE['failures']++;
-            $fail_streak++;
-            slog("response tidak dikenali (".($res['len'] ?? 0)." bytes)", 'WARN');
-            if (DEBUG) {
-                $prev = substr($res['preview'] ?? '(kosong)', 0, 80);
-                slog("preview: ".$prev, 'DEBUG');
-            }
-            clear_render();
-            if ($fail_streak >= 2) {
-                slog("2x unknown, re-login...", 'WARN');
-                clear_render();
-                @unlink($GLOBALS['COOKIE_FILE']);
-                sleep(2);
-                do_login($apikey, $email, $password);
-                $fail_streak = 0;
-            }
+            $STATE['failures']++; $fail++;
+            slog("unknown: ".($res['msg']??''),'WARN'); clear_render();
+            if ($fail>=2) { @unlink($GLOBALS['COOKIE_FILE']); do_login($apikey,$email,$password); $fail=0; }
             sleep(10);
             break;
     }
 }
 
 clear_render();
-echo "\n".CYN."  ◉ Bot stopped.\n".RST;
-echo DIM."  Claims: {$STATE['claims']}  |  Failures: {$STATE['failures']}  |  Bits: {$STATE['bits']}\n\n".RST;
+echo "\n".CYN."  ◉ ".BOT_NAME." stopped. Claims: {$STATE['claims']} | Earned: +".number_format($STATE['bits_earned'],2,'.','')."\n\n".RST;
