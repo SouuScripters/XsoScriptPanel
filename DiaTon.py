@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 ═══════════════════════════════════════════════════════════════
-  DiaTON Auto Farmer — Single Account v1.3
-  - Provider di-shuffle biar gantian tiap round
-  - Error apapun → skip provider itu, lanjut yg lain
-  - Semua limit → stop otomatis
-  - Adsgram auto-skip (webhook)
-  - Menu slim: Start / Config / Exit
+  DiaTON Auto Farmer — Single Account v1.8
+  - ADS ONLY.
+  - Deteksi waktu cooldown dari response (retry_after/cooldown/next_at)
+  - Tunggu PERSIS segitu, retry.
+  - Kalau semua provider limit/abis → BOT STOP TOTAL.
 ═══════════════════════════════════════════════════════════════
   INSTALL:  pip install requests
   RUN:      python diaton_single.py
@@ -44,16 +43,16 @@ UA = ("Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36 "
       "Telegram-Android/12.9.2 (Samsung SM-A556E; Android 16; SDK 36; HIGH)")
 
-# Provider via API ad-view (bisa di-farm)
-PROVIDERS = ["monetag","adexium","onclicka","towerads","tads_fullscreen","tads_static"]
-
-# Webhook-based → skip dari awal
-SKIP_PROVIDERS = {"adsgram"}
+PROVIDERS = [
+    "adsgram", "monetag", "adexium", "onclicka",
+    "gigapub", "tads_fullscreen", "tads_static",
+]
 
 AD_DELAY_MIN = 2.5
 AD_DELAY_MAX = 5.0
-TASK_BETWEEN = 4
-COOLDOWN     = 3600
+MAX_ROUNDS   = 40
+DEFAULT_CD   = 60       # fallback kalau response gak kasih waktu CD
+MAX_WAIT     = 3600     # safety cap 1 jam
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "diaton_config.json")
@@ -68,17 +67,17 @@ STATE = {
     'balance_dton':0, 'balance_gram':0.0, 'earned_total':0,
     'ads_done':0, 'ads_failed':0,
     'ad_current':'-', 'ad_left':0,
-    'tasks_done':0, 'tasks_failed':0,
-    'cooldown_end':0, 'runtime_start': time.time(),
+    'cd_wait_until':0, 'cd_detected':0,
+    'runtime_start': time.time(),
     'logs':[], 'menu_hint':'idle',
 }
 
 TAG_MAP = {
     'OK':GRN+"● OK    "+RST, 'ERR':RED+"● ERR   "+RST, 'WARN':YEL+"● WARN  "+RST,
-    'INFO':GRY+"● INFO  "+RST, 'AD':MAG+"◉ AD    "+RST, 'VIEW':CYN+"◉ VIEW  "+RST,
-    'WAIT':ORG+"◉ WAIT  "+RST, 'TASK':VIO+"◉ TASK  "+RST,
-    'TG':MAG+"◉ TG    "+RST, 'MENU':VIO+"◉ MENU  "+RST, 'RETRY':ORG+"◉ RETRY "+RST,
-    'AUTH':GRN+"● AUTH  "+RST,
+    'INFO':GRY+"● INFO  "+RST, 'AD':MAG+"◉ AD    "+RST,
+    'WAIT':ORG+"◉ WAIT  "+RST, 'CD':CYN+"◉ CD    "+RST,
+    'RETRY':ORG+"◉ RETRY "+RST, 'AUTH':GRN+"● AUTH  "+RST,
+    'STOP':RED+"■ STOP  "+RST,
 }
 
 def slog(msg, level='INFO'):
@@ -102,13 +101,14 @@ def render():
     bot=bd+"╚"+"═"*W+"╝"+RST
 
     print("\n"+top)
-    print(line(BOLD+WHT+"DIATON AUTO FARMER"+RST))
-    print(line(DIM+"──────── SouuEngine v1.3 ────────"+RST))
+    print(line(BOLD+WHT+"DIATON ADS FARMER"+RST))
+    print(line(DIM+"──────── SouuEngine v1.8 ────────"+RST))
     print(mid)
 
     ph=STATE['phase'].upper(); phc=GRY
     if STATE['phase']=='running': phc=GRN
     elif STATE['phase']=='cooldown': phc=ORG
+    elif STATE['phase']=='stopped': phc=RED
 
     print(line(VIO+"RUN"+RST))
     print(line(f"├─ Phase    : {phc}{ph}{RST}"))
@@ -130,18 +130,18 @@ def render():
     print(line(f"└─ Failed   : {RED}{STATE['ads_failed']}{RST}"))
     print(mid)
 
-    print(line(VIO+"TASKS"+RST))
-    print(line(f"├─ Done     : {GRN}{STATE['tasks_done']}{RST}"))
-    print(line(f"└─ Failed   : {RED}{STATE['tasks_failed']}{RST}"))
-    print(mid)
+    if STATE['cd_detected']>0:
+        print(line(VIO+"COOLDOWN"+RST))
+        print(line(f"├─ Detected : {CYN}{STATE['cd_detected']}s{RST}"))
+        if STATE['phase']=='cooldown' and STATE['cd_wait_until']>time.time():
+            print(line(f"└─ Remaining: {ORG}{fmt_dur(STATE['cd_wait_until']-time.time())}{RST}"))
+        else:
+            print(line(f"└─ Remaining: {DIM}-{RST}"))
+        print(mid)
 
     run = int(time.time()-STATE['runtime_start'])
     print(line(VIO+"SYSTEM"+RST))
-    print(line(f"├─ Runtime  : {CYN}{fmt_dur(run)}{RST}"))
-    if STATE['phase']=='cooldown' and STATE['cooldown_end']>time.time():
-        print(line(f"└─ Cooldown : {ORG}{fmt_dur(STATE['cooldown_end']-time.time())}{RST}"))
-    else:
-        print(line(f"└─ Cooldown : {DIM}-{RST}"))
+    print(line(f"└─ Runtime  : {CYN}{fmt_dur(run)}{RST}"))
     print(mid)
 
     if not STATE['logs']:
@@ -210,9 +210,7 @@ def _req(method, path, init_data, payload=None, timeout=30):
 
 def api_me(id_): return _req("GET","/api/user/me",id_)
 def api_earn_info(id_): return _req("GET","/api/earn/info",id_)
-def api_tasks(id_): return _req("GET","/api/tasks/available",id_)
 def api_ad_view(id_,prov): return _req("POST","/api/earn/ad-view",id_,{"provider":prov})
-def api_task_done(id_,tid): return _req("POST",f"/api/tasks/complete/{tid}",id_,{})
 
 # ═══════════════════════════════════════════════════════════════
 #  SPINNER
@@ -224,6 +222,69 @@ def tmr(sec,label=""):
         sys.stdout.write(f"\r   {ORG}{spin[i%len(spin)]}{RST} {fmt_dur(rem)} {DIM}{label}{RST} ")
         sys.stdout.flush(); i+=1; time.sleep(0.08)
     sys.stdout.write("\r"+" "*60+"\r")
+
+def countdown(sec,label="cooldown"):
+    spin=['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏']; i=0
+    end=time.time()+sec
+    while time.time()<end:
+        rem=int(end-time.time())
+        sys.stdout.write(f"\r   {ORG}{spin[i%len(spin)]}{RST} {label} {fmt_dur(rem)}   ")
+        sys.stdout.flush(); i+=1; time.sleep(0.2)
+    sys.stdout.write("\r"+" "*60+"\r")
+
+# ═══════════════════════════════════════════════════════════════
+#  COOLDOWN DETECTION
+# ═══════════════════════════════════════════════════════════════
+def detect_cd(response):
+    """
+    Parse waktu cooldown dari response error.
+    Return detik (int) atau None kalau gak ada info.
+    Cek field umum: retry_after, cooldown, wait, next_at, next_available,
+                    cooldown_seconds, reset_in, reset_after
+    Juga cek dari message string: 'wait X seconds', 'cooldown Xs', 'X seconds'
+    """
+    if not response: return None
+
+    # 1) field numerik
+    for key in ('retry_after','cooldown','cooldown_seconds','wait','wait_seconds',
+                'reset_in','reset_after','next_in'):
+        v = response.get(key)
+        if isinstance(v,(int,float)) and v > 0:
+            return int(v)
+
+    # 2) next_at / next_available → timestamp
+    for key in ('next_at','next_available','reset_at'):
+        v = response.get(key)
+        if isinstance(v,(int,float)) and v > time.time():
+            return int(v - time.time())
+        if isinstance(v,str):
+            try:
+                # ISO format
+                dt = datetime.fromisoformat(v.replace('Z','+00:00'))
+                delta = (dt.timestamp() - time.time())
+                if delta > 0: return int(delta)
+            except Exception:
+                pass
+
+    # 3) cek nested (data, error obj)
+    for sub in ('data','error','detail'):
+        if isinstance(response.get(sub),dict):
+            r = detect_cd(response[sub])
+            if r: return r
+
+    # 4) parse dari string message
+    msg = str(response.get('message') or response.get('detail')
+              or response.get('error') or '')
+    if msg:
+        # pola: "wait 45 seconds", "cooldown 30s", "in 60s", "retry in 120 sec"
+        m = re.search(r'(\d+)\s*(?:sec|second|s\b)', msg.lower())
+        if m:
+            return int(m.group(1))
+        m = re.search(r'(\d+)\s*(?:minute|min\b)', msg.lower())
+        if m:
+            return int(m.group(1)) * 60
+
+    return None
 
 # ═══════════════════════════════════════════════════════════════
 #  BOOTSTRAP
@@ -240,10 +301,20 @@ def bootstrap(init_data):
     }
 
 # ═══════════════════════════════════════════════════════════════
-#  ADS ENGINE — shuffle + skip error
+#  ADS ENGINE
 # ═══════════════════════════════════════════════════════════════
+def _classify_err(err_low):
+    if any(k in err_low for k in ('cooldown','wait','rate','too soon','too_soon')):
+        return 'cooldown'
+    if any(k in err_low for k in ('limit','daily','exceeded','max','quota')):
+        return 'limit'
+    if any(k in err_low for k in ('invalid ad provider','webhook','not found','unknown provider')):
+        return 'invalid'
+    return 'generic'
+
 def run_ads(init_data, info):
     done=0; fail=0
+    max_cd = 0
     STATE['name']=info['name']; STATE['username']=info['username']
     STATE['tg_id']=info['tg_id']
     STATE['balance_dton']=info['balance_dton']
@@ -251,46 +322,39 @@ def run_ads(init_data, info):
 
     ei = api_earn_info(init_data) or {}
     ads_left_raw = ei.get('ads_left',{}) or {}
-    reward = int(ei.get('config',{}).get('ad_reward',5))
+    reward = int(ei.get('config',{}).get('ad_reward',10))
 
-    # ambil left, exclude skip permanen
-    ads_left = {p:int(ads_left_raw.get(p,0)) for p in PROVIDERS
-                if p in ads_left_raw and p not in SKIP_PROVIDERS}
+    ads_left = {p:int(ads_left_raw.get(p,0)) for p in PROVIDERS if p in ads_left_raw}
     total_left = sum(ads_left.values())
     slog(f"{info['name']} — {total_left} ads pending (reward {reward}/ad)", 'AUTH')
     clear_render()
 
-    skipped = [p for p in ads_left_raw if p in SKIP_PROVIDERS]
-    if skipped:
-        slog(f"skip webhook-based: {', '.join(skipped)}", 'INFO')
-        clear_render()
-
-    # kalo semua kosong dari awal → stop
     if total_left == 0:
-        slog("semua provider udah limit — stop farming", 'OK')
+        slog("semua provider 0 — semua habis, BOT STOP", 'STOP')
         clear_render()
         STATE['ad_current']='-'; STATE['ad_left']=0
-        return {'ads_done':0,'ads_failed':0,'all_limit':True}
+        return {'ads_done':0,'ads_failed':0,'all_limit':True,'cd_seconds':0}
 
-    # pool provider yang masih ada sisa
-    pool = [p for p,left in ads_left.items() if left > 0]
+    skipped = set()
     round_num = 0
 
-    # loop sampe pool kosong (semua limit / stuck)
-    while pool:
+    while round_num < MAX_ROUNDS:
         round_num += 1
-        random.shuffle(pool)
+        active = [p for p,left in ads_left.items() if left > 0 and p not in skipped]
+        if not active:
+            break
 
-        still_has_left = []
+        random.shuffle(active)
         anyone_progress = False
 
-        for prov in pool:
+        for prov in active:
             left = ads_left.get(prov, 0)
-            if left <= 0:
+            if left <= 0 or prov in skipped:
                 continue
 
             STATE['ad_current']=prov; STATE['ad_left']=left
             clear_render()
+
             r = api_ad_view(init_data, prov)
 
             if r and r.get('status')=='success':
@@ -304,47 +368,44 @@ def run_ads(init_data, info):
                 slog(f"{prov}: +{got} DTON (sisa {left})", 'AD')
                 clear_render()
                 anyone_progress=True
-                if left > 0:
-                    still_has_left.append(prov)
             else:
                 err = ((r or {}).get('message')
                        or (r or {}).get('detail')
                        or (r or {}).get('error')
                        or str(r))
                 err_low = str(err).lower()
+                cat = _classify_err(err_low)
 
-                # webhook / invalid → skip permanen
-                if 'invalid ad provider' in err_low or 'webhook' in err_low:
-                    SKIP_PROVIDERS.add(prov)
-                    slog(f"{prov} → webhook-based, skip permanen", 'WARN')
+                if cat == 'cooldown':
+                    cd = detect_cd(r) or DEFAULT_CD
+                    if cd > max_cd: max_cd = cd
+                    slog(f"{prov} cooldown {cd}s — skip", 'CD')
                     clear_render()
+                    fail+=1; STATE['ads_failed']=fail
                     continue
 
-                # cooldown / rate limit → skip provider ini, coba lagi next round
-                if any(k in err_low for k in ('cooldown','wait','rate','too soon','too_soon')):
-                    slog(f"{prov} cooldown — skip, lanjut provider lain", 'WAIT')
+                if cat == 'limit':
+                    slog(f"{prov} limit — set 0", 'INFO')
                     clear_render()
-                    fail += 1; STATE['ads_failed']=fail
-                    if left > 0:
-                        still_has_left.append(prov)
+                    ads_left[prov]=0
+                    skipped.add(prov)
                     continue
 
-                # error lain → skip juga, tetep coba lagi next round
+                if cat == 'invalid':
+                    slog(f"{prov} invalid — skip permanen", 'WARN')
+                    clear_render()
+                    ads_left[prov]=0
+                    skipped.add(prov)
+                    continue
+
                 fail+=1; STATE['ads_failed']=fail
-                slog(f"{prov} error, skip → {err}", 'ERR')
+                slog(f"{prov} err, skip → {str(err)[:40]}", 'ERR')
                 clear_render()
-                if left > 0:
-                    still_has_left.append(prov)
 
-            # jeda antar ad
             tmr(random.uniform(AD_DELAY_MIN,AD_DELAY_MAX), "next")
 
-        # update pool buat round berikutnya (unique)
-        pool = list(set(still_has_left))
-
-        # kalo gak ada progress sama sekali → break (semua stuck / limit)
         if not anyone_progress:
-            slog("gak ada progress — semua provider stuck/limit, stop", 'WARN')
+            slog(f"gak ada progress — stop round", 'WARN')
             clear_render()
             break
 
@@ -355,39 +416,18 @@ def run_ads(init_data, info):
     clear_render()
 
     STATE['ad_current']='-'; STATE['ad_left']=0
-    remaining = sum(ads_left.values())
-    return {'ads_done':done,'ads_failed':fail,'all_limit':remaining==0}
+    remaining = sum(v for k,v in ads_left.items() if k not in skipped)
+
+    return {
+        'ads_done':done,'ads_failed':fail,
+        'all_limit': remaining==0,
+        'cd_seconds': max_cd,
+    }
 
 # ═══════════════════════════════════════════════════════════════
-#  TASKS
+#  MAIN LOOP
 # ═══════════════════════════════════════════════════════════════
-def run_tasks(init_data):
-    tasks = api_tasks(init_data)
-    if not isinstance(tasks, list): return {'done':0,'failed':0}
-    pending=[t for t in tasks if isinstance(t,dict) and t.get('user_status',0)==0]
-    done=0; fail=0
-    STATE['tasks_done']=0; STATE['tasks_failed']=0
-
-    for t in pending:
-        tid=t.get('id'); title=t.get('title','?')
-        if isinstance(tid,str) and tid.startswith('partner_'): continue
-        slog(f"task #{tid} — {title}", 'TASK'); clear_render()
-        r = api_task_done(init_data, tid)
-        if r and (r.get('status')=='success' or r.get('ok')):
-            done+=1; STATE['tasks_done']=done
-            slog(f"task #{tid} OK", 'OK')
-        else:
-            fail+=1; STATE['tasks_failed']=fail
-            msg=((r or {}).get('message') or (r or {}).get('detail')
-                 or (r or {}).get('error') or 'fail')
-            slog(f"task #{tid} gagal: {msg}", 'ERR')
-        clear_render(); time.sleep(TASK_BETWEEN)
-    return {'done':done,'failed':fail}
-
-# ═══════════════════════════════════════════════════════════════
-#  MAIN LOOP — Start All Farming
-# ═══════════════════════════════════════════════════════════════
-def start_all_farming():
+def start_ads_farming():
     init_data = get_initdata()
     if not init_data:
         slog("initData belum di-set (menu 2)", 'WARN'); return
@@ -409,27 +449,42 @@ def start_all_farming():
         slog(f"ads selesai: {r['ads_done']} ok / {r['ads_failed']} gagal", 'OK')
         clear_render()
 
+        # ── SEMUA HABIS / LIMIT → BOT STOP TOTAL
         if r.get('all_limit'):
-            slog("semua provider limit — skip tasks", 'OK')
+            slog("SEMUA PROVIDER LIMIT/HABIS — BOT STOP", 'STOP')
             clear_render()
-        else:
-            tr = run_tasks(init_data)
-            slog(f"tasks: {tr['done']} ok / {tr['failed']} gagal", 'OK')
+            STATE['phase']='stopped'
+            STATE['menu_hint']='STOPPED — semua limit'
+            print(f"\n{RED}╔{'═'*62}╗{RST}")
+            print(f"{RED}║{RST} {BOLD}{RED}SEMUA PROVIDER SUDAH LIMIT/HABIS{RST}".ljust(72)+f"{RED}║{RST}")
+            print(f"{RED}║{RST} {DIM}Bot berhenti. Tekan Enter buat balik ke menu.{RST}".ljust(72)+f"{RED}║{RST}")
+            print(f"{RED}╚{'═'*62}╝{RST}\n")
+            input()
+            STATE['phase']='idle'
+            return
+
+        # ── ADA COOLDOWN TERDETEKSI → tunggu PERSIS segitu
+        cd = r.get('cd_seconds') or 0
+        if cd > 0:
+            cd = min(cd, MAX_WAIT)
+            STATE['cd_detected']=cd
+            STATE['phase']='cooldown'
+            STATE['cd_wait_until']=time.time()+cd
+            STATE['menu_hint']=f'wait {cd}s (detected)'
+            slog(f"detected cooldown {cd}s — nunggu persis", 'CD')
             clear_render()
 
-        wait = COOLDOWN
-        STATE['phase']='cooldown'
-        STATE['cooldown_end']=time.time()+wait
-        STATE['menu_hint']=f'cooldown {fmt_dur(wait)}'
-        slog(f"cooldown {fmt_dur(wait)} — nunggu cycle berikutnya", 'WAIT')
+            countdown(cd, f"cd {cd}s")
+            STATE['phase']='running'
+            STATE['cd_detected']=0
+            continue
+
+        # ── gak ada CD tapi juga gak limit? → fallback pendek
+        slog("gak ada CD terdeteksi — retry 60s", 'WAIT')
         clear_render()
-
-        spin=['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏']; i=0
-        while time.time()<STATE['cooldown_end']:
-            rem=int(STATE['cooldown_end']-time.time())
-            sys.stdout.write(f"\r   {ORG}{spin[i%len(spin)]}{RST} cooldown {fmt_dur(rem)}   ")
-            sys.stdout.flush(); i+=1; time.sleep(0.2)
-        sys.stdout.write("\r"+" "*50+"\r")
+        STATE['phase']='cooldown'
+        STATE['cd_wait_until']=time.time()+DEFAULT_CD
+        countdown(DEFAULT_CD, "retry 60s")
         STATE['phase']='running'
 
 # ═══════════════════════════════════════════════════════════════
@@ -488,7 +543,7 @@ def show_menu():
     print(f"{CYN}╚{'═'*62}╝{RST}")
 
     print(f"\n{CYN}═══ MENU ═══{RST}")
-    print(f"  {YEL}1{RST}) {GRN}Start All Farming{RST} {DIM}(ads + tasks, loop 1h){RST}")
+    print(f"  {YEL}1{RST}) {GRN}Start Ads Farming{RST} {DIM}(detect CD, auto-stop){RST}")
     print(f"  {YEL}2{RST}) {CYN}Config initData{RST}")
     print(f"  {YEL}0{RST}) Exit\n")
 
@@ -511,14 +566,14 @@ def main():
             STATE['balance_gram']=info['balance_gram']
 
     clear_render()
-    slog("SouuEngine siap", 'OK'); clear_render()
+    slog("SouuEngine siap (detect CD + auto-stop)", 'OK'); clear_render()
 
     while True:
         show_menu()
         c = ask("Pilih> ")
 
         if c == '1':
-            start_all_farming()
+            start_ads_farming()
         elif c == '2':
             menu_config()
         elif c == '0':
