@@ -149,9 +149,9 @@
           "runner": "php"
         },
         "24": {
-          "label": "Coming Soon 🔜",
-          "file": "",
-          "runner": ""
+          "label": "Test 🟡",
+          "file": "cryptoAdpay.js",
+          "runner": "Node"
         },
         "25": {
           "label": "Coming Soon 🔜",
