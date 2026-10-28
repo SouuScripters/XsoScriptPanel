@@ -149,7 +149,7 @@
           "runner": "php"
         },
         "24": {
-          "label": "Test 🟡",
+          "label": "CryptoAdpay 🟢",
           "file": "cryptoAdpay.js",
           "runner": "Node"
         },
