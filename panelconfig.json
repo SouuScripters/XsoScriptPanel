@@ -154,9 +154,9 @@
           "runner": "Node"
         },
         "25": {
-          "label": "Coming Soon 🔜",
-          "file": "",
-          "runner": ""
+          "label": "RollerCoin 🟢",
+          "file": "RollerCoin.js",
+          "runner": "node"
         },
         "26": {
           "label": "Coming Soon 🔜",
