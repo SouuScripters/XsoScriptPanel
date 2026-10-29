@@ -39,7 +39,7 @@
       "name": "Apikey ",
       "items": {
         "1": {
-          "label": "LightQuest 🟢",
+          "label": "LightQuest 🔴",
           "file": "light.php",
           "runner": "php"
         },
@@ -154,7 +154,7 @@
           "runner": "php"
         },
         "24": {
-          "label": "CryptoAdpay 🟢",
+          "label": "CryptoAdpay 🔴",
           "file": "cryptoAdpay.js",
           "runner": "Node"
         },
