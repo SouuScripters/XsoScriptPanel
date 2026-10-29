@@ -1,1 +1,880 @@
-const a0_0xb5d71e=a0_0x57ba,a0_0x509b1a=a0_0x57ba;(function(_0x4989ec,_0x551ddf){const _0x4513f0=a0_0x57ba,_0x371deb=a0_0x57ba,_0x31a07c=_0x4989ec();while(!![]){try{const _0x3b1b2c=parseInt(_0x4513f0(0x296))/0x1*(parseInt(_0x4513f0(0x2ca))/0x2)+parseInt(_0x371deb(0x13c))/0x3+-parseInt(_0x371deb(0x2d2))/0x4+-parseInt(_0x371deb(0x1a2))/0x5*(-parseInt(_0x4513f0(0x18d))/0x6)+parseInt(_0x371deb(0x1bc))/0x7+parseInt(_0x4513f0(0x1e9))/0x8+-parseInt(_0x4513f0(0x1e3))/0x9*(parseInt(_0x371deb(0x16c))/0xa);if(_0x3b1b2c===_0x551ddf)break;else _0x31a07c['push'](_0x31a07c['shift']());}catch(_0x1f0046){_0x31a07c['push'](_0x31a07c['shift']());}}}(a0_0x7603,0xd98f7));const fs=require('fs'),path=require(a0_0xb5d71e(0x158)),os=require('os'),readline=require('readline'),crypto=require(a0_0xb5d71e(0x184)),HOST=a0_0x509b1a(0x220)+a0_0xb5d71e(0x2d5)+a0_0xb5d71e(0x2e9),DIR=__dirname,CONFIG_PATH=path['join'](DIR,a0_0xb5d71e(0x28d)+a0_0xb5d71e(0x272)),OWNER_KEY=a0_0x509b1a(0x1d1)+'etlu402',LICENSE_DAYS=0x7,OWNER_MACHINE='511287ca'+a0_0xb5d71e(0x166)+a0_0x509b1a(0x207),LICENSE_PATH=path[a0_0x509b1a(0x2aa)](os[a0_0xb5d71e(0x29b)](),a0_0xb5d71e(0x2f3)+a0_0xb5d71e(0x2d4)),SHORTLINK_POOL=[{'url':a0_0xb5d71e(0x220)+a0_0xb5d71e(0x289)+'k.co/fc9'+'ab0bc','code':a0_0x509b1a(0x183)+'-P9K4'},{'url':'https://'+a0_0xb5d71e(0x289)+a0_0x509b1a(0x1d3)+a0_0xb5d71e(0x1fb),'code':'BVR-0C8N'+a0_0x509b1a(0x176)},{'url':'https://'+'move2lin'+a0_0xb5d71e(0x1a0)+a0_0xb5d71e(0x195),'code':'HLM-5R1D'+'-Y7Q2'},{'url':'https://'+a0_0xb5d71e(0x289)+'k.co/ac3'+'b956e','code':a0_0xb5d71e(0x126)+a0_0xb5d71e(0x14b)},{'url':a0_0x509b1a(0x220)+a0_0x509b1a(0x289)+a0_0xb5d71e(0x1dc)+'faae7','code':a0_0x509b1a(0x20b)+'-K0B5'},{'url':a0_0x509b1a(0x220)+'move2lin'+a0_0x509b1a(0x17e)+a0_0xb5d71e(0x291),'code':a0_0xb5d71e(0x27a)+'-M4T1'},{'url':'https://'+'move2lin'+a0_0xb5d71e(0x1be)+'30810','code':a0_0xb5d71e(0x1ef)+a0_0xb5d71e(0x27d)},{'url':'https://'+a0_0x509b1a(0x289)+a0_0xb5d71e(0x20e)+a0_0x509b1a(0x23c),'code':a0_0xb5d71e(0x274)+'-R2A7'},{'url':'https://'+a0_0xb5d71e(0x289)+'k.co/9e8'+'2f22d','code':'VKQ-1N9W'+a0_0x509b1a(0x2dd)},{'url':'https://'+a0_0x509b1a(0x289)+'k.co/674'+'1aff9','code':'LPT-3B6X'+a0_0x509b1a(0x230)},{'url':'https://'+a0_0xb5d71e(0x289)+a0_0xb5d71e(0x2e1)+'6fca3','code':a0_0x509b1a(0x1f6)+a0_0xb5d71e(0x1b1)},{'url':a0_0xb5d71e(0x220)+'move2lin'+'k.co/e1a'+'74dfb','code':'GNC-0H8P'+a0_0x509b1a(0x28e)},{'url':'https://'+a0_0xb5d71e(0x289)+'k.co/3dd'+'e3045','code':'XWA-5J4R'+'-N7E2'},{'url':a0_0xb5d71e(0x220)+a0_0xb5d71e(0x289)+'k.co/691'+a0_0x509b1a(0x24a),'code':a0_0x509b1a(0x287)+a0_0x509b1a(0x219)},{'url':'https://'+a0_0xb5d71e(0x289)+a0_0x509b1a(0x253)+'a187b','code':a0_0xb5d71e(0x22c)+a0_0xb5d71e(0x2c5)},{'url':'https://'+a0_0x509b1a(0x289)+'k.co/b60'+a0_0xb5d71e(0x28f),'code':a0_0xb5d71e(0x24b)+a0_0x509b1a(0x20a)},{'url':a0_0xb5d71e(0x220)+'move2lin'+a0_0x509b1a(0x138)+a0_0xb5d71e(0x275),'code':'OVL-8P5M'+a0_0x509b1a(0x1cc)},{'url':'https://'+'move2lin'+a0_0x509b1a(0x157)+'3d2b9','code':a0_0x509b1a(0x15f)+a0_0xb5d71e(0x140)},{'url':'https://'+a0_0xb5d71e(0x289)+'k.co/553'+a0_0xb5d71e(0x12b),'code':'EAK-4X0B'+'-Y6S9'},{'url':a0_0x509b1a(0x220)+a0_0xb5d71e(0x289)+'k.co/0e7'+a0_0xb5d71e(0x1a8),'code':a0_0x509b1a(0x2d3)+'-H5V0'}],N_CYAN='\x1b[38;5;5'+'1m',N_PINK=a0_0x509b1a(0x277)+a0_0xb5d71e(0x130),N_GREEN=a0_0x509b1a(0x1c9)+'6m',N_YELLOW=a0_0x509b1a(0x277)+a0_0x509b1a(0x2e0),N_BLUE=a0_0xb5d71e(0x1da)+'9m',N_ORANGE=a0_0x509b1a(0x277)+a0_0x509b1a(0x198),N_PURPLE=a0_0x509b1a(0x213)+'29m',N_RED='\x1b[38;5;2'+a0_0xb5d71e(0x270),N_WHITE='\x1b[38;5;2'+a0_0x509b1a(0x252),N_GRAY=a0_0xb5d71e(0x277)+'45m',RST=a0_0x509b1a(0x26e),BOLD=a0_0x509b1a(0x2ad),DIM=a0_0xb5d71e(0x2f7),BG_PINK=a0_0x509b1a(0x154)+a0_0x509b1a(0x130),BG_CYAN=a0_0x509b1a(0x146)+'1m',RED=N_RED,GRN=N_GREEN,YEL=N_YELLOW,BLU=N_BLUE,WHT=N_WHITE,ABU=N_GRAY,CYN=N_CYAN,ORG=N_ORANGE,MAG=N_PURPLE,CLR='\x0d\x1b[2K',ANSI_REGEX=/\x1b\[[0-9;]*m/g,vlen_=_0x19498e=>_0x19498e['replace'](ANSI_REGEX,'')['length'];let STOP=![];const sleep=_0x5dc47a=>new Promise(_0x527e57=>setTimeout(_0x527e57,_0x5dc47a)),ts=()=>new Date()[a0_0x509b1a(0x1bf)+a0_0xb5d71e(0x240)]()[a0_0xb5d71e(0x251)](0x0,0x8),rand=(_0x3d2f2f,_0x23e0e8)=>Math['floor'](Math[a0_0xb5d71e(0x2f0)]()*(_0x23e0e8-_0x3d2f2f+0x1))+_0x3d2f2f,randF=(_0x421327,_0x4aef49)=>Math['random']()*(_0x4aef49-_0x421327)+_0x421327;function clear(){const _0x55d69=a0_0x57ba,_0x2f2aa3=a0_0x57ba;process[_0x55d69(0x1f0)][_0x2f2aa3(0x22b)](_0x2f2aa3(0x18e)+'\x1b[H');}class Dashboard{constructor(){const _0x100207=a0_0x57ba,_0x19e55f=a0_0x57ba;this[_0x100207(0x23b)]={'license':{'type':'?','expires':'?'},'ua':![],'bearer':![],'profile':{'name':'-','power':0x0,'miners':0x0},'task':{'current':'idle','progress':0x0,'total':0x0,'elapsed':0x0,'status':'idle'},'session':{'start':null,'wins':0x0,'losses':0x0,'earned':0x0,'games':0x0},'logs':[]},this['paused']=![],this['timer']=null,this['W']=0x50,this[_0x100207(0x2d1)]=0x4e;}[a0_0xb5d71e(0x164)](_0x21a081,_0x25cea1='i'){const _0x1bd5aa=a0_0x57ba,_0x573544=a0_0x57ba,_0x4cf913={'i':'»','ok':'✓','er':'✗','wr':'⚠','in':'●','dbg':'⚙','or':'◆'},_0x2439dd={'i':N_CYAN,'ok':N_GREEN,'er':N_RED,'wr':N_YELLOW,'in':N_BLUE,'dbg':N_PURPLE,'or':N_ORANGE};this[_0x1bd5aa(0x23b)]['logs'][_0x573544(0x301)]({'ts':ts(),'icon':_0x4cf913[_0x25cea1]||'»','color':_0x2439dd[_0x25cea1]||N_WHITE,'msg':String(_0x21a081)});if(this[_0x1bd5aa(0x23b)]['logs'][_0x1bd5aa(0x1c4)]>0xc8)this['state'][_0x1bd5aa(0x19b)][_0x573544(0x11b)]();}[a0_0xb5d71e(0x2d0)](_0xb02ca7){const _0x18943d=a0_0x57ba;Object['assign'](this[_0x18943d(0x23b)],_0xb02ca7);}['setProfi'+'le'](_0x29965d){const _0x30d2b2=a0_0x57ba;this[_0x30d2b2(0x23b)]['profile']=_0x29965d;}[a0_0xb5d71e(0x21a)+'sion'](){this['state']['session']={'start':Date['now'](),'wins':0x0,'losses':0x0,'earned':0x0,'games':0x0};}[a0_0x509b1a(0x167)](_0x2627f1){const _0xf5102e=a0_0x57ba,_0x42a562=a0_0x57ba;this[_0xf5102e(0x23b)][_0xf5102e(0x175)][_0xf5102e(0x2a8)]++,this['state']['session']['games']++,this['state']['session']['earned']+=_0x2627f1||0x0;}[a0_0xb5d71e(0x148)](){const _0x136f8f=a0_0x57ba,_0x151dd6=a0_0x57ba;this[_0x136f8f(0x23b)][_0x136f8f(0x175)][_0x151dd6(0x1b9)]++,this[_0x136f8f(0x23b)]['session'][_0x151dd6(0x12d)]++;}[a0_0x509b1a(0x221)](){const _0x2f77b3=a0_0x57ba,_0x5cc3ca=a0_0x57ba;if(!this[_0x2f77b3(0x23b)]['session'][_0x2f77b3(0x29a)])return _0x2f77b3(0x143);const _0x199d11=Math['floor']((Date[_0x5cc3ca(0x24c)]()-this[_0x2f77b3(0x23b)]['session'][_0x5cc3ca(0x29a)])/0x3e8),_0x33b2d8=String(Math[_0x5cc3ca(0x1ec)](_0x199d11/0xe10))[_0x5cc3ca(0x16e)](0x2,'0'),_0x49b57b=String(Math[_0x2f77b3(0x1ec)](_0x199d11%0xe10/0x3c))['padStart'](0x2,'0'),_0x2a7604=String(_0x199d11%0x3c)['padStart'](0x2,'0');return _0x33b2d8+':'+_0x49b57b+':'+_0x2a7604;}[a0_0xb5d71e(0x21f)](){const _0x42fc48=a0_0x57ba,_0x3533ea=a0_0x57ba,_0x105818=[N_CYAN,N_BLUE,N_PURPLE,N_PINK,N_CYAN];return _0x105818[Math[_0x42fc48(0x1ec)](Date[_0x3533ea(0x24c)]()/0x190)%_0x105818[_0x3533ea(0x1c4)]];}['_pad'](_0x118ae7,_0x25ef9c){const _0x5ef1d3=a0_0x57ba,_0x35d362=vlen_(_0x118ae7);return _0x35d362<_0x25ef9c?_0x118ae7+'\x20'[_0x5ef1d3(0x16f)](_0x25ef9c-_0x35d362):_0x118ae7;}['_fit'](_0x39f152,_0x427a74){const _0x282d54=a0_0x57ba;if(vlen_(_0x39f152)<=_0x427a74)return _0x39f152;let _0x469d5b='',_0x3b7618=0x0,_0xc57863=0x0;const _0x499898=_0x427a74-0x1;while(_0xc57863<_0x39f152['length']&&_0x3b7618<_0x499898){if(_0x39f152[_0xc57863]==='\x1b'){const _0x100b0f=_0x39f152['indexOf']('m',_0xc57863);if(_0x100b0f>-0x1){_0x469d5b+=_0x39f152[_0x282d54(0x251)](_0xc57863,_0x100b0f+0x1),_0xc57863=_0x100b0f+0x1;continue;}}_0x469d5b+=_0x39f152[_0xc57863],_0x3b7618++,_0xc57863++;}return _0x469d5b+'…'+RST;}['_row'](_0x2e5d89){const _0x34d8a5=a0_0x57ba,_0x3b21c2=a0_0x57ba,_0xa9145c=this[_0x34d8a5(0x273)]('\x20'+_0x2e5d89,this[_0x3b21c2(0x2d1)]),_0x4397a1=this['_pad'](_0xa9145c,this['INNER']);return N_CYAN+'║'+RST+_0x4397a1+N_CYAN+'║'+RST;}['_bar'](_0x3598e3,_0x5a07e5,_0x778c44){const _0x26ad65=a0_0x57ba,_0x527b91=a0_0x57ba,_0x46aa8b=Math[_0x26ad65(0x261)](0x0,Math[_0x527b91(0x188)](_0x5a07e5,Math[_0x527b91(0x1fc)](_0x3598e3*_0x5a07e5))),_0x538605=_0x5a07e5-_0x46aa8b;return''+_0x778c44+'█'['repeat'](_0x46aa8b)+N_GRAY+'░'[_0x527b91(0x16f)](_0x538605)+RST;}[a0_0x509b1a(0x2ea)](){const _0x33a9ac=a0_0x57ba,_0xe8a2c6=a0_0x57ba;if(this['paused'])return;this['W']=Math[_0x33a9ac(0x188)](Math[_0x33a9ac(0x261)](process[_0x33a9ac(0x1f0)][_0x33a9ac(0x297)]||0x50,0x40),0x6e),this[_0xe8a2c6(0x2d1)]=this['W']-0x2;const _0x1a39e5=[],_0x19dbf8=()=>N_CYAN+'╔'+'═'['repeat'](this['INNER'])+'╗'+RST,_0x5d5c2a=()=>N_CYAN+'╠'+'═'['repeat'](this[_0xe8a2c6(0x2d1)])+'╣'+RST,_0x433c9c=()=>N_CYAN+'╚'+'═'[_0xe8a2c6(0x16f)](this[_0x33a9ac(0x2d1)])+'╝'+RST;_0x1a39e5['push'](_0x19dbf8());const _0x8a45ff=_0x33a9ac(0x1ff)+_0x33a9ac(0x205),_0x2f7402=N_GRAY+('·\x20LIVE\x20D'+'ASHBOARD'),_0x4af827=N_PINK+'vCeban',_0x51c338=''+N_CYAN+_0x8a45ff+RST+'\x20'+_0x2f7402+RST,_0x2cad34=this[_0xe8a2c6(0x2d1)]-vlen_(_0x51c338)-vlen_(_0x4af827)-0x2;_0x1a39e5[_0x33a9ac(0x301)](this['_row'](''+_0x51c338+'\x20'[_0xe8a2c6(0x16f)](Math[_0x33a9ac(0x261)](0x0,_0x2cad34))+_0x4af827)),_0x1a39e5[_0x33a9ac(0x301)](_0x5d5c2a());const _0x2e7fb5=this[_0x33a9ac(0x23b)][_0xe8a2c6(0x2e4)],_0x34370f=_0x2e7fb5[_0xe8a2c6(0x1ac)]===_0x33a9ac(0x12a)?N_YELLOW+_0x33a9ac(0x186)+RST:_0x2e7fb5['type']==='user'?N_GREEN+_0xe8a2c6(0x245)+RST:N_RED+_0x33a9ac(0x2a3)+RST,_0x217e19=_0x2e7fb5[_0xe8a2c6(0x1ac)]===_0x33a9ac(0x12a)?_0x33a9ac(0x23d)+'t':_0x2e7fb5[_0xe8a2c6(0x11e)]||'-',_0x3a984b=this[_0x33a9ac(0x23b)][_0x33a9ac(0x129)]?N_GREEN+'✓\x20SET'+RST:N_RED+'✗\x20NONE'+RST,_0x45b67b=this[_0x33a9ac(0x23b)]['ua']?N_GREEN+'✓\x20SET'+RST:N_RED+'✗\x20NONE'+RST,_0x59a8f8=this['state']['profile']['name']!=='-'?N_GREEN+'◉\x20ONLINE'+RST:N_YELLOW+_0x33a9ac(0x2a2)+RST,_0x3a4fe9=Math['floor']((this['INNER']-0x4)/0x2),_0x298b75=_0x3e98cf=>this['_pad'](_0x3e98cf,_0x3a4fe9);_0x1a39e5[_0x33a9ac(0x301)](this['_row'](N_PURPLE+(_0x33a9ac(0x2f4)+'SE\x20')+'─'['repeat'](_0x3a4fe9-0xb)+'┐'+RST+'\x20\x20'+N_PURPLE+_0xe8a2c6(0x17b)+'─'['repeat'](_0x3a4fe9-0x8)+'┐'+RST)),_0x1a39e5[_0x33a9ac(0x301)](this[_0x33a9ac(0x2b6)](N_PURPLE+'│'+RST+'\x20'+_0x298b75(_0xe8a2c6(0x2c0)+'\x20'+_0x34370f)+'\x20'+N_PURPLE+'│'+RST+'\x20\x20'+N_PURPLE+'│'+RST+'\x20'+_0x298b75('Bearer\x20:'+'\x20'+_0x3a984b)+'\x20'+N_PURPLE+'│'+RST)),_0x1a39e5[_0xe8a2c6(0x301)](this['_row'](N_PURPLE+'│'+RST+'\x20'+_0x298b75('Expiry\x20:'+'\x20'+_0x217e19)+'\x20'+N_PURPLE+'│'+RST+'\x20\x20'+N_PURPLE+'│'+RST+'\x20'+_0x298b75('UA\x20\x20\x20\x20\x20:'+'\x20'+_0x45b67b)+'\x20'+N_PURPLE+'│'+RST)),_0x1a39e5[_0x33a9ac(0x301)](this['_row'](N_PURPLE+'│'+RST+'\x20'+_0x298b75(_0x33a9ac(0x2a9)+'\x20'+(_0x2e7fb5[_0x33a9ac(0x1ac)]===_0x33a9ac(0x12a)?_0xe8a2c6(0x1ae)+'d':_0x33a9ac(0x267)))+'\x20'+N_PURPLE+'│'+RST+'\x20\x20'+N_PURPLE+'│'+RST+'\x20'+_0x298b75('Conn\x20\x20\x20:'+'\x20'+_0x59a8f8)+'\x20'+N_PURPLE+'│'+RST)),_0x1a39e5['push'](this[_0x33a9ac(0x2b6)](N_PURPLE+'└'+'─'[_0xe8a2c6(0x16f)](_0x3a4fe9)+'┘'+RST+'\x20\x20'+N_PURPLE+'└'+'─'['repeat'](_0x3a4fe9)+'┘'+RST)),_0x1a39e5['push'](_0x5d5c2a());const _0x3bd475=this['state'][_0x33a9ac(0x175)];_0x1a39e5[_0x33a9ac(0x301)](this['_row'](N_BLUE+('▸\x20SESSIO'+'N')+RST)),_0x1a39e5['push'](this['_row']('\x20\x20'+N_GRAY+'Runtime'+RST+_0x33a9ac(0x173)+N_YELLOW+this[_0xe8a2c6(0x221)]()+RST+_0x33a9ac(0x25f)+(N_GRAY+_0xe8a2c6(0x1cb)+RST+':\x20'+N_GREEN+_0x3bd475['wins']+RST+_0x33a9ac(0x25f))+(N_GRAY+_0x33a9ac(0x202)+RST+':\x20'+N_RED+_0x3bd475[_0x33a9ac(0x1b9)]+RST+_0x33a9ac(0x25f))+(N_GRAY+_0x33a9ac(0x1fd)+RST+':\x20'+N_CYAN+_0x3bd475['games']+RST))),_0x1a39e5[_0x33a9ac(0x301)](this[_0xe8a2c6(0x2b6)]('\x20\x20'+N_GRAY+_0x33a9ac(0x2ac)+RST+'\x20:\x20'+N_GREEN+Number(_0x3bd475[_0xe8a2c6(0x1f9)])[_0xe8a2c6(0x2f9)+_0xe8a2c6(0x246)]()+RST+'\x20power')),_0x1a39e5['push'](_0x5d5c2a());const _0x42277f=this[_0x33a9ac(0x23b)][_0xe8a2c6(0x2e8)];_0x1a39e5[_0xe8a2c6(0x301)](this['_row'](N_GREEN+(_0xe8a2c6(0x1ea)+'E')+RST)),_0x1a39e5[_0x33a9ac(0x301)](this[_0xe8a2c6(0x2b6)]('\x20\x20'+N_GRAY+_0xe8a2c6(0x12e)+RST+'\x20\x20\x20:\x20'+N_YELLOW+_0x42277f['name']+RST+_0xe8a2c6(0x25f)+(N_GRAY+_0xe8a2c6(0x25e)+RST+':\x20'+N_CYAN+Number(_0x42277f['power'])[_0xe8a2c6(0x2f9)+_0x33a9ac(0x246)]()+RST+_0x33a9ac(0x25f))+(N_GRAY+'Miners'+RST+':\x20'+N_PINK+_0x42277f['miners']+RST))),_0x1a39e5[_0x33a9ac(0x301)](_0x5d5c2a());const _0x276176=this[_0xe8a2c6(0x23b)][_0xe8a2c6(0x2e2)],_0x41663f=_0x276176[_0xe8a2c6(0x1d6)]>0x0?Math['min'](0x1,_0x276176[_0xe8a2c6(0x133)]/_0x276176[_0x33a9ac(0x1d6)]):0x0,_0x343049=Math[_0xe8a2c6(0x1fc)](_0x41663f*0x64),_0x48f45a=Math[_0x33a9ac(0x261)](0x14,this[_0x33a9ac(0x2d1)]-0x1c),_0x43d8e9=_0x276176['status']===_0x33a9ac(0x232)?this[_0x33a9ac(0x21f)]():N_GRAY,_0x2659b9=this[_0xe8a2c6(0x2b8)](_0x41663f,_0x48f45a,_0x43d8e9),_0x235bc5=_0x276176[_0xe8a2c6(0x1a5)]==='running'?N_GREEN+'▶'+RST:N_GRAY+'○'+RST,_0x4146db=String(Math[_0x33a9ac(0x1ec)](_0x276176['elapsed']/0x3c))[_0xe8a2c6(0x16e)](0x2,'0')+':'+String(Math[_0x33a9ac(0x1ec)](_0x276176['elapsed']%0x3c))[_0xe8a2c6(0x16e)](0x2,'0'),_0x19adaa=String(Math['floor'](_0x276176['total']/0x3c))[_0x33a9ac(0x16e)](0x2,'0')+':'+String(Math['floor'](_0x276176['total']%0x3c))[_0x33a9ac(0x16e)](0x2,'0');_0x1a39e5[_0xe8a2c6(0x301)](this[_0x33a9ac(0x2b6)](N_ORANGE+(_0x33a9ac(0x243)+_0x33a9ac(0x27f))+RST)),_0x1a39e5[_0x33a9ac(0x301)](this[_0xe8a2c6(0x2b6)]('\x20\x20'+_0x235bc5+'\x20'+this[_0xe8a2c6(0x273)](_0x276176['current'],this[_0x33a9ac(0x2d1)]-0x6))),_0x1a39e5[_0x33a9ac(0x301)](this[_0xe8a2c6(0x2b6)]('\x20\x20['+_0x2659b9+']\x20'+N_YELLOW+String(_0x343049)['padStart'](0x3)+'%'+RST+'\x20\x20'+N_GRAY+_0x4146db+'/'+_0x19adaa+RST)),_0x1a39e5['push'](_0x5d5c2a());const _0x520526=_0x1a39e5[_0x33a9ac(0x1c4)]+0x3,_0x11b37b=process['stdout'][_0xe8a2c6(0x1fa)]||0x28,_0x346a2e=Math['max'](0x4,Math[_0xe8a2c6(0x188)](0xa,_0x11b37b-_0x520526-0x2)),_0x17b5f5=this['state'][_0xe8a2c6(0x19b)][_0x33a9ac(0x251)](-_0x346a2e);_0x1a39e5[_0x33a9ac(0x301)](this[_0x33a9ac(0x2b6)](N_PINK+_0xe8a2c6(0x27c)+RST));for(let _0x537d33=0x0;_0x537d33<_0x346a2e;_0x537d33++){const _0x5e36eb=_0x17b5f5[_0x537d33];if(!_0x5e36eb){_0x1a39e5[_0x33a9ac(0x301)](this[_0xe8a2c6(0x2b6)](''));continue;}const _0x1e417f=this['INNER']-0x12,_0x1a9bde=_0x5e36eb['msg'][_0xe8a2c6(0x1c4)]>_0x1e417f?_0x5e36eb[_0x33a9ac(0x282)][_0x33a9ac(0x251)](0x0,_0x1e417f-0x1)+'…':_0x5e36eb[_0x33a9ac(0x282)];_0x1a39e5[_0xe8a2c6(0x301)](this[_0x33a9ac(0x2b6)]('\x20\x20'+N_GRAY+'['+_0x5e36eb['ts']+']'+RST+'\x20'+_0x5e36eb[_0xe8a2c6(0x268)]+_0x5e36eb[_0xe8a2c6(0x281)]+RST+'\x20'+_0x1a9bde));}_0x1a39e5[_0x33a9ac(0x301)](_0x433c9c()),process[_0xe8a2c6(0x1f0)]['write']('\x1b[H'+_0x1a39e5[_0xe8a2c6(0x2aa)]('\x0a')+_0xe8a2c6(0x255));}['start'](){const _0x51933f=a0_0x57ba,_0x4711de=a0_0x57ba;if(this[_0x51933f(0x23f)])return;process[_0x51933f(0x1f0)]['write'](_0x4711de(0x18e)+_0x4711de(0x1d5)+'l'),this[_0x4711de(0x23f)]=setInterval(()=>this[_0x4711de(0x2ea)](),0xc8);}[a0_0xb5d71e(0x12c)](){const _0xb8e18d=a0_0x57ba,_0x48cbc5=a0_0x57ba;this[_0xb8e18d(0x23f)]&&(clearInterval(this['timer']),this[_0xb8e18d(0x23f)]=null),process['stdout']['write'](_0xb8e18d(0x2b2));}['pause'](){const _0x2ece68=a0_0x57ba,_0x3a48f2=a0_0x57ba;this[_0x2ece68(0x172)]=!![],this[_0x3a48f2(0x12c)](),process['stdout']['write'](_0x3a48f2(0x18e)+_0x3a48f2(0x1d5)+'h');}[a0_0x509b1a(0x194)](){const _0x150992=a0_0x57ba,_0x4a378a=a0_0x57ba;process[_0x150992(0x1f0)][_0x4a378a(0x22b)](_0x150992(0x18e)+_0x150992(0x2ff)),this['paused']=![],this[_0x150992(0x29a)]();}}const dashboard=new Dashboard();function log(_0x2d3d41,_0x442ce7='i'){dashboard['addLog'](_0x2d3d41,_0x442ce7);}function a0_0x7603(){const _0x36ebb1=['y3jLyxrLsge','zxr1Ca','qMvHCMvY','D3jPDgu','vfPfltjdn1y','y3nYzL90B2S','zYbUzwvKCYa','B2LUDhnFDg8','lum1ttK','igrHExmU','CNvUBMLUzW','y29Kzq','D3jPDgvgAwW','vg9Rzw5Zihm','y3jLyxrLsw4','wYfDifn0B3a','q3vYCMvUDdO','DxnLCMLK','Ac9YzwzYzxm','C3rHDgu','nZe5ogy','ugvYBwfUzw4','zfLrovi5owi','DgLTzxi','CMLUzW','Dg9Rzw4','BwLUzxjFAwq','4PA4ienvuLjftG','Dg9ju09tDhi','4PYtifvtrvi','u3rYAw5N','AxLHBM5U','ig1LCMDLiha','y29VBf9KB3C','mgzMztG','vuHoltzlm1m','BM93','ie1preu','Agv4','zgf0yq','ihDPBNmH','C2XPy2u','mZfT','AY5JBY9HyZa','v0Lo','g1SWsG','ihWGrxHWpq','yw4Gzg9Uzsa','CMvHzezPBgu','y2XVC2u','DxnLCG','ihDPBNm','ywjSzsbTAw4','zxn0','ug93zxi','icaG','r2fTzq','Bwf4','CNrFCMvXDwu','C2HHmJu2','Dw5RBM93BG','ExbLpw1PBMu','cIaG','qwn0AxzL','y29SB3i','DhvW','tg9NAw4GzMe','yxjLCIbMAxi','rxHPDa','vg9Rzw4','g1SWBq','CM93C2vYoG','mdnT','zsb2zxjPzMK','C29U','x2zPDa','wKPnltrunum','mdbMmti','AwrSzq','g1SZodS1oZi','AxzLigzVCIa','Dsa0kq','q05sltHfm1y','B2TLBG','4PA4ieXprW','luG5udm','ihvWz3jHzgu','vcbuqvnl','z2fTzq','AwnVBG','BxnN','u3rVChbLzc4','zwq6ia','l3vWzgf0zs0','u0Lhsu5u','tvfcltLemvq','yxbPl2DHBwu','Bw92ztjSAw4','x2DHBwvZ','C3vJy2vZCW','BwfW','y29UzMLNlMO','lvCZvJy','zJmXote','igHVDxjZigW','mtu2nwy','sgfTCg9ZC2K','u2v0iejLyxi','vg91C2XHBMq','qwXSigrVBMu','ntuYmZK5yvvsEeTN','y29SDw1UCW','DxrMltG','x3HWx2fTB3u','C3rHCNq','Ag9TzwrPCG','Aw5LCIzZA2K','tgfTyM8GuMK','DgL0Bgu','u1vntufswtO','ihjLCxvPCMu','CNrFCMvZCg8','4PElieLeteu','4PYxie5ptKu','lIbtzxqGqMu','B24Gy2XHAw0','idyWlteYmhm','zxjPC3rPy3m','D2LUCW','u3rHDhvZidO','AM9PBG','B24GjW','rwfYBMvK','g1SXBq','zwz0','CMvKicHTzw4','u2v0ifvZzxi','DxnLCL9TAw4','g1S/mJvO','CNK/AxrLBvq','ieX2Bca','ifzfuKLgsum','x3jVDW','iokgKIbWB3DLCG','x2jHCG','CMvJB25Uzwm','ywLYCYe','uMvMCMvZAca','BM90ihnLDa','r2fTzsbYB3u','ihWGug93zxi','zxjZ','vhLWzsaGidO','vMvYC2LVBG','C3rYAw5NAwy','AxrLBxm','ignOzwnRiokgKG','luiWrJu','Dd0Xmda','zxHPDa','BMv4Df9LEha','ihWG','mNvZEfvYBG','r2fTzxm6ia','lI4U','BwvZC2fNzq','Bgv2zwW','y2f0Aw9UlG','C2v0','su5orvi','mZu4mtq4zeHVA25R','ufLoltDmmKm','ANnVBG','CM9SBgvYy28','t3b0Aw9U','uevstuforu4','lufNzw50','z2fTzv9LBMq','igvUzcdIHPiGCG','iokgKIbWBgf5ia','iokgKIbLEhbLza','luq4uZa','q3j5ChrVBM8','q2fUy2vSBgu','mJzT','AY5JBY9Jmwi','DgfZAW','zxHWzwrPDgK','BgLJzw5Zzq','tM8GAgfTC3q','kgnYywz0Aw4','vxnLCI1bz2u','ChjVzMLSzq','Aw4Uy29T','CMvUzgvY','z2fTzxnFzge','rhiUieHHBxm','z2fTzv9UDw0','AxnOzwq','zxHWAxjLzf8','CMfUzg9T','igXLDMvSiokgKG','y21KDMfS','BgLJzw5Zzs4','4Psm4PsaieXjq0vo','twvYz2u6ihm','zgf0ys8','g1SYBq','sw52ywXPzca','Dg9mB2nHBgu','te9trq','u3LUyW','8j+BOcaGvxnLCI0','4Ocuifnftevdva','jYbUB3qGzM8','g1Ti','uIbnt0rfiokaLa','ChvZAa','veLnru9vva','DgvTChrZihi','zw1HAwW','C2HPzNq','DMvYAwzPy2e','ihWGtwLUzxi','zxHWAxjLCW','r0vu','vefsr0vuifC','8j+uKsbczwfYzxi','BNnL','yxbPl3bLDhm','ywnJzxnZx3q','CM9VBq','ueTultLbneO','DxnLCKLUzM8','DxnLCL9Nyw0','yMvHCMvY','B3DUzxi','ntnJzwu','C3rVCa','z2fTzxm','vxnLCG','zwnPCguP','mdfT','ifnLDhvW','BMzPzY8','zwXHChnLza','ihWGrhvYyxq','zw1HAw5PBMC','BwLUzxjZ','zxHPDgvKlG','AY5JBY9MzJG','ugXHEwLUzYa','B3bLBG','tM8GDg9Rzw4','ntaZnJK3ouPSy1vXBG','zxjZoIa','v2fPDgLUzY4','iokgKIa','lvqYtJm','AxrPB24','rM91BMqG','mda6mda6mda','CgXHDgzVCM0','Bf9Nyw1L','g1S0odS1oZu','DxnLCM5HBwu','yNvTCeXVC3m','y2fUig1PBMu','zNjVBq','lvG2tJG','sgfTC3rLCJO','zMLSDgvY','icdINiuGvMvYAq','C3jJ','icbfBNrLCIa','CMzLCJOGu24','DhnFAwq','BMqGzxjYB3i','g1S0odS1oZi','yxbWBgLJyxq','C29YDa','AY5JBY82oda','Cgf0Aa','ihn0yxj0igq','yMfZzty0','vg9Rzw4Gu3u','DgfFCMvXDwu','BgvKlG','su4GiW','suPdltfxove','DgvYzMfJzq','ifrVA2vUifm','wZnD','zgLNzxn0','ywrKtg9N','8j+uKsbby2nLC3m','nJbHmtm3mZa','yNvTCfDPBG','Dhm/DhLWzt0','rxHWzwrPDgK','uhjVz3jHBsa','DgLVBJOG','mZbMze9rCMi','v1mGDgLTzw8','CgfKu3rHCNq','CMvWzwf0','A2v5CW','B25LCNjVCG','Cgf1C2vK','idOG','zgf0zq','C2vZC2LVBG','lvqZvZy','zwqU','v2vSy29Tzsa','vxbNCMfKzsa','B2LUlMnVBs8','4Psm4PsaiefvveGG','x2LK','rgvLCcbgB3i','AY5JBY9Ln2i','qwDLBNqGu2u','DgLTzv9Nyw0','uM9VBsbTAw4','C3bSAxq','uvHAltDnmKe','y3j5ChrV','qMvHCMvYihm','8j+rKsbpv05fuG','x2rPC3rYAwi','BwLU','g1SXqq','zgL0Aw9UCY8','Dw5SAw5Ru3K','vw5RBM93BG','ntKYodzAq3rqwe8','g1SYsHTBm0O','AguGzM9SBg8','tM8GBwvYz2u','zMLJyxrPB24','zw50CMLLCW','zwqUlI4','CMvZDw1L','m2y5yZC','yxjJAa','BhzS','mdHT','D2LUx3bLCL8','DhjPBq','Bg9NCW','yxzLzc4','ihn1y2nLC3m','Bg9N','B3CGuMLKzq','AY5JBY85otC','icdIMQaGifrOAq','odK1ver3DgjY','C3rHCNqTz2e','BwvYz2u','C3rHDhvZ','DMfSDwvZ','AwXLzc4Gvg8','n2q3mJm','AxrLza','CMvMCMvZAf8','ifjLDhvYBMK','DhLWzq','BMfTzq','vw5SAw1PDgu','zxjZx2fTB3u','rw5JB2rLigu','lveXwtq','u3rHCNqGqM8','DxnLCKfNzw4','CgfYC2u','D2LKDgG','yMvY','ihWGv2LUl0W','Dg9vChbLCKm','Bg9ZC2vZ','Cgf1C2u','zxjYB3i','mte2mZyZodbyB1DuqKW','DxbKyxrL','AY5JBY80yJi','Dg9uAw1Lu3q','CYbZy3jPChq','yw1ZDgvY','ignVB2XKB3C','y2HVAwnLlG','BgvUz3rO','q29PBIbdBgK','Bf9WB3DLCG','yxnL','4Psa4Psa4Psa4Psa4Psa4Psa4Psa','g1SZodS1oZq','CgvKlG','v2LUCW','lvO0rdC','rw5JB2rPBMC','C19Pza','q2XPBwjLCG','CgHLCML2','yMvNB2jHBMC','sw52zw50B3i','AY5JBY8Wzdm','BgLTAxq9mJa','g1Tig1S/mJu','Dg90ywW','ihDHAxrPBMC','C2v0uhjVzMK','C3qGkg9WDgK','g1SZodS1oZm','zMLUAxnO','AY5JBY85ndK','lxbYB2zPBgu','tM8Gz2fTzxm','D2vI','ue9tva','B2nRzxq','yxbPl3bYB2y','mtGWmZiZndzZAxblqNm','zcbIzwzVCMu','4Pwq4Pwq4Pwq4Pwq4Pwq4Pwq4Pwq4Pwq','z2fTzv9ZDge','BNqGDxbKyxq','ihWGthyU','mta2mZiXmJbKt3Hzq3K','4PA4ifbst0zjta','Bwf4x3rVDge','zMXVB3i','qMvHCMvYia','rvHqsvjfra','wuzcltzrmeW','C3rKB3v0','BdOG','ugfPCIa','B24GmIKU','C2vUza','DxqGEdmG4OAsia','uLneltDgmKS','A0TmC0Xiywq','igf2ywLSywi','zwfYBMvK','CM93CW','zgfIndi','CM91BMq','r2fTzxm','zwrPDgLVBNm','4PQHieTvwuforW','zwqHifHqpq','icdWN5grie9xtKu','tg9ZC2vZ','4Psa4Psa4Psa4Psa4Psa4Psa4Psa4Psa','l3jVB20Ty28','su4Gre9orW','vg9Rzw4GCMu','m2zLnG','BgLZDa','AgvY','lue4uJe','v0rhltjtn0y','jNnRAxa9mcy','q29TCgXLDgu','AY5JBY80owi','Aw52','Dg9tDhjPBMC','DxrL','AgfTC3rLCG','g1SZodS1oZe','4PYtifnfva','4Pwq4Pwq4Pwq4Pwq4Pwq4Pwq4Pwq','y2vPBa','y21K','v1mGy2XVC2u','luW2sZG','C3rHCNrtzxm','igX2Bd0','C2vSzwn0zwq','Dw5K','s1vzqu5hsu4','x3b1BhnL','Ahr0Chm6lY8','x3j1BNrPBwu','Aw5N','Aw9Ul2PZB24','l3vZzxiTCgu','yxbPl2v4Cgu','l2LUDMvUDg8','ihWGv2LUia'];a0_0x7603=function(){return _0x36ebb1;};return a0_0x7603();}async function tmr(_0x48aa18,_0x5e7832=a0_0x509b1a(0x13e)+'..'){const _0x295af9=a0_0x57ba,_0x4c23af=a0_0x57ba,_0x12493d=Math[_0x295af9(0x1ec)](_0x48aa18);if(_0x12493d<0x1)return;const _0x47fec1=Date[_0x295af9(0x24c)](),_0x2c0f2f=()=>{const _0x29410c=a0_0x57ba,_0x39965d=a0_0x57ba,_0xaf0eb9=Math[_0x29410c(0x188)]((Date['now']()-_0x47fec1)/0x3e8,_0x12493d);dashboard['set']({'task':{'current':_0x5e7832,'progress':_0xaf0eb9/_0x12493d,'total':_0x12493d,'elapsed':_0xaf0eb9,'status':_0x39965d(0x232)}});};_0x2c0f2f();while(!STOP){if((Date['now']()-_0x47fec1)/0x3e8>=_0x12493d)break;_0x2c0f2f(),await sleep(0x96);}dashboard[_0x295af9(0x2d0)]({'task':{'current':'idle','progress':0x0,'total':0x0,'elapsed':0x0,'status':'idle'}});}function loadConfig(){const _0x4a0bb1=a0_0x57ba,_0x27b99b=a0_0x57ba;try{return{...defaultConfig(),...JSON['parse'](fs[_0x4a0bb1(0x258)+_0x27b99b(0x2fb)](CONFIG_PATH,_0x27b99b(0x298)))};}catch{return defaultConfig();}}function defaultConfig(){return{'userAgent':'','hamster':!![],'game':!![],'merge':!![],'proxy':![],'max_level_game':0xa,'win_per_level':0x8,'time_game':0x1,'selected_games':[0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8,0x9,0xa,0xb,0xc,0xd,0xe,0xf],'delay_loop':0x1e,'delay_account_switch':0xa};}function saveConfig(_0xcd4986){const _0x18d62e=a0_0x57ba;fs['writeFil'+'eSync'](CONFIG_PATH,JSON[_0x18d62e(0x2c2)+'y'](_0xcd4986,null,0x2));}function ask(_0x4bc21d){const _0x1e09ef=a0_0x57ba,_0x28157c=a0_0x57ba,_0x8ba75a=readline[_0x1e09ef(0x236)+_0x1e09ef(0x160)]({'input':process['stdin'],'output':process[_0x28157c(0x1f0)]});return new Promise(_0x2ff073=>_0x8ba75a['question'](_0x4bc21d,_0x268b73=>{const _0x1c61ef=a0_0x57ba,_0x49c4ac=a0_0x57ba;_0x8ba75a[_0x1c61ef(0x259)](),_0x2ff073(_0x268b73[_0x1c61ef(0x19a)]());}));}function generateConstructed(_0x1b42b5){const _0x5e8d71=a0_0x57ba,_0x2a6c65=a0_0x57ba,_0x193ae7=[..._0x1b42b5][_0x5e8d71(0x14d)](_0x4ab898=>/\d/['test'](_0x4ab898))[_0x5e8d71(0x28c)](Number),_0x21f96c=_0x193ae7['reduce']((_0x91e3e,_0x4b529b)=>_0x91e3e+_0x4b529b,0x0),_0x4deff0=[..._0x193ae7][_0x2a6c65(0x156)]((_0x4f9e23,_0x46d51a)=>_0x4f9e23-_0x46d51a),_0x113fbe=_0x1b42b5[_0x2a6c65(0x251)](0x0,_0x4deff0[_0x5e8d71(0x1c4)])[_0x5e8d71(0x182)]('');return[..._0x4deff0['map'](String),..._0x113fbe,String(_0x21f96c)]['join']('');}function encryptData(_0x121b71,_0x1e3357){const _0x2bfd2e=a0_0x57ba,_0x3e3d04=a0_0x57ba,_0x8e2caa=generateConstructed(_0x1e3357),_0x4e348b=crypto[_0x2bfd2e(0x228)+'sh']('md5')[_0x3e3d04(0x1bd)](_0x8e2caa)['digest'](_0x2bfd2e(0x24e)),_0xdf5729=Buffer['from'](_0x3e3d04(0x23e)+_0x3e3d04(0x1f7)),_0x5beb0c=crypto['createCi'+_0x3e3d04(0x1d0)]('aes-256-'+'cbc',Buffer['from'](_0x4e348b),_0xdf5729);return Buffer['concat']([_0x5beb0c[_0x3e3d04(0x1bd)](Buffer[_0x3e3d04(0x14a)](_0x121b71,_0x2bfd2e(0x298))),_0x5beb0c['final']()])[_0x2bfd2e(0x210)](_0x3e3d04(0x15a));}function a0_0x57ba(_0x39b153,_0x5ba8b6){_0x39b153=_0x39b153-0x11a;const _0x7603d1=a0_0x7603();let _0x57ba73=_0x7603d1[_0x39b153];if(a0_0x57ba['ehUJnA']===undefined){var _0x1a8564=function(_0x3e187d){const _0x200b18='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';let _0x14d902='',_0x19498e='';for(let _0x5dc47a=0x0,_0x527e57,_0x3d2f2f,_0x23e0e8=0x0;_0x3d2f2f=_0x3e187d['charAt'](_0x23e0e8++);~_0x3d2f2f&&(_0x527e57=_0x5dc47a%0x4?_0x527e57*0x40+_0x3d2f2f:_0x3d2f2f,_0x5dc47a++%0x4)?_0x14d902+=String['fromCharCode'](0xff&_0x527e57>>(-0x2*_0x5dc47a&0x6)):0x0){_0x3d2f2f=_0x200b18['indexOf'](_0x3d2f2f);}for(let _0x421327=0x0,_0x4aef49=_0x14d902['length'];_0x421327<_0x4aef49;_0x421327++){_0x19498e+='%'+('00'+_0x14d902['charCodeAt'](_0x421327)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x19498e);};a0_0x57ba['JuCHeJ']=_0x1a8564,a0_0x57ba['hshbjb']={},a0_0x57ba['ehUJnA']=!![];}const _0x3ef7d5=_0x7603d1[0x0];a0_0x57ba['zykpfR']!==_0x3ef7d5&&(a0_0x57ba['hshbjb']={},a0_0x57ba['zykpfR']=_0x3ef7d5);const _0x525aa1=a0_0x57ba['hshbjb'][_0x39b153];return _0x525aa1===undefined?(_0x57ba73=a0_0x57ba['JuCHeJ'](_0x57ba73),a0_0x57ba['hshbjb'][_0x39b153]=_0x57ba73):_0x57ba73=_0x525aa1,_0x57ba73;}let accessToken='',refreshToken='',csrfToken='',userAgent='';async function api(_0x250daf,_0x49dc95,_0x3efc99){const _0x291f15=a0_0x57ba,_0x262120=a0_0x57ba,_0x248100={'Accept':_0x291f15(0x155)+_0x262120(0x223),'Content-Type':_0x291f15(0x155)+_0x291f15(0x223),'Authorization':_0x262120(0x1ed)+accessToken,'csrf-token':csrfToken,'Referer':HOST+'/game','User-Agent':userAgent},_0x1d20fc=await fetch(HOST+'/'+_0x49dc95,{'method':_0x250daf,'headers':_0x248100,'body':_0x3efc99?JSON[_0x291f15(0x2c2)+'y'](_0x3efc99):undefined}),_0x11f064=await _0x1d20fc['text']();try{return JSON['parse'](_0x11f064);}catch{return{'success':![],'error':_0x11f064[_0x262120(0x251)](0x0,0x64)};}}async function wsConnect(_0x5a986e){const _0x52218c=a0_0x57ba,_0x20acdb=new WebSocket(_0x5a986e);await new Promise((_0x39695d,_0x873353)=>{const _0x4bccf8=a0_0x57ba;_0x20acdb['onopen']=_0x39695d,_0x20acdb[_0x4bccf8(0x171)]=_0x873353;});const _0x5477a7=[];let _0x4b7e45=null;return _0x20acdb['onmessag'+'e']=_0x5d5d61=>{const _0x169436=a0_0x57ba,_0x5bb1ee=_0x5d5d61[_0x169436(0x24f)];if(_0x4b7e45)_0x4b7e45(_0x5bb1ee),_0x4b7e45=null;else _0x5477a7['push'](_0x5bb1ee);},{'ws':_0x20acdb,'send':_0x3c7fb1=>_0x20acdb[_0x52218c(0x1f4)](_0x3c7fb1),'recv':(_0x2a21d3=0x3c)=>new Promise(_0x19b960=>{const _0x1ab128=a0_0x57ba,_0x4efa5a=a0_0x57ba;if(_0x5477a7[_0x1ab128(0x1c4)])return _0x19b960(_0x5477a7[_0x4efa5a(0x11b)]());const _0x5f3a3e=setTimeout(()=>{const _0x23f3d4=a0_0x57ba;_0x4b7e45=null,_0x19b960(_0x23f3d4(0x302));},_0x2a21d3*0x3e8);_0x4b7e45=_0x53f25c=>{clearTimeout(_0x5f3a3e),_0x19b960(_0x53f25c);};}),'close':()=>{const _0x4124d1=a0_0x57ba;try{_0x20acdb[_0x4124d1(0x259)]();}catch{}},get 'open'(){return _0x20acdb['readySta'+'te']===0x1;}};}async function refreshTokenFlow(){const _0x61ea18=a0_0x57ba,_0x13af84=a0_0x57ba;if(!refreshToken)return![];try{const _0x4c914f=await fetch(HOST+('/api/aut'+_0x61ea18(0x23a)+'h'),{'method':'POST','headers':{'Content-Type':_0x61ea18(0x155)+'ion/json','Accept':_0x13af84(0x155)+'ion/json','User-Agent':userAgent},'body':JSON[_0x61ea18(0x2c2)+'y']({'refresh_token':refreshToken,'platform':_0x61ea18(0x1df)})}),_0x4a56a4=await _0x4c914f['json']();if(_0x4a56a4['data']&&_0x4a56a4['data']['access_t'+'oken']){accessToken=_0x4a56a4[_0x13af84(0x24f)]['access_t'+_0x61ea18(0x27b)],refreshToken=_0x4a56a4[_0x61ea18(0x24f)][_0x61ea18(0x1aa)+_0x61ea18(0x241)]||refreshToken;const _0x10601f=loadConfig();return _0x10601f[_0x61ea18(0x124)+_0x13af84(0x27b)]=accessToken,_0x10601f[_0x61ea18(0x1aa)+_0x61ea18(0x241)]=refreshToken,saveConfig(_0x10601f),log(_0x61ea18(0x206)+'freshed','ok'),!![];}}catch{}return![];}async function getProfile(){const _0x1579de=a0_0x57ba,_0x2a6dea=a0_0x57ba,_0x171feb=await api('GET',_0x1579de(0x1e2)+'ile/user'+_0x1579de(0x1dd)+'-data');if(_0x171feb[_0x2a6dea(0x28b)]&&_0x171feb[_0x2a6dea(0x24f)])return _0x171feb['data'];return null;}async function hamster(){const _0x39a483=a0_0x57ba,_0x5756b3=a0_0x57ba;log(_0x39a483(0x14c)+_0x39a483(0x2c4)+_0x39a483(0x27e)+_0x39a483(0x2dc)+_0x5756b3(0x141),'i');const _0x240c0b=await api(_0x39a483(0x11f),_0x5756b3(0x123)+_0x5756b3(0x224)+_0x39a483(0x168)+'hamsters'+_0x5756b3(0x20c)+_0x39a483(0x1d4));if(!_0x240c0b['success']||!_0x240c0b['data']||!_0x240c0b['data']['pets']||!_0x240c0b['data']['pets'][_0x5756b3(0x1c4)]){log(_0x5756b3(0x2e5)+_0x5756b3(0x2bf),'wr');return;}const _0x408146=_0x240c0b[_0x5756b3(0x24f)]['pets'],_0x1def91=await api(_0x39a483(0x11f),_0x5756b3(0x225)+'ditions/'+_0x39a483(0x208)),_0x446eee=_0x1def91['success']?_0x1def91['data']:[],_0x348f4d={};for(const _0xdc5647 of _0x446eee)_0x348f4d[_0xdc5647[_0x39a483(0x29e)]?.['en']||'']=_0xdc5647;const _0x3d6895=await api('GET',_0x5756b3(0x225)+_0x39a483(0x18a)+'user-exp'+_0x5756b3(0x1fe));if(_0x3d6895['success']&&_0x3d6895[_0x39a483(0x24f)])for(const _0x399e68 of _0x3d6895[_0x39a483(0x24f)]){if(!_0x399e68['is_compl'+_0x39a483(0x1a9)])continue;const _0x3d6fc8=_0x399e68['title']?.['en']||_0x399e68[_0x5756b3(0x2e3)+'on_data']?.[_0x39a483(0x29e)]?.['en']||'Unknown';log(_0x39a483(0x20d)+'d\x20expedi'+_0x39a483(0x16b)+_0x3d6fc8,'ok');const _0x3e50f4=await api(_0x39a483(0x1e0),'api/expe'+_0x5756b3(0x18a)+_0x39a483(0x1db),{'users_expeditions_id':_0x399e68['users_ex'+'pedition'+_0x39a483(0x1ce)]});if(_0x3e50f4[_0x39a483(0x28b)])log(_0x5756b3(0x169)+_0x5756b3(0x2a5)+_0x39a483(0x200)+(_0x3e50f4['data']?.['received'+_0x39a483(0x299)+'nt']||0x0),'ok');await sleep(randF(1.5,0x3));}for(const _0x582f1d of _0x408146){const _0x493ed1=_0x582f1d['title']?.['en']||'Unknown',_0x1116ff=_0x582f1d['skills_p'+_0x5756b3(0x22f)+_0x39a483(0x187)+_0x39a483(0x211)]||0x0,_0x554208=_0x582f1d['is_in_ex'+'pedition'],_0x581358=_0x582f1d[_0x39a483(0x2ce)]||0x0;log(_0x493ed1+_0x5756b3(0x1e8)+_0x581358+('\x20|\x20Point'+'s=')+_0x1116ff+_0x5756b3(0x256)+_0x554208,'i');if(!_0x554208&&_0x1116ff>=0x3){const _0xb61b3c=Math['floor'](_0x1116ff/0x3);if(_0xb61b3c>0x0){const _0x41568e=await api('POST',_0x5756b3(0x123)+_0x5756b3(0x285)+'characht'+_0x5756b3(0x2a7),{'users_pets_id':_0x582f1d['users_pe'+_0x5756b3(0x152)],'charachteristics':{'strength':_0xb61b3c,'health':_0xb61b3c,'luck':_0xb61b3c}});if(_0x41568e[_0x5756b3(0x28b)])log(_0x5756b3(0x179)+_0x493ed1+'\x20+'+_0xb61b3c+('\x20STR/HP/'+'LUCK'),'ok');await sleep(randF(1.2,2.4));}}if(_0x554208||!_0x582f1d[_0x5756b3(0x2c8)+'edition_'+_0x39a483(0x174)])continue;const _0x5ef650=new Date(_0x582f1d['next_exp'+'edition_'+_0x5756b3(0x174)]);if(_0x5ef650>new Date()){log(_0x493ed1+(_0x5756b3(0x1c2)+'n\x20')+Math[_0x39a483(0x216)]((_0x5ef650-Date[_0x39a483(0x24c)]())/0xea60)+_0x39a483(0x188),'wr');continue;}const _0x58d18e=_0x581358<=0xf?_0x5756b3(0x17d)+_0x5756b3(0x25d):_0x581358<=0x23?_0x5756b3(0x294):'Snowlit\x20'+'Avenue',_0x4b15c2=_0x348f4d[_0x58d18e];if(!_0x4b15c2){log('Expediti'+_0x5756b3(0x2ab)+_0x58d18e+(_0x39a483(0x2fe)+_0x5756b3(0x21d)),'er');continue;}const _0x4f6246=await api('POST','api/expe'+_0x5756b3(0x18a)+_0x5756b3(0x29a),{'expeditions_id':_0x4b15c2['id'],'users_pets_ids':[_0x582f1d['users_pe'+_0x5756b3(0x152)]],'used_abilities_codes':[]});if(_0x4f6246[_0x39a483(0x28b)])log(_0x39a483(0x169)+'on\x20start'+_0x5756b3(0x284)+_0x493ed1+_0x39a483(0x13f)+_0x58d18e,'ok');await sleep(randF(0x2,0x4));}}const GAME_NAMES={0x1:a0_0x509b1a(0x1c5)+'ck',0x2:'Token\x20Bl'+'aster',0x3:'Flappy\x20R'+a0_0xb5d71e(0x1e1),0x4:a0_0x509b1a(0x2de)+'id',0x5:'Coin\x20Mat'+'ch',0x6:'Crypto\x20H'+a0_0x509b1a(0x1c1),0x7:'2048\x20Coi'+'n',0x8:'Coin\x20Fli'+'p',0x9:a0_0x509b1a(0x2ec)+'ter',0xa:a0_0x509b1a(0x15b)+a0_0x509b1a(0x151)+a0_0x509b1a(0x19f),0xb:a0_0x509b1a(0x29d)+'der',0xc:'Hamster\x20'+a0_0x509b1a(0x1cf),0xd:'Coin\x20Fis'+a0_0x509b1a(0x209),0xe:'Mission\x20'+a0_0xb5d71e(0x292)+'ble',0xf:'Crypto\x20H'+'ex'},REWARD_TABLE={0x1:{0x1:0x4b0,0x2:0x4b0,0x3:0x4b0,0x4:0x4b0,0x5:0x5a0,0x6:0x5a0,0x7:0x5a0,0x8:0x5a0,0x9:0x690,0xa:0x690},0x2:{0x1:0x1998,0x2:0x1c38,0x3:0x1e2a,0x4:0x20d0,0x5:0x2301,0x6:0x2544,0x7:0x274e,0x8:0x2997,0x9:0x2be0,0xa:0x36d8},0x3:{0x1:0x948,0x2:0xa20,0x3:0xaaa,0x4:0xb7c,0x5:0xc4e,0x6:0xd20,0x7:0xdf2,0x8:0xec4,0x9:0xf96,0xa:0x1068},0x4:{0x1:0x1a70,0x2:0x1b00,0x3:0x1c20,0x4:0x1d40,0x5:0x1dd0,0x6:0x1ef0,0x7:0x2ac0,0x8:0x2b80,0x9:0x2d00,0xa:0x2dc0},0x5:{0x1:0x870,0x2:0x894,0x3:0x8b8,0x4:0xa56,0x5:0xa80,0x6:0xaaa,0x7:0xad4,0x8:0xafe,0x9:0xb28,0xa:0xc36},0x6:{0x1:0x17ca,0x2:0x195c,0x3:0x1afa,0x4:0x1ca4,0x5:0x1e5a,0x6:0x2022,0x7:0x21f0,0x8:0x23d0,0x9:0x25b6,0xa:0x27a8},0x7:{0x1:0x3f0,0x2:0x42f,0x3:0x46e,0x4:0x4ad,0x5:0x4ec,0x6:0x52b,0x7:0x56a,0x8:0x5a9,0x9:0x5e8,0xa:0x627},0x8:{0x1:0x480,0x2:0x480,0x3:0x480,0x4:0x600,0x5:0x648,0x6:0x648,0x7:0x648,0x8:0x7da,0x9:0x7da,0xa:0x7da},0x9:{0x1:0xbc4,0x2:0xcde,0x3:0xde6,0x4:0xedc,0x5:0xfba,0x6:0x1086,0x7:0x113a,0x8:0x11e8,0x9:0x127e,0xa:0x1302},0xa:{0x1:0xdc8,0x2:0xeee,0x3:0x1014,0x4:0x113a,0x5:0x1260,0x6:0x1386,0x7:0x14ac,0x8:0x15d2,0x9:0x16f8,0xa:0x181e},0xb:{0x1:0x1980,0x2:0x1b3f,0x3:0x1d01,0x4:0x1ec0,0x5:0x207f,0x6:0x2241,0x7:0x2400,0x8:0x25bf,0x9:0x2781,0xa:0x2940},0xc:{0x1:0x9f6,0x2:0xb9a,0x3:0xd02,0x4:0xe88,0x5:0xff0,0x6:0x1176,0x7:0x12fc,0x8:0x1482,0x9:0x1608,0xa:0x1770},0xd:{0x1:0x9f6,0x2:0xb9a,0x3:0xd02,0x4:0xe88,0x5:0xff0,0x6:0x1176,0x7:0x12fc,0x8:0x1482,0x9:0x1608,0xa:0x1770},0xe:{0x1:0x1b58,0x2:0x1f40,0x3:0x2328,0x4:0x2710,0x5:0x2af8,0x6:0x2ee0,0x7:0x32c8,0x8:0x36b0,0x9:0x3a98,0xa:0x3e80},0xf:{0x1:0x9f6,0x2:0xb9a,0x3:0xd02,0x4:0xe88,0x5:0xff0,0x6:0x1176,0x7:0x12fc,0x8:0x1482,0x9:0x1608,0xa:0x1770}},TIME_TABLE={0xd:{0x1:0x28,0x2:0x23,0x3:0x23,0x4:0x1e,0x5:0x19,0x6:0x19,0x7:0x19,0x8:0x19,0x9:0x19,0xa:0x19},0xe:{0x1:0x2d,0x2:0x2d,0x3:0x28,0x4:0x28,0x5:0x23,0x6:0x23,0x7:0x1e,0x8:0x1e,0x9:0x19,0xa:0x19},0xf:{0x1:0x1e,0x2:0x22,0x3:0x26,0x4:0x2a,0x5:0x2e,0x6:0x32,0x7:0x36,0x8:0x3a,0x9:0x3e,0xa:0x46}};function randomShuffle(_0x21ad43){for(let _0x1a01d3=_0x21ad43['length']-0x1;_0x1a01d3>0x0;_0x1a01d3--){const _0x2bfece=rand(0x0,_0x1a01d3);[_0x21ad43[_0x1a01d3],_0x21ad43[_0x2bfece]]=[_0x21ad43[_0x2bfece],_0x21ad43[_0x1a01d3]];}}let gnumRef=null;async function playGame(_0x28609b){const _0x58a947=a0_0x57ba,_0x446f8f=a0_0x57ba,_0x2b7eb0=[..._0x28609b[_0x58a947(0x21c)+_0x58a947(0x28a)]],_0x2ae27c=_0x28609b['max_leve'+_0x446f8f(0x145)]||0xa,_0x17a04d=_0x28609b[_0x58a947(0x199)+_0x58a947(0x2ce)]||0x8,_0x231b0a=_0x28609b[_0x446f8f(0x180)+'e']||0x1;randomShuffle(_0x2b7eb0);const _0x1825a4={};for(const _0x45827a of _0x2b7eb0)_0x1825a4[_0x45827a]={};const _0x453903=Date['now']()+_0x231b0a*0x36ee80;log(_0x58a947(0x2cb)+_0x2b7eb0[_0x58a947(0x28c)](_0x3e6a52=>GAME_NAMES[_0x3e6a52])[_0x446f8f(0x2aa)](',\x20'),'i'),log('Max\x20Leve'+_0x446f8f(0x1f1)+_0x2ae27c+(_0x446f8f(0x1b7)+'vl:\x20')+_0x17a04d+(_0x446f8f(0x134)+'ion:\x20')+_0x231b0a+'h','i');while(!STOP&&Date[_0x58a947(0x24c)]()<_0x453903){if(Date['now']()-_0x453903>0x0)break;let _0x4ca982=null,_0x396d3e=null;try{await refreshTokenFlow(),_0x4ca982=await wsConnect('wss://ws'+'.rollerc'+_0x446f8f(0x17a)+'cmd?toke'+'n='+accessToken);let _0x35d315=0x0;if(_0x4ca982[_0x446f8f(0x13a)])_0x4ca982[_0x446f8f(0x1f4)](JSON[_0x58a947(0x2c2)+'y']({'cmd':'profile_'+_0x446f8f(0x24f)}));while(_0x4ca982[_0x58a947(0x13a)]&&!STOP){const _0x293d76=await _0x4ca982['recv'](randF(0x14,0x28));if(_0x293d76===_0x58a947(0x302)){if(++_0x35d315>=0x3){log(_0x446f8f(0x16d)+_0x446f8f(0x1f5)+_0x446f8f(0x2b9)+'t','wr');break;}continue;}if(!_0x293d76)continue;_0x35d315=0x0;let _0x5249f3;try{_0x5249f3=JSON[_0x58a947(0x1b4)](_0x293d76);}catch{continue;}const _0x1753b9=_0x5249f3[_0x58a947(0x217)];if(_0x1753b9===_0x446f8f(0x2e8)){_0x396d3e=_0x5249f3[_0x446f8f(0x2f2)][_0x58a947(0x239)];if(_0x4ca982[_0x446f8f(0x13a)])_0x4ca982['send'](JSON[_0x446f8f(0x2c2)+'y']({'cmd':_0x446f8f(0x2eb)+_0x446f8f(0x15c)+'st'}));}else{if(_0x1753b9==='games_da'+'ta_respo'+'nse'){const _0x383a84=_0x5249f3[_0x58a947(0x2f2)]||[],_0x270da5=_0x383a84['filter'](_0x28557b=>_0x2b7eb0['includes'](_0x28557b[_0x446f8f(0x2ed)+_0x446f8f(0x1b6)])&&_0x28557b[_0x58a947(0x249)+'n']===0x0);if(!_0x270da5[_0x58a947(0x1c4)]){const _0x49d538=rand(0x12c,0x1a4);log(_0x446f8f(0x1de)+_0x446f8f(0x1f8)+'le\x20→\x20coo'+'ldown\x20'+Math[_0x58a947(0x1ec)](_0x49d538/0x3c)+'m','wr'),_0x4ca982['close'](),await tmr(_0x49d538,'Cooldown');break;}const _0x2dc9fa=[];for(const _0xeb8a12 of _0x270da5){const _0x21c4c7=parseInt(_0xeb8a12[_0x446f8f(0x2ce)]?.[_0x446f8f(0x2ce)]||0x0);if(_0x21c4c7>=_0x2ae27c&&(_0x1825a4[_0xeb8a12[_0x446f8f(0x2ed)+_0x446f8f(0x1b6)]]?.[_0x21c4c7]||0x0)>=_0x17a04d)continue;_0x2dc9fa['push']({'g':_0xeb8a12,'lvl':_0x21c4c7,'w':_0x1825a4[_0xeb8a12[_0x58a947(0x2ed)+_0x446f8f(0x1b6)]]?.[_0x21c4c7]||0x0});}if(!_0x2dc9fa[_0x446f8f(0x1c4)]){log(_0x446f8f(0x295)+'\x20at\x20this'+_0x58a947(0x2f1)+_0x58a947(0x1d7)+_0x446f8f(0x2a6),'wr'),_0x4ca982[_0x58a947(0x259)](),await tmr(rand(0x3c,0x78),'Waiting.'+'..');break;}_0x2dc9fa[_0x446f8f(0x156)]((_0xf49836,_0x33cf5d)=>_0xf49836[_0x446f8f(0x197)]-_0x33cf5d[_0x58a947(0x197)]||_0xf49836['w']-_0x33cf5d['w']);const _0x22c5c6=_0x2dc9fa[0x0],_0x2030f8=_0x22c5c6['g']['game_num'+'ber'];log((GAME_NAMES[_0x2030f8]||'Game'+_0x2030f8)+'\x20|\x20Lvl\x20'+_0x22c5c6[_0x446f8f(0x197)]+_0x58a947(0x227)+_0x22c5c6['w']+'/'+_0x17a04d,'i');const _0x405d4a=encryptData(JSON[_0x446f8f(0x2c2)+'y']({'game_number':_0x2030f8}),_0x396d3e);log(_0x446f8f(0x1cd)+_0x58a947(0x159)+'ata\x20for\x20'+GAME_NAMES[_0x2030f8]+_0x446f8f(0x2cc),'i');const _0x1fb0a9=await api('POST',_0x58a947(0x288)+'/encode-'+_0x58a947(0x1a3)+'me-data/'+_0x396d3e,{'data':_0x405d4a});if(!_0x1fb0a9['success']){log('Encode\x20f'+'ailed:\x20'+(_0x1fb0a9[_0x446f8f(0x1bb)]||_0x58a947(0x264)),'er'),_0x4ca982['close'](),await tmr(rand(0x5,0xa),'Retry...');break;}if(_0x4ca982['open'])_0x4ca982['send'](JSON[_0x58a947(0x2c2)+'y']({'cmd':'game_sta'+_0x446f8f(0x262)+'st','cmdval':_0x1fb0a9[_0x58a947(0x24f)]}));}else{if(_0x1753b9===_0x58a947(0x1e6)+_0x58a947(0x2a1)+_0x446f8f(0x122)){const _0x5a0c5d=_0x5249f3[_0x58a947(0x2f2)],_0x7b52b0=(REWARD_TABLE[_0x5a0c5d['game_num'+'ber']]||{})[_0x5a0c5d[_0x446f8f(0x2ce)]['level']]||0x0,_0x1af4d3=(TIME_TABLE[_0x5a0c5d['game_num'+'ber']]||{})[_0x5a0c5d[_0x58a947(0x2ce)][_0x58a947(0x2ce)]]||0x3c,_0x4fda11=Math[_0x58a947(0x261)](0x1,_0x1af4d3-rand(0x1,0x8));if(Math[_0x446f8f(0x2f0)]()<0.15){const _0x511398=rand(0x5,0x14);log('Distract'+'ed\x20'+_0x511398+'s','wr'),await tmr(_0x511398,'Distract'+_0x446f8f(0x193));}await tmr(_0x4fda11,_0x446f8f(0x139)+(GAME_NAMES[_0x5a0c5d[_0x446f8f(0x2ed)+'ber']]||_0x446f8f(0x260))+'\x20Lv.'+_0x5a0c5d[_0x58a947(0x2ce)][_0x446f8f(0x2ce)]);const _0x10e586=_0x5a0c5d['game_num'+'ber'],_0xe4a5e9=parseInt(_0x5a0c5d[_0x446f8f(0x2ce)]['level']);gnumRef=_0x10e586;const _0x48feb7=_0x1825a4[_0x10e586]?.[_0xe4a5e9]||0x0;let _0x4a5bb6,_0x50ff87;_0x48feb7<_0x17a04d?(_0x4a5bb6=0x3,_0x50ff87=_0x7b52b0,log(_0x58a947(0x120)+_0x446f8f(0x15e)+(_0x48feb7+0x1)+'/'+_0x17a04d+_0x58a947(0x2b4)+_0xe4a5e9+'!','ok')):(_0x4a5bb6=0x2,_0x50ff87=0x0,log(_0x17a04d+('\x20wins\x20at'+_0x58a947(0x2b4))+_0xe4a5e9+(_0x58a947(0x2db)+'LOSE'),'wr'));const _0x498d8e={'power':_0x50ff87,'time':Date[_0x58a947(0x24c)](),'user_game_id':_0x5a0c5d[_0x58a947(0x128)+'e_id'],'win_status':_0x4a5bb6},_0x437a05=encryptData(JSON[_0x58a947(0x2c2)+'y'](_0x498d8e),_0x396d3e),_0x34893b=await api(_0x446f8f(0x1e0),_0x58a947(0x288)+'/encode-'+_0x58a947(0x2f6)+_0x396d3e,{'data':_0x437a05});if(!_0x34893b[_0x446f8f(0x28b)]){log(_0x446f8f(0x1b0)+'nd\x20faile'+'d:\x20'+(_0x34893b[_0x58a947(0x1bb)]||'unknown'),'er');break;}if(!_0x4ca982[_0x446f8f(0x13a)]){log(_0x58a947(0x218)+_0x446f8f(0x1e4)+_0x58a947(0x2da)+'estart','wr');break;}_0x4ca982[_0x58a947(0x1f4)](JSON['stringif'+'y']({'cmd':_0x446f8f(0x2d9)+'_request','cmdval':_0x34893b['data']})),log(_0x58a947(0x2d9)+_0x446f8f(0x2b7)+'='+_0x50ff87+_0x446f8f(0x2c9)+(_0x4a5bb6===0x3?_0x446f8f(0x254):_0x58a947(0x2fa)),'i');if(_0x4a5bb6===0x3)dashboard['bumpWin'](_0x50ff87);else dashboard[_0x446f8f(0x148)]();}else{if(_0x1753b9==='game_fin'+'ished_ac'+'cepted'){const _0x219901=_0x5249f3[_0x58a947(0x2f2)]?parseInt(_0x5249f3[_0x58a947(0x2f2)][_0x58a947(0x2ce)]?.[_0x58a947(0x2ce)]||0x0):null;if(_0x219901!==null&&gnumRef!==null){_0x1825a4[gnumRef]=_0x1825a4[gnumRef]||{};const _0x50e73b=_0x1825a4[gnumRef][_0x219901]||0x0;_0x50e73b<_0x17a04d&&(_0x1825a4[gnumRef][_0x219901]=_0x50e73b+0x1,log(GAME_NAMES[gnumRef]+_0x446f8f(0x2b4)+_0x219901+'\x20→\x20'+(_0x50e73b+0x1)+'/'+_0x17a04d+_0x446f8f(0x250),'ok'));}log('Game\x20fin'+_0x446f8f(0x2ee),'ok');break;}}}}}}catch(_0x26a86f){log(_0x446f8f(0x2bd)+_0x446f8f(0x153)+':\x20'+_0x26a86f[_0x58a947(0x2cd)],'wr');}finally{if(_0x4ca982)_0x4ca982['close']();}if(Math['random']()<0.2){const _0x2ca69e=rand(0x3c,0x12c);log('Waiting\x20'+_0x2ca69e+'s','wr'),await tmr(_0x2ca69e,_0x58a947(0x13e)+'..');}else await tmr(randF(0x3,0xc),'Waiting.'+'..');}log('═'['repeat'](Math[_0x446f8f(0x188)](dashboard[_0x446f8f(0x2d1)]-0x4,0x32)),'i'),log(_0x446f8f(0x29f),'i');for(const [_0x25b0a2,_0x5181b5]of Object['entries'](_0x1825a4))for(const [_0x2cbc32,_0x221315]of Object[_0x58a947(0x192)](_0x5181b5))log('\x20\x20'+GAME_NAMES[_0x25b0a2]+_0x58a947(0x2b4)+_0x2cbc32+':\x20'+_0x221315+_0x58a947(0x25b),'i');}async function merge(){const _0x461292=a0_0x57ba,_0x37a959=a0_0x57ba;log(_0x461292(0x2f5)+_0x461292(0x149)+'rs','i');const _0x5043e0=await getProfile();if(!_0x5043e0){log('No\x20profi'+'le','er');return;}const _0x1042ce=_0x5043e0['id'],_0x378068=await api(_0x37a959(0x11f),_0x37a959(0x288)+_0x461292(0x204)+_0x37a959(0x132)+_0x1042ce);if(!_0x378068['success']){log('No\x20room','er');return;}const _0x115805=_0x378068['data']?.[_0x461292(0x136)]||[];log(_0x461292(0x181)+_0x37a959(0x13d)+_0x115805[_0x461292(0x1c4)],'i');const _0x118e45=await api(_0x37a959(0x11f),_0x37a959(0x288)+_0x37a959(0x226)+_0x37a959(0x2b3)+_0x461292(0x265)+'r&type=m'+_0x37a959(0x29c)+'p=0&limi'+_0x461292(0x2c6)),_0x15d229=_0x118e45[_0x461292(0x28b)]?_0x118e45['data']?.[_0x37a959(0x2c3)]||[]:[];log(_0x37a959(0x1d2)+'y\x20miners'+':\x20'+_0x15d229[_0x461292(0x1c4)],'i');const _0x4fe237=[];for(const _0x2d8102 of _0x115805)_0x4fe237[_0x461292(0x301)]({'id':_0x2d8102[_0x37a959(0x17c)],'name':_0x2d8102['name'],'level':_0x2d8102[_0x37a959(0x2ce)],'width':_0x2d8102[_0x37a959(0x1b5)],'src':_0x37a959(0x125)});for(const _0x1d821f of _0x15d229){const _0x2da6a0=_0x1d821f['quantity']||0x0;for(let _0x13cf55=0x0;_0x13cf55<_0x2da6a0;_0x13cf55++)_0x4fe237['push']({'id':_0x1d821f[_0x37a959(0x242)],'name':_0x1d821f[_0x37a959(0x1ad)],'level':_0x1d821f['level']||0x0,'width':_0x1d821f['width']||0x1,'src':_0x461292(0x20f)});}const _0x169a22={};for(const _0x280186 of _0x4fe237){if(!_0x280186['name'])continue;const _0x421d9a=_0x280186[_0x37a959(0x1ad)]+'|'+_0x280186['level']+'|'+_0x280186[_0x461292(0x1b5)];(_0x169a22[_0x421d9a]=_0x169a22[_0x421d9a]||[])['push'](_0x280186);}const _0x383abb=[];for(const _0x1fa476 of Object[_0x37a959(0x1a6)](_0x169a22)){if(_0x1fa476[_0x37a959(0x1c4)]<0x2)continue;for(let _0x544e96=0x0;_0x544e96<Math[_0x37a959(0x1ec)](_0x1fa476['length']/0x2)*0x2;_0x544e96+=0x2)_0x383abb['push']([_0x1fa476[_0x544e96],_0x1fa476[_0x544e96+0x1]]);}if(!_0x383abb['length']){log(_0x461292(0x190)+_0x461292(0x25c)+'ers','wr');return;}log(_0x37a959(0x142)+_0x383abb[_0x37a959(0x1c4)]+(_0x37a959(0x248)+_0x461292(0x2ba)),'ok');for(let _0x35606e=0x0;_0x35606e<Math['min'](_0x383abb['length'],0x5);_0x35606e++)log(_0x461292(0x1f2)+(_0x35606e+0x1)+':\x20'+_0x383abb[_0x35606e][0x0]['name']+_0x461292(0x21b)+_0x383abb[_0x35606e][0x0]['level']+'\x20['+_0x383abb[_0x35606e][0x0][_0x461292(0x14f)]+'+'+_0x383abb[_0x35606e][0x1]['src']+']','i');log('Merge\x20sc'+_0x461292(0x257)+_0x37a959(0x2e6)+_0x37a959(0x22e)+'manual\x20r'+_0x37a959(0x12f),'wr');}function getMachineId(){const _0x14a8c7=a0_0x57ba,_0x345412=a0_0x57ba;let _0x4edf96=_0x14a8c7(0x264);try{_0x4edf96=os[_0x14a8c7(0x127)]()[_0x345412(0x147)];}catch{}const _0x37e45f=os['hostname']()+'|'+_0x4edf96+'|'+process[_0x14a8c7(0x144)]+'|'+os[_0x345412(0x196)]();return crypto[_0x345412(0x228)+'sh'](_0x14a8c7(0x263))[_0x14a8c7(0x1bd)](_0x37e45f)[_0x345412(0x163)](_0x345412(0x24e))['slice'](0x0,0x14);}function checkLicense(){const _0x3dae55=a0_0x57ba,_0x562f9e=a0_0x57ba;if(!fs['existsSy'+'nc'](LICENSE_PATH))return null;try{const _0x4e0d51=JSON['parse'](fs[_0x3dae55(0x258)+'Sync'](LICENSE_PATH,'utf-8'));if(_0x4e0d51[_0x3dae55(0x1ac)]==='owner')return _0x4e0d51;if(_0x4e0d51['machine']!==getMachineId())return null;if(new Date(_0x4e0d51['expired_'+'at'])<=new Date()){try{fs[_0x3dae55(0x18b)+'nc'](LICENSE_PATH);}catch{}return null;}return _0x4e0d51;}catch{return null;}}function saveLicense(_0x2d67d3){const _0x1e3dbf=a0_0x57ba,_0x57f645=a0_0x57ba;let _0x2cf1f7;if(_0x2d67d3===_0x1e3dbf(0x12a))_0x2cf1f7={'type':_0x57f645(0x12a),'machine':getMachineId(),'expired_at':_0x57f645(0x2d7)+'T','created_at':new Date()['toISOStr'+_0x57f645(0x222)]()};else{const _0x2fa5f0=new Date(Date[_0x1e3dbf(0x24c)]()+LICENSE_DAYS*0x18*0x3c*0x3c*0x3e8);_0x2cf1f7={'type':'user','machine':getMachineId(),'expired_at':_0x2fa5f0[_0x1e3dbf(0x244)+_0x1e3dbf(0x222)](),'created_at':new Date()[_0x1e3dbf(0x244)+_0x57f645(0x222)]()};}try{fs[_0x57f645(0x234)+'eSync'](LICENSE_PATH,JSON[_0x57f645(0x2c2)+'y'](_0x2cf1f7,null,0x2));}catch{}return _0x2cf1f7;}function sisaWaktu(_0x283f99){const _0x3498a3=a0_0x57ba,_0x590340=a0_0x57ba;try{const _0x4d02bc=new Date(_0x283f99),_0xa7e26e=_0x4d02bc-new Date();if(_0xa7e26e<=0x0)return _0x3498a3(0x1ee);const _0x5909c7=Math[_0x3498a3(0x1ec)](_0xa7e26e/0x5265c00),_0x196c19=Math[_0x590340(0x1ec)](_0xa7e26e%0x5265c00/0x36ee80);if(_0x5909c7>0x0)return _0x5909c7+'\x20days\x20'+_0x196c19+(_0x3498a3(0x290)+'eft');return _0x196c19+(_0x590340(0x290)+_0x590340(0x2ae));}catch{return _0x3498a3(0x18c);}}async function verifyLicense(){const _0x4d7148=a0_0x57ba,_0x527adf=a0_0x57ba;console['log'](WHT+(_0x4d7148(0x1e5)+_0x4d7148(0x1e5)+'════════'+_0x527adf(0x1e5)+_0x4d7148(0x1e5)+_0x527adf(0x215))+RST),console['log'](YEL+('\x20\x20\x20\x20\x20\x20\x20\x20'+'\x20LICENSE'+_0x4d7148(0x2b5)+'ATION')+RST),console['log'](WHT+(_0x4d7148(0x1e5)+'════════'+_0x4d7148(0x1e5)+_0x527adf(0x1e5)+'════════'+'═══════')+RST+'\x0a');const _0x3a01d5=SHORTLINK_POOL[Math['floor'](Math['random']()*SHORTLINK_POOL[_0x527adf(0x1c4)])];console['log'](YEL+(_0x527adf(0x1a1)+_0x4d7148(0x1c0)+_0x4d7148(0x2a0)+'s\x20licens'+_0x4d7148(0x271)+_0x4d7148(0x2cf))+RST+'\x0a'),console[_0x4d7148(0x19e)](CYN+('\x20\x20Open\x20t'+_0x527adf(0x18f)+'wing\x20sho'+'rtlink\x20i'+'n\x20your\x20b'+_0x527adf(0x26f))+RST),console[_0x527adf(0x19e)]('\x20\x20\x20\x20\x20'+GRN+_0x3a01d5['url']+RST+'\x0a'),console[_0x527adf(0x19e)](WHT+('────────'+'────────'+_0x527adf(0x203)+_0x4d7148(0x203)+_0x4d7148(0x203)+_0x4d7148(0x1c8))+RST+'\x0a');for(let _0x19c691=0x1;_0x19c691<=0x3;_0x19c691++){const _0x108eec=(await ask(YEL+(_0x527adf(0x150)+'code\x20[')+_0x19c691+'/3]:\x20'+GRN))['trim']();if(_0x108eec===OWNER_KEY&&getMachineId()===OWNER_MACHINE)return saveLicense(_0x527adf(0x12a)),console['log'](YEL+(_0x527adf(0x201)+_0x527adf(0x300)+'\x20Permane'+'nt\x20acces'+'s.')+RST),await sleep(0x5dc),!![];if(_0x108eec['toUpperC'+_0x4d7148(0x1c7)]()===_0x3a01d5[_0x527adf(0x233)][_0x527adf(0x1b8)+_0x4d7148(0x1c7)]())return saveLicense(_0x527adf(0x25a)),console[_0x4d7148(0x19e)](GRN+(_0x527adf(0x14e)+_0x4d7148(0x191)+_0x4d7148(0x19d)+'ful!\x20Act'+_0x527adf(0x278))+LICENSE_DAYS+_0x527adf(0x231)+RST),await sleep(0x5dc),!![];console[_0x527adf(0x19e)](RED+(_0x527adf(0x2f8)+'code!\x20At'+_0x4d7148(0x303)+_0x527adf(0x135)+':\x20')+(0x3-_0x19c691)+RST);}return![];}async function showMenu(_0x3ce364){const _0x3fba3e=a0_0x57ba,_0x2a17fa=a0_0x57ba;dashboard['pause']();const _0x253138=Math['min'](Math['max'](process[_0x3fba3e(0x1f0)][_0x2a17fa(0x297)]||0x50,0x40),0x6e),_0x26d2dd=_0x253138-0x2,_0x28567c=(_0x1f1a66,_0x5d3046)=>{const _0x5ed84d=a0_0x57ba,_0x3b91af=vlen_(_0x1f1a66);return _0x3b91af<_0x5d3046?_0x1f1a66+'\x20'[_0x5ed84d(0x16f)](_0x5d3046-_0x3b91af):_0x1f1a66;},_0x29cbcc=_0x3d5074=>N_CYAN+'║'+RST+_0x28567c('\x20'+_0x3d5074,_0x26d2dd)+N_CYAN+'║'+RST,_0xf9fd8=[];_0xf9fd8['push'](N_CYAN+'╔'+'═'['repeat'](_0x26d2dd)+'╗'+RST),_0xf9fd8['push'](_0x29cbcc(''+N_PINK+BOLD+(_0x3fba3e(0x21e)+'\x20DONG')+RST+'\x20\x20'+N_GRAY+(_0x2a17fa(0x2fd)+_0x2a17fa(0x24d))+RST)),_0xf9fd8[_0x3fba3e(0x301)](N_CYAN+'╠'+'═'['repeat'](_0x26d2dd)+'╣'+RST);const _0x3f1e09=_0x3ce364['userAgen'+'t']?N_GREEN+_0x2a17fa(0x214)+RST:N_RED+_0x3fba3e(0x2a3)+RST,_0x23a989=_0x3ce364[_0x3fba3e(0x124)+_0x3fba3e(0x27b)]?N_GREEN+'✓\x20'+_0x3ce364['access_t'+'oken']['slice'](0x0,0x14)+'…'+RST:N_RED+_0x3fba3e(0x2a3)+RST;_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_GRAY+'Creator'+RST+'\x20:\x20'+N_GREEN+_0x2a17fa(0x247)+RST+_0x2a17fa(0x25f)+N_GRAY+_0x3fba3e(0x2c1)+RST+_0x2a17fa(0x173)+N_GREEN+'Ceban'+RST)),_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_GRAY+'Site'+RST+'\x20\x20\x20\x20:\x20'+N_CYAN+HOST+RST)),_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_GRAY+'UA'+RST+'\x20\x20\x20\x20\x20\x20:\x20'+_0x3f1e09)),_0xf9fd8['push'](_0x29cbcc(N_GRAY+_0x2a17fa(0x22a)+RST+'\x20\x20:\x20'+_0x23a989)),_0xf9fd8[_0x3fba3e(0x301)](N_CYAN+'╠'+'═'[_0x3fba3e(0x16f)](_0x26d2dd)+'╣'+RST),_0xf9fd8[_0x2a17fa(0x301)](_0x29cbcc(N_YELLOW+'[1]'+RST+'\x20'+N_WHITE+BOLD+(_0x3fba3e(0x1b2)+'t')+RST)),_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_YELLOW+'[2]'+RST+'\x20'+N_WHITE+(_0x2a17fa(0x293)+'er')+RST)),_0xf9fd8[_0x2a17fa(0x301)](_0x29cbcc(N_YELLOW+_0x2a17fa(0x162)+RST+'\x20'+N_WHITE+('Set\x20Acce'+'ss\x20Token')+RST)),_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_YELLOW+'[4]'+RST+'\x20'+N_WHITE+(_0x2a17fa(0x2b0)+_0x2a17fa(0x2d8))+RST)),_0xf9fd8[_0x3fba3e(0x301)](_0x29cbcc(N_RED+'[0]'+RST+'\x20'+N_RED+_0x2a17fa(0x26c)+RST)),_0xf9fd8['push'](N_CYAN+'╚'+'═'[_0x2a17fa(0x16f)](_0x26d2dd)+'╝'+RST),console['log'](_0xf9fd8[_0x3fba3e(0x2aa)]('\x0a')),console[_0x2a17fa(0x19e)]('\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+'Option'+RST+_0x3fba3e(0x173)),process[_0x2a17fa(0x1f0)]['write'](_0x3fba3e(0x189));const _0x503d0b=(await ask('\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+_0x2a17fa(0x2d6)+RST+'\x20:\x20'))[_0x2a17fa(0x19a)]();return _0x503d0b;}async function interactiveSetup(_0x53bd51){const _0x3bd45a=a0_0x57ba,_0x4a6795=a0_0x57ba;return _0x53bd51[_0x3bd45a(0x212)]=!![],_0x53bd51[_0x4a6795(0x280)]=!![],_0x53bd51['merge']=!![],_0x53bd51['selected'+_0x3bd45a(0x28a)]=Object[_0x4a6795(0x170)](GAME_NAMES)[_0x4a6795(0x28c)](Number),saveConfig(_0x53bd51),_0x53bd51;}async function main(){const _0x8a6e5a=a0_0x57ba,_0x31dda4=a0_0x57ba,_0x5b573e=checkLicense();if(!_0x5b573e){const _0x11e37b=await verifyLicense();!_0x11e37b&&(console[_0x8a6e5a(0x19e)](RED+('License\x20'+_0x8a6e5a(0x11c)+'tion\x20fai'+_0x8a6e5a(0x15d))+RST),process['exit'](0x1));}const _0x57868f=checkLicense();dashboard['set']({'license':{'type':_0x57868f?.[_0x8a6e5a(0x1ac)]||'?','expires':_0x57868f?.['type']==='owner'?'Permanen'+'t':sisaWaktu(_0x57868f?.['expired_'+'at'])}}),process['on'](_0x8a6e5a(0x286),()=>{const _0x1002a3=a0_0x57ba,_0x25371e=a0_0x57ba;!STOP?(STOP=!![],log(_0x1002a3(0x283)+_0x25371e(0x1ab)+'ng\x20to\x20me'+'nu...','wr')):(process['stdout'][_0x25371e(0x22b)]('\x1b[?25h'),process['stdout'][_0x25371e(0x22b)]('\x0a'+RED+(_0x25371e(0x16a)+_0x1002a3(0x137))+RST+'\x0a'),process[_0x25371e(0x2c7)](0x0));});let _0x62088d=loadConfig();while(!![]){STOP=![],_0x62088d=loadConfig(),dashboard[_0x8a6e5a(0x2d0)]({'ua':!!_0x62088d[_0x31dda4(0x1b3)+'t'],'bearer':!!_0x62088d[_0x31dda4(0x124)+_0x31dda4(0x27b)],'license':{'type':_0x57868f?.[_0x31dda4(0x1ac)]||'?','expires':_0x57868f?.['type']==='owner'?_0x31dda4(0x23d)+'t':sisaWaktu(_0x57868f?.[_0x8a6e5a(0x2ef)+'at'])}});const _0x134569=await showMenu(_0x62088d);if(!_0x134569)continue;_0x134569==='0'&&(process[_0x8a6e5a(0x1f0)][_0x31dda4(0x22b)]('\x1b[?25h'),clear(),console['log'](RED+(_0x31dda4(0x237)+_0x8a6e5a(0x1ca))+RST),process[_0x8a6e5a(0x2c7)](0x0));if(_0x134569==='1'){if(!_0x62088d[_0x8a6e5a(0x1b3)+'t']){log(_0x31dda4(0x2e7)+'nt\x20requi'+_0x31dda4(0x2af)+_0x8a6e5a(0x279),'er'),await sleep(0x5dc);continue;}if(!_0x62088d[_0x8a6e5a(0x124)+_0x31dda4(0x27b)]){log(_0x31dda4(0x13b)+_0x31dda4(0x2a4)+_0x8a6e5a(0x26b)+_0x31dda4(0x1d9)+_0x31dda4(0x1f3),'wr'),await sleep(0x5dc);continue;}!accessToken&&(accessToken=_0x62088d['access_t'+'oken'],refreshToken=_0x62088d[_0x31dda4(0x1aa)+_0x8a6e5a(0x241)]||'',csrfToken=_0x62088d[_0x31dda4(0x22d)+'en']||'');userAgent=_0x62088d[_0x31dda4(0x1b3)+'t']||'',_0x62088d=await interactiveSetup(_0x62088d),dashboard['startSes'+'sion'](),dashboard[_0x31dda4(0x2d0)]({'profile':{'name':'-','power':0x0,'miners':0x0},'task':{'current':_0x31dda4(0x276),'progress':0x0,'total':0x0,'elapsed':0x0,'status':_0x31dda4(0x276)}}),dashboard[_0x8a6e5a(0x194)](),log('Launchin'+'g\x20bot...','i');try{const _0x2e3722=await getProfile();if(!_0x2e3722)log(_0x31dda4(0x26a)+_0x8a6e5a(0x1a7)+'ken\x20expi'+'red?','er'),await sleep(0x7d0);else{dashboard[_0x31dda4(0x1d8)+'le']({'name':_0x2e3722[_0x8a6e5a(0x1ad)]||_0x2e3722['email']||'User','power':_0x2e3722[_0x31dda4(0x1eb)+'l_power']||0x0,'miners':_0x2e3722['user_min'+_0x31dda4(0x1af)+'nt']||0x0}),log(_0x8a6e5a(0x178)+(_0x2e3722[_0x31dda4(0x1ad)]||_0x2e3722[_0x8a6e5a(0x11a)]||_0x31dda4(0x12e))+(_0x31dda4(0x11d)+'s:\x20')+(_0x2e3722[_0x31dda4(0x2b1)+'ers_amou'+'nt']||'?')+(_0x31dda4(0x2be)+':\x20')+(_0x2e3722[_0x31dda4(0x1eb)+_0x31dda4(0x1c6)]||'?'),'ok');if(_0x62088d['hamster'])await hamster();if(_0x62088d[_0x31dda4(0x280)])await playGame(_0x62088d);if(_0x62088d[_0x8a6e5a(0x1a4)])await merge();}}catch(_0x1a7e31){log('Error:\x20'+_0x1a7e31[_0x31dda4(0x2cd)],'er'),await sleep(0x7d0);}finally{dashboard['pause']();}continue;}if(_0x134569==='2'){dashboard['pause'](),clear(),console[_0x8a6e5a(0x19e)](''+N_WHITE+BOLD+(_0x31dda4(0x121)+_0x8a6e5a(0x131))+RST),console[_0x8a6e5a(0x19e)](N_GRAY+_0x8a6e5a(0x238)+RST+'\x20'+(_0x62088d['access_t'+_0x31dda4(0x27b)]?N_GREEN+_0x62088d['access_t'+_0x8a6e5a(0x27b)][_0x8a6e5a(0x251)](0x0,0x1e)+'...':N_RED+_0x31dda4(0x2bc))+RST);const _0x3eea5b=(await ask(_0x8a6e5a(0x266)+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+'Bearer'+RST+'\x20:\x20'))[_0x8a6e5a(0x19a)]();if(_0x3eea5b)_0x62088d[_0x31dda4(0x124)+'oken']=_0x3eea5b,saveConfig(_0x62088d),accessToken=_0x3eea5b,log(_0x31dda4(0x185)+_0x8a6e5a(0x19c),'ok');else log(_0x8a6e5a(0x2df)+'d.','wr');await sleep(0x320);continue;}if(_0x134569==='3'){dashboard[_0x8a6e5a(0x1ba)](),clear(),console[_0x8a6e5a(0x19e)](''+N_WHITE+BOLD+(_0x31dda4(0x165)+_0x31dda4(0x161)+_0x8a6e5a(0x229))+RST),console[_0x8a6e5a(0x19e)](N_GRAY+'Current:'+RST+'\x20'+(_0x62088d['access_t'+_0x31dda4(0x27b)]?N_GREEN+_0x62088d[_0x8a6e5a(0x124)+_0x8a6e5a(0x27b)]['slice'](0x0,0x1e)+_0x8a6e5a(0x2cc):N_RED+'not\x20set')+RST);const _0x29d4f4=(await ask('\x0a\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+('Access\x20T'+_0x31dda4(0x27b))+RST+_0x31dda4(0x173)))[_0x8a6e5a(0x19a)]();if(_0x29d4f4){_0x62088d[_0x31dda4(0x124)+'oken']=_0x29d4f4,accessToken=_0x29d4f4;const _0x43d922=(await ask('\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+(_0x8a6e5a(0x2bb)+_0x31dda4(0x26d))+RST+'\x20:\x20'))['trim']();_0x43d922&&(_0x62088d['refresh_'+_0x31dda4(0x241)]=_0x43d922,refreshToken=_0x43d922);const _0x2a0729=(await ask('\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+('CSRF\x20Tok'+'en')+RST+_0x31dda4(0x173)))['trim']();_0x2a0729&&(_0x62088d[_0x31dda4(0x22d)+'en']=_0x2a0729,csrfToken=_0x2a0729),saveConfig(_0x62088d),log(_0x31dda4(0x235)+'aved.','ok');}else log(_0x31dda4(0x2df)+'d.','wr');await sleep(0x320);continue;}if(_0x134569==='4'){dashboard[_0x8a6e5a(0x1ba)](),clear(),console[_0x31dda4(0x19e)](''+N_WHITE+BOLD+(_0x31dda4(0x2fc)+_0x8a6e5a(0x17f)+_0x8a6e5a(0x269))+RST),console[_0x8a6e5a(0x19e)](N_GRAY+_0x31dda4(0x238)+RST+'\x20'+(_0x62088d[_0x8a6e5a(0x1b3)+'t']?N_GREEN+_0x62088d[_0x8a6e5a(0x1b3)+'t']:N_RED+'not\x20set')+RST);const _0x14a43e=(await ask('\x0a\x20\x20'+N_YELLOW+'▸'+RST+'\x20'+N_WHITE+('User\x20Age'+'nt')+RST+_0x8a6e5a(0x173)))[_0x8a6e5a(0x19a)]();if(_0x14a43e)_0x62088d[_0x8a6e5a(0x1b3)+'t']=_0x14a43e,userAgent=_0x14a43e,saveConfig(_0x62088d),log(_0x31dda4(0x2e7)+_0x8a6e5a(0x1e7)+_0x31dda4(0x177),'ok');else log(_0x31dda4(0x2df)+'d.','wr');await sleep(0x320);continue;}log('Invalid\x20'+_0x8a6e5a(0x1c3),'er'),await sleep(0x3e8);}}main()['catch'](_0x38d860=>{const _0x3f0df3=a0_0x57ba,_0x552436=a0_0x57ba;process[_0x3f0df3(0x1f0)][_0x3f0df3(0x22b)](_0x3f0df3(0x2b2)),console[_0x552436(0x19e)](RED+'Fatal:\x20'+_0x38d860[_0x552436(0x2cd)]+RST),process[_0x552436(0x2c7)](0x1);});
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const readline = require("readline");
+const crypto = require("crypto");
+
+const HOST = "https://rollercoin.com";
+const DIR = __dirname;
+const CONFIG_PATH = path.join(DIR, "config.json");
+
+const OWNER_KEY = "begobangetlu402";
+const LICENSE_DAYS = 7;
+const OWNER_MACHINE = "511287ca60a137303fe6";
+const LICENSE_PATH = path.join(os.homedir(), "license.json");
+
+const SHORTLINK_POOL = [
+  { url: "https://move2link.co/fc9ab0bc", code: "QXZ-7M2A-P9K4" },
+  { url: "https://move2link.co/0d3dab42", code: "BVR-0C8N-T3W6" },
+  { url: "https://move2link.co/9973f9c7", code: "HLM-5R1D-Y7Q2" },
+  { url: "https://move2link.co/ac3b956e", code: "PKT-9A4J-X6N8" },
+  { url: "https://move2link.co/949faae7", code: "WDG-2S7F-K0B5" },
+  { url: "https://move2link.co/e7b1565f", code: "CNR-8E3V-M4T1" },
+  { url: "https://move2link.co/4b230810", code: "YFB-6Q0L-H9P3" },
+  { url: "https://move2link.co/49b7198f", code: "ZJM-4T5C-R2A7" },
+  { url: "https://move2link.co/9e82f22d", code: "VKQ-1N9W-D8S0" },
+  { url: "https://move2link.co/6741aff9", code: "LPT-3B6X-C5M9" },
+  { url: "https://move2link.co/c1b6fca3", code: "RSD-7F2K-Q1Y4" },
+  { url: "https://move2link.co/e1a74dfb", code: "GNC-0H8P-W3V6" },
+  { url: "https://move2link.co/3dde3045", code: "XWA-5J4R-N7E2" },
+  { url: "https://move2link.co/6910ffe8", code: "MQB-9D1T-L6K8" },
+  { url: "https://move2link.co/ac0a187b", code: "TZE-2C7V-B0F5" },
+  { url: "https://move2link.co/b60f3191", code: "UHN-6K3S-A8R1" },
+  { url: "https://move2link.co/ff800f12", code: "OVL-8P5M-Z4D7" },
+  { url: "https://move2link.co/6803d2b9", code: "IJC-1W9Q-T2N3" },
+  { url: "https://move2link.co/55353cee", code: "EAK-4X0B-Y6S9" },
+  { url: "https://move2link.co/0e77d723", code: "PYN-7L2C-H5V0" },
+];
+
+// ═══════════════ NEON PALETTE ═══════════════
+const N_CYAN   = "\x1b[38;5;51m";
+const N_PINK   = "\x1b[38;5;201m";
+const N_GREEN  = "\x1b[38;5;46m";
+const N_YELLOW = "\x1b[38;5;226m";
+const N_BLUE   = "\x1b[38;5;39m";
+const N_ORANGE = "\x1b[38;5;208m";
+const N_PURPLE = "\x1b[38;5;129m";
+const N_RED    = "\x1b[38;5;203m";
+const N_WHITE  = "\x1b[38;5;231m";
+const N_GRAY   = "\x1b[38;5;245m";
+const RST      = "\x1b[0m";
+const BOLD     = "\x1b[1m";
+const DIM      = "\x1b[2m";
+const BG_PINK  = "\x1b[48;5;201m";
+const BG_CYAN  = "\x1b[48;5;51m";
+
+// legacy aliases used by license prompt
+const RED = N_RED, GRN = N_GREEN, YEL = N_YELLOW, BLU = N_BLUE;
+const WHT = N_WHITE, ABU = N_GRAY, CYN = N_CYAN, ORG = N_ORANGE, MAG = N_PURPLE;
+
+const CLR = "\r\x1b[2K";
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
+const vlen_ = (s) => s.replace(ANSI_REGEX, "").length;
+
+let STOP = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const ts = () => new Date().toTimeString().slice(0, 8);
+const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const randF = (a, b) => Math.random() * (b - a) + a;
+function clear() { process.stdout.write("\x1b[2J\x1b[3J\x1b[H"); }
+
+// ═══════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+class Dashboard {
+  constructor() {
+    this.state = {
+      license: { type: "?", expires: "?" },
+      ua: false,
+      bearer: false,
+      profile: { name: "-", power: 0, miners: 0 },
+      task: { current: "idle", progress: 0, total: 0, elapsed: 0, status: "idle" },
+      session: { start: null, wins: 0, losses: 0, earned: 0, games: 0 },
+      logs: [],
+    };
+    this.paused = false;
+    this.timer = null;
+    this.W = 80;
+    this.INNER = 78;
+  }
+
+  addLog(msg, tag = "i") {
+    const icons = { i: "»", ok: "✓", er: "✗", wr: "⚠", in: "●", dbg: "⚙", or: "◆" };
+    const colors = { i: N_CYAN, ok: N_GREEN, er: N_RED, wr: N_YELLOW, in: N_BLUE, dbg: N_PURPLE, or: N_ORANGE };
+    this.state.logs.push({ ts: ts(), icon: icons[tag] || "»", color: colors[tag] || N_WHITE, msg: String(msg) });
+    if (this.state.logs.length > 200) this.state.logs.shift();
+  }
+
+  set(updates) { Object.assign(this.state, updates); }
+  setProfile(p) { this.state.profile = p; }
+
+  startSession() {
+    this.state.session = { start: Date.now(), wins: 0, losses: 0, earned: 0, games: 0 };
+  }
+  bumpWin(reward) {
+    this.state.session.wins++;
+    this.state.session.games++;
+    this.state.session.earned += reward || 0;
+  }
+  bumpLoss() {
+    this.state.session.losses++;
+    this.state.session.games++;
+  }
+
+  _runtime() {
+    if (!this.state.session.start) return "00:00:00";
+    const s = Math.floor((Date.now() - this.state.session.start) / 1000);
+    const h = String(Math.floor(s / 3600)).padStart(2, "0");
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${h}:${m}:${ss}`;
+  }
+
+  _pulse() {
+    const colors = [N_CYAN, N_BLUE, N_PURPLE, N_PINK, N_CYAN];
+    return colors[Math.floor(Date.now() / 400) % colors.length];
+  }
+
+  _pad(s, n) {
+    const v = vlen_(s);
+    return v < n ? s + " ".repeat(n - v) : s;
+  }
+
+  _fit(s, n) {
+    if (vlen_(s) <= n) return s;
+    let out = "", vis = 0, i = 0;
+    const max = n - 1;
+    while (i < s.length && vis < max) {
+      if (s[i] === "\x1b") {
+        const end = s.indexOf("m", i);
+        if (end > -1) { out += s.slice(i, end + 1); i = end + 1; continue; }
+      }
+      out += s[i]; vis++; i++;
+    }
+    return out + "…" + RST;
+  }
+
+  _row(content) {
+    const fitted = this._fit(" " + content, this.INNER);
+    const padded = this._pad(fitted, this.INNER);
+    return `${N_CYAN}║${RST}${padded}${N_CYAN}║${RST}`;
+  }
+
+  _bar(pct, width, color) {
+    const filled = Math.max(0, Math.min(width, Math.round(pct * width)));
+    const empty = width - filled;
+    return `${color}${"█".repeat(filled)}${N_GRAY}${"░".repeat(empty)}${RST}`;
+  }
+
+  render() {
+    if (this.paused) return;
+
+    this.W = Math.min(Math.max(process.stdout.columns || 80, 64), 110);
+    this.INNER = this.W - 2;
+
+    const lines = [];
+    const top = () => `${N_CYAN}╔${"═".repeat(this.INNER)}╗${RST}`;
+    const mid = () => `${N_CYAN}╠${"═".repeat(this.INNER)}╣${RST}`;
+    const bot = () => `${N_CYAN}╚${"═".repeat(this.INNER)}╝${RST}`;
+
+    // ─── HEADER ───
+    lines.push(top());
+    const titleTxt = `⚡ KUYANGIN DONG`;
+    const titleSub = `${N_GRAY}· LIVE DASHBOARD`;
+    const ver = `${N_PINK}vCeban`;
+    const leftPart = `${N_CYAN}${titleTxt}${RST} ${titleSub}${RST}`;
+    const gap = this.INNER - vlen_(leftPart) - vlen_(ver) - 2;
+    lines.push(this._row(`${leftPart}${" ".repeat(Math.max(0, gap))}${ver}`));
+    lines.push(mid());
+
+    // ─── LICENSE + AUTH ───
+    const lic = this.state.license;
+    const licType = lic.type === "owner" ? `${N_YELLOW}👑 OWNER${RST}` : lic.type === "user" ? `${N_GREEN}✓ USER${RST}` : `${N_RED}✗ NONE${RST}`;
+    const licExp = lic.type === "owner" ? "Permanent" : (lic.expires || "-");
+    const bearerStat = this.state.bearer ? `${N_GREEN}✓ SET${RST}` : `${N_RED}✗ NONE${RST}`;
+    const uaStat = this.state.ua ? `${N_GREEN}✓ SET${RST}` : `${N_RED}✗ NONE${RST}`;
+    const connStat = this.state.profile.name !== "-" ? `${N_GREEN}◉ ONLINE${RST}` : `${N_YELLOW}○ IDLE${RST}`;
+
+    // two-column boxes
+    const colW = Math.floor((this.INNER - 4) / 2);
+    const lpad = v => this._pad(v, colW);
+
+    lines.push(this._row(
+      `${N_PURPLE}┌─ LICENSE ${"─".repeat(colW - 11)}┐${RST}  ${N_PURPLE}┌─ AUTH ${"─".repeat(colW - 8)}┐${RST}`
+    ));
+    lines.push(this._row(
+      `${N_PURPLE}│${RST} ${lpad(`Type   : ${licType}`)} ${N_PURPLE}│${RST}  ${N_PURPLE}│${RST} ${lpad(`Bearer : ${bearerStat}`)} ${N_PURPLE}│${RST}`
+    ));
+    lines.push(this._row(
+      `${N_PURPLE}│${RST} ${lpad(`Expiry : ${licExp}`)} ${N_PURPLE}│${RST}  ${N_PURPLE}│${RST} ${lpad(`UA     : ${uaStat}`)} ${N_PURPLE}│${RST}`
+    ));
+    lines.push(this._row(
+      `${N_PURPLE}│${RST} ${lpad(`Status : ${lic.type === "owner" ? "Unlimited" : "Active"}`)} ${N_PURPLE}│${RST}  ${N_PURPLE}│${RST} ${lpad(`Conn   : ${connStat}`)} ${N_PURPLE}│${RST}`
+    ));
+    lines.push(this._row(
+      `${N_PURPLE}└${"─".repeat(colW)}┘${RST}  ${N_PURPLE}└${"─".repeat(colW)}┘${RST}`
+    ));
+    lines.push(mid());
+
+    // ─── SESSION ───
+    const s = this.state.session;
+    lines.push(this._row(`${N_BLUE}▸ SESSION${RST}`));
+    lines.push(this._row(
+      `  ${N_GRAY}Runtime${RST} : ${N_YELLOW}${this._runtime()}${RST}   ` +
+      `${N_GRAY}Wins${RST}: ${N_GREEN}${s.wins}${RST}   ` +
+      `${N_GRAY}Losses${RST}: ${N_RED}${s.losses}${RST}   ` +
+      `${N_GRAY}Games${RST}: ${N_CYAN}${s.games}${RST}`
+    ));
+    lines.push(this._row(
+      `  ${N_GRAY}Earned${RST} : ${N_GREEN}${Number(s.earned).toLocaleString()}${RST} power`
+    ));
+    lines.push(mid());
+
+    // ─── PROFILE ───
+    const p = this.state.profile;
+    lines.push(this._row(`${N_GREEN}▸ PROFILE${RST}`));
+    lines.push(this._row(
+      `  ${N_GRAY}User${RST}   : ${N_YELLOW}${p.name}${RST}   ` +
+      `${N_GRAY}Power${RST}: ${N_CYAN}${Number(p.power).toLocaleString()}${RST}   ` +
+      `${N_GRAY}Miners${RST}: ${N_PINK}${p.miners}${RST}`
+    ));
+    lines.push(mid());
+
+    // ─── CURRENT TASK ───
+    const t = this.state.task;
+    const pct = t.total > 0 ? Math.min(1, t.elapsed / t.total) : 0;
+    const pctPct = Math.round(pct * 100);
+    const barW = Math.max(20, this.INNER - 28);
+    const barColor = t.status === "running" ? this._pulse() : N_GRAY;
+    const bar = this._bar(pct, barW, barColor);
+    const icon = t.status === "running" ? `${N_GREEN}▶${RST}` : `${N_GRAY}○${RST}`;
+    const elapsedStr = `${String(Math.floor(t.elapsed / 60)).padStart(2, "0")}:${String(Math.floor(t.elapsed % 60)).padStart(2, "0")}`;
+    const totalStr = `${String(Math.floor(t.total / 60)).padStart(2, "0")}:${String(Math.floor(t.total % 60)).padStart(2, "0")}`;
+    lines.push(this._row(`${N_ORANGE}▸ CURRENT TASK${RST}`));
+    lines.push(this._row(`  ${icon} ${this._fit(t.current, this.INNER - 6)}`));
+    lines.push(this._row(`  [${bar}] ${N_YELLOW}${String(pctPct).padStart(3)}%${RST}  ${N_GRAY}${elapsedStr}/${totalStr}${RST}`));
+    lines.push(mid());
+
+    // ─── LOGS ───
+    const reserved = lines.length + 3; // +3 for log header + bot border
+    const termRows = process.stdout.rows || 40;
+    const logCount = Math.max(4, Math.min(10, termRows - reserved - 2));
+    const recent = this.state.logs.slice(-logCount);
+
+    lines.push(this._row(`${N_PINK}▸ LOG${RST}`));
+    for (let i = 0; i < logCount; i++) {
+      const l = recent[i];
+      if (!l) { lines.push(this._row("")); continue; }
+      const maxMsg = this.INNER - 18;
+      const msg = l.msg.length > maxMsg ? l.msg.slice(0, maxMsg - 1) + "…" : l.msg;
+      lines.push(this._row(`  ${N_GRAY}[${l.ts}]${RST} ${l.color}${l.icon}${RST} ${msg}`));
+    }
+    lines.push(bot());
+
+    process.stdout.write("\x1b[H" + lines.join("\n") + "\x1b[0J");
+  }
+
+  start() {
+    if (this.timer) return;
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H\x1b[?25l");
+    this.timer = setInterval(() => this.render(), 200);
+  }
+
+  stop() {
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    process.stdout.write("\x1b[?25h");
+  }
+
+  pause() {
+    this.paused = true;
+    this.stop();
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H\x1b[?25h");
+  }
+
+  resume() {
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+    this.paused = false;
+    this.start();
+  }
+}
+
+const dashboard = new Dashboard();
+
+// ═══════════════════════════════════════════════════════════════
+//  LOG / TIMER — route to dashboard
+// ═══════════════════════════════════════════════════════════════
+function log(msg, tag = "i") {
+  dashboard.addLog(msg, tag);
+}
+
+async function tmr(seconds, label = "Waiting...") {
+  const total = Math.floor(seconds);
+  if (total < 1) return;
+  const start = Date.now();
+  const update = () => {
+    const elapsed = Math.min((Date.now() - start) / 1000, total);
+    dashboard.set({
+      task: { current: label, progress: elapsed / total, total, elapsed, status: "running" },
+    });
+  };
+  update();
+  while (!STOP) {
+    if ((Date.now() - start) / 1000 >= total) break;
+    update();
+    await sleep(150);
+  }
+  dashboard.set({
+    task: { current: "idle", progress: 0, total: 0, elapsed: 0, status: "idle" },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════
+function loadConfig() {
+  try { return { ...defaultConfig(), ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8")) }; }
+  catch { return defaultConfig(); }
+}
+function defaultConfig() {
+  return { userAgent: "", hamster: true, game: true, merge: true, proxy: false, max_level_game: 10, win_per_level: 8, time_game: 1, selected_games: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], delay_loop: 30, delay_account_switch: 10 };
+}
+function saveConfig(cfg) { fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); }
+
+function ask(q) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(res => rl.question(q, a => { rl.close(); res(a.trim()); }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ENCRYPTION
+// ═══════════════════════════════════════════════════════════════
+function generateConstructed(uid) {
+  const digits = [...uid].filter(c => /\d/.test(c)).map(Number);
+  const s = digits.reduce((a, b) => a + b, 0);
+  const n = [...digits].sort((a, b) => a - b);
+  const prefix = uid.slice(0, n.length).split("");
+  return [...n.map(String), ...prefix, String(s)].join("");
+}
+function encryptData(plaintext, uid) {
+  const constructed = generateConstructed(uid);
+  const key = crypto.createHash("md5").update(constructed).digest("hex");
+  const iv = Buffer.from("dYQ9R99bkKLsLHad");
+  const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(key), iv);
+  return Buffer.concat([cipher.update(Buffer.from(plaintext, "utf-8")), cipher.final()]).toString("base64");
+}
+
+let accessToken = "", refreshToken = "", csrfToken = "", userAgent = "";
+
+async function api(method, endpoint, body) {
+  const headers = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${accessToken}`,
+    "csrf-token": csrfToken,
+    "Referer": HOST + "/game",
+    "User-Agent": userAgent,
+  };
+  const r = await fetch(HOST + "/" + endpoint, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const text = await r.text();
+  try { return JSON.parse(text); } catch { return { success: false, error: text.slice(0, 100) }; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WEBSOCKET
+// ═══════════════════════════════════════════════════════════════
+async function wsConnect(url) {
+  const ws = new WebSocket(url);
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+  const queue = [];
+  let waiter = null;
+  ws.onmessage = ev => {
+    const d = ev.data;
+    if (waiter) { waiter(d); waiter = null; } else queue.push(d);
+  };
+  return {
+    ws,
+    send: d => ws.send(d),
+    recv: (timeout = 60) => new Promise((resolve) => {
+      if (queue.length) return resolve(queue.shift());
+      const timer = setTimeout(() => { waiter = null; resolve("TIMEOUT"); }, timeout * 1000);
+      waiter = d => { clearTimeout(timer); resolve(d); };
+    }),
+    close: () => { try { ws.close(); } catch {} },
+    get open() { return ws.readyState === 1; },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  API HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function refreshTokenFlow() {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(HOST + "/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": userAgent },
+      body: JSON.stringify({ refresh_token: refreshToken, platform: "web" }),
+    });
+    const d = await r.json();
+    if (d.data && d.data.access_token) {
+      accessToken = d.data.access_token;
+      refreshToken = d.data.refresh_token || refreshToken;
+      const cfg = loadConfig(); cfg.access_token = accessToken; cfg.refresh_token = refreshToken; saveConfig(cfg);
+      log("Token refreshed", "ok");
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function getProfile() {
+  const r = await api("GET", "api/profile/user-profile-data");
+  if (r.success && r.data) return r.data;
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  HAMSTER
+// ═══════════════════════════════════════════════════════════════
+async function hamster() {
+  log("Hamster: check → upgrade → expedition", "i");
+  const petsRes = await api("GET", "api/pets/user-pets?type=hamsters&skip=0&limit=20");
+  if (!petsRes.success || !petsRes.data || !petsRes.data.pets || !petsRes.data.pets.length) { log("No hamsters", "wr"); return; }
+  const pets = petsRes.data.pets;
+  const expRes = await api("GET", "api/expeditions/list");
+  const expeditions = expRes.success ? expRes.data : [];
+  const expMap = {};
+  for (const e of expeditions) expMap[e.title?.en || ""] = e;
+  const userExpRes = await api("GET", "api/expeditions/user-expeditions");
+  if (userExpRes.success && userExpRes.data) {
+    for (const exp of userExpRes.data) {
+      if (!exp.is_complited) continue;
+      const name = exp.title?.en || exp.expedition_data?.title?.en || "Unknown";
+      log(`Completed expedition: ${name}`, "ok");
+      const claim = await api("POST", "api/expeditions/finish", { users_expeditions_id: exp.users_expeditions_id });
+      if (claim.success) log(`Expedition claimed! XP=${claim.data?.received_xp_amount || 0}`, "ok");
+      await sleep(randF(1.5, 3));
+    }
+  }
+  for (const pet of pets) {
+    const title = pet.title?.en || "Unknown";
+    const pts = pet.skills_points_to_distribute || 0;
+    const inExp = pet.is_in_expedition;
+    const level = pet.level || 0;
+    log(`${title} | Lv.${level} | Points=${pts} | Exp=${inExp}`, "i");
+    if (!inExp && pts >= 3) {
+      const bp = Math.floor(pts / 3);
+      if (bp > 0) {
+        const up = await api("POST", "api/pets/update-charachteristics", { users_pets_id: pet.users_pets_id, charachteristics: { strength: bp, health: bp, luck: bp } });
+        if (up.success) log(`Upgrade ${title} +${bp} STR/HP/LUCK`, "ok");
+        await sleep(randF(1.2, 2.4));
+      }
+    }
+    if (inExp || !pet.next_expedition_date) continue;
+    const expTime = new Date(pet.next_expedition_date);
+    if (expTime > new Date()) { log(`${title} cooldown ${Math.ceil((expTime - Date.now()) / 60000)}min`, "wr"); continue; }
+    const sel = level <= 15 ? "Deep Forest" : level <= 35 ? "Tousland" : "Snowlit Avenue";
+    const exp = expMap[sel];
+    if (!exp) { log(`Expedition '${sel}' not found`, "er"); continue; }
+    const start = await api("POST", "api/expeditions/start", { expeditions_id: exp.id, users_pets_ids: [pet.users_pets_id], used_abilities_codes: [] });
+    if (start.success) log(`Expedition started: ${title} → ${sel}`, "ok");
+    await sleep(randF(2, 4));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════════════════════════
+const GAME_NAMES = {1:"Coin Click",2:"Token Blaster",3:"Flappy Rocket",4:"Cryptonoid",5:"Coin Match",6:"Crypto Hamster",7:"2048 Coin",8:"Coin Flip",9:"Dr. Hamster",10:"Token Surfer: Snow Ride",11:"Lambo Rider",12:"Hamster Climber",13:"Coin Fisher",14:"Mission Hampossible",15:"Crypto Hex"};
+const REWARD_TABLE = {1:{1:1200,2:1200,3:1200,4:1200,5:1440,6:1440,7:1440,8:1440,9:1680,10:1680},2:{1:6552,2:7224,3:7722,4:8400,5:8961,6:9540,7:10062,8:10647,9:11232,10:14040},3:{1:2376,2:2592,3:2730,4:2940,5:3150,6:3360,7:3570,8:3780,9:3990,10:4200},4:{1:6768,2:6912,3:7200,4:7488,5:7632,6:7920,7:10944,8:11136,9:11520,10:11712},5:{1:2160,2:2196,3:2232,4:2646,5:2688,6:2730,7:2772,8:2814,9:2856,10:3126},6:{1:6090,2:6492,3:6906,4:7332,5:7770,6:8226,7:8688,8:9168,9:9654,10:10152},7:{1:1008,2:1071,3:1134,4:1197,5:1260,6:1323,7:1386,8:1449,9:1512,10:1575},8:{1:1152,2:1152,3:1152,4:1536,5:1608,6:1608,7:1608,8:2010,9:2010,10:2010},9:{1:3012,2:3294,3:3558,4:3804,5:4026,6:4230,7:4410,8:4584,9:4734,10:4866},10:{1:3528,2:3822,3:4116,4:4410,5:4704,6:4998,7:5292,8:5586,9:5880,10:6174},11:{1:6528,2:6975,3:7425,4:7872,5:8319,6:8769,7:9216,8:9663,9:10113,10:10560},12:{1:2550,2:2970,3:3330,4:3720,5:4080,6:4470,7:4860,8:5250,9:5640,10:6000},13:{1:2550,2:2970,3:3330,4:3720,5:4080,6:4470,7:4860,8:5250,9:5640,10:6000},14:{1:7000,2:8000,3:9000,4:10000,5:11000,6:12000,7:13000,8:14000,9:15000,10:16000},15:{1:2550,2:2970,3:3330,4:3720,5:4080,6:4470,7:4860,8:5250,9:5640,10:6000}};
+const TIME_TABLE = {13:{1:40,2:35,3:35,4:30,5:25,6:25,7:25,8:25,9:25,10:25},14:{1:45,2:45,3:40,4:40,5:35,6:35,7:30,8:30,9:25,10:25},15:{1:30,2:34,3:38,4:42,5:46,6:50,7:54,8:58,9:62,10:70}};
+
+function randomShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rand(0, i);[a[i], a[j]] = [a[j], a[i]]; } }
+
+let gnumRef = null;
+
+async function playGame(cfg) {
+  const selected = [...cfg.selected_games];
+  const MAX_LEVEL = cfg.max_level_game || 10;
+  const WIN_PER_LEVEL = cfg.win_per_level || 8;
+  const RUN_HOURS = cfg.time_game || 1;
+  randomShuffle(selected);
+  const wins = {};
+  for (const g of selected) wins[g] = {};
+  const endTime = Date.now() + RUN_HOURS * 3600000;
+  log(`Games: ${selected.map(g => GAME_NAMES[g]).join(", ")}`, "i");
+  log(`Max Level: ${MAX_LEVEL} | Win/Lvl: ${WIN_PER_LEVEL} | Duration: ${RUN_HOURS}h`, "i");
+
+  while (!STOP && Date.now() < endTime) {
+    if (Date.now() - endTime > 0) break;
+    let ws = null, userId = null;
+    try {
+      await refreshTokenFlow();
+      ws = await wsConnect(`wss://ws.rollercoin.com/cmd?token=${accessToken}`);
+      let timeouts = 0;
+      if (ws.open) ws.send(JSON.stringify({ cmd: "profile_data" }));
+      while (ws.open && !STOP) {
+        const raw = await ws.recv(randF(20, 40));
+        if (raw === "TIMEOUT") { if (++timeouts >= 3) { log("WS timeout x3 → reconnect", "wr"); break; } continue; }
+        if (!raw) continue;
+        timeouts = 0;
+        let msg; try { msg = JSON.parse(raw); } catch { continue; }
+        const cmd = msg.cmd;
+        if (cmd === "profile") {
+          userId = msg.cmdval.userid;
+          if (ws.open) ws.send(JSON.stringify({ cmd: "games_data_request" }));
+        } else if (cmd === "games_data_response") {
+          const games = msg.cmdval || [];
+          const avail = games.filter(g => selected.includes(g.game_number) && g.cool_down === 0);
+          if (!avail.length) {
+            const s = rand(300, 420);
+            log(`No games available → cooldown ${Math.floor(s / 60)}m`, "wr");
+            ws.close(); await tmr(s, "Cooldown"); break;
+          }
+          const cands = [];
+          for (const g of avail) {
+            const lvl = parseInt(g.level?.level || 0);
+            if (lvl >= MAX_LEVEL && (wins[g.game_number]?.[lvl] || 0) >= WIN_PER_LEVEL) continue;
+            cands.push({ g, lvl, w: wins[g.game_number]?.[lvl] || 0 });
+          }
+          if (!cands.length) { log("All done at this level → waiting 60-120s", "wr"); ws.close(); await tmr(rand(60, 120), "Waiting..."); break; }
+          cands.sort((a, b) => a.lvl - b.lvl || a.w - b.w);
+          const chosen = cands[0];
+          const gnum = chosen.g.game_number;
+          log(`${GAME_NAMES[gnum] || "Game" + gnum} | Lvl ${chosen.lvl} | Win ${chosen.w}/${WIN_PER_LEVEL}`, "i");
+          const enc = encryptData(JSON.stringify({ game_number: gnum }), userId);
+          log(`Encoding start data for ${GAME_NAMES[gnum]}...`, "i");
+          const body = await api("POST", `api/game/encode-start-game-data/${userId}`, { data: enc });
+          if (!body.success) { log(`Encode failed: ${body.error || "unknown"}`, "er"); ws.close(); await tmr(rand(5, 10), "Retry..."); break; }
+          if (ws.open) ws.send(JSON.stringify({ cmd: "game_start_request", cmdval: body.data }));
+        } else if (cmd === "game_start_response") {
+          const info = msg.cmdval;
+          const reward = (REWARD_TABLE[info.game_number] || {})[info.level.level] || 0;
+          const base = (TIME_TABLE[info.game_number] || {})[info.level.level] || 60;
+          const playSec = Math.max(1, base - rand(1, 8));
+          if (Math.random() < 0.15) { const d = rand(5, 20); log(`Distracted ${d}s`, "wr"); await tmr(d, "Distracted..."); }
+          await tmr(playSec, `Playing ${GAME_NAMES[info.game_number] || "Game"} Lv.${info.level.level}`);
+          const gnum = info.game_number, lvl = parseInt(info.level.level);
+          gnumRef = gnum;
+          const winsNow = wins[gnum]?.[lvl] || 0;
+          let winStatus, power;
+          if (winsNow < WIN_PER_LEVEL) { winStatus = 3; power = reward; log(`TARGET WIN #${winsNow + 1}/${WIN_PER_LEVEL} Lvl ${lvl}!`, "ok"); }
+          else { winStatus = 2; power = 0; log(`${WIN_PER_LEVEL} wins at Lvl ${lvl} → play LOSE`, "wr"); }
+          const endObj = { power, time: Date.now(), user_game_id: info.user_game_id, win_status: winStatus };
+          const encEnd = encryptData(JSON.stringify(endObj), userId);
+          const body = await api("POST", `api/game/encode-data/${userId}`, { data: encEnd });
+          if (!body.success) { log(`Encode end failed: ${body.error || "unknown"}`, "er"); break; }
+          if (!ws.open) { log("WS closed before end → restart", "wr"); break; }
+          ws.send(JSON.stringify({ cmd: "game_end_request", cmdval: body.data }));
+          log(`game_end → power=${power} | ${winStatus === 3 ? "WIN" : "LOSE"}`, "i");
+          if (winStatus === 3) dashboard.bumpWin(power);
+          else dashboard.bumpLoss();
+        } else if (cmd === "game_finished_accepted") {
+          const lvl = msg.cmdval ? parseInt(msg.cmdval.level?.level || 0) : null;
+          if (lvl !== null && gnumRef !== null) {
+            wins[gnumRef] = wins[gnumRef] || {};
+            const cw = wins[gnumRef][lvl] || 0;
+            if (cw < WIN_PER_LEVEL) { wins[gnumRef][lvl] = cw + 1; log(`${GAME_NAMES[gnumRef]} Lvl ${lvl} → ${cw + 1}/${WIN_PER_LEVEL} wins!`, "ok"); }
+          }
+          log("Game finished", "ok");
+          break;
+        }
+      }
+    } catch (e) { log(`Game round error: ${e.message}`, "wr"); }
+    finally { if (ws) ws.close(); }
+    if (Math.random() < 0.2) { const c = rand(60, 300); log(`Waiting ${c}s`, "wr"); await tmr(c, "Waiting..."); }
+    else await tmr(randF(3, 12), "Waiting...");
+  }
+  log("═".repeat(Math.min(dashboard.INNER - 4, 50)), "i");
+  log("SUMMARY:", "i");
+  for (const [gn, levels] of Object.entries(wins)) for (const [l, w] of Object.entries(levels)) log(`  ${GAME_NAMES[gn]} Lvl ${l}: ${w} wins`, "i");
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MERGE
+// ═══════════════════════════════════════════════════════════════
+async function merge() {
+  log("Merge: scan miners", "i");
+  const prof = await getProfile();
+  if (!prof) { log("No profile", "er"); return; }
+  const userId = prof.id;
+  const roomRes = await api("GET", `api/game/room-config/${userId}`);
+  if (!roomRes.success) { log("No room", "er"); return; }
+  const miners = roomRes.data?.miners || [];
+  log(`Room miners: ${miners.length}`, "i");
+  const invRes = await api("GET", "api/game/inventory?itemType=miner&type=miner&skip=0&limit=100");
+  const inv = invRes.success ? invRes.data?.items || [] : [];
+  log(`Inventory miners: ${inv.length}`, "i");
+  const all = [];
+  for (const m of miners) all.push({ id: m._id, name: m.name, level: m.level, width: m.width, src: "room" });
+  for (const m of inv) { const q = m.quantity || 0; for (let i = 0; i < q; i++) all.push({ id: m.miner_id, name: m.name, level: m.level || 0, width: m.width || 1, src: "inv" }); }
+  const grouped = {};
+  for (const m of all) { if (!m.name) continue; const k = `${m.name}|${m.level}|${m.width}`; (grouped[k] = grouped[k] || []).push(m); }
+  const pairs = [];
+  for (const items of Object.values(grouped)) { if (items.length < 2) continue; for (let i = 0; i < Math.floor(items.length / 2) * 2; i += 2) pairs.push([items[i], items[i + 1]]); }
+  if (!pairs.length) { log("No mergeable miners", "wr"); return; }
+  log(`Found ${pairs.length} merge pairs!`, "ok");
+  for (let i = 0; i < Math.min(pairs.length, 5); i++) log(`Pair ${i + 1}: ${pairs[i][0].name} lvl=${pairs[i][0].level} [${pairs[i][0].src}+${pairs[i][1].src}]`, "i");
+  log("Merge scan done (crafting needs manual recipe)", "wr");
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LICENSE
+// ═══════════════════════════════════════════════════════════════
+function getMachineId() {
+  let user = "unknown";
+  try { user = os.userInfo().username; } catch {}
+  const raw = `${os.hostname()}|${user}|${process.platform}|${os.arch()}`;
+  return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 20);
+}
+
+function checkLicense() {
+  if (!fs.existsSync(LICENSE_PATH)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(LICENSE_PATH, "utf-8"));
+    if (data.type === "owner") return data;
+    if (data.machine !== getMachineId()) return null;
+    if (new Date(data.expired_at) <= new Date()) {
+      try { fs.unlinkSync(LICENSE_PATH); } catch {}
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+
+function saveLicense(kind) {
+  let data;
+  if (kind === "owner") {
+    data = { type: "owner", machine: getMachineId(), expired_at: "PERMANENT", created_at: new Date().toISOString() };
+  } else {
+    const exp = new Date(Date.now() + LICENSE_DAYS * 24 * 60 * 60 * 1000);
+    data = { type: "user", machine: getMachineId(), expired_at: exp.toISOString(), created_at: new Date().toISOString() };
+  }
+  try { fs.writeFileSync(LICENSE_PATH, JSON.stringify(data, null, 2)); } catch {}
+  return data;
+}
+
+function sisaWaktu(expired_at) {
+  try {
+    const exp = new Date(expired_at);
+    const delta = exp - new Date();
+    if (delta <= 0) return "EXPIRED";
+    const hari = Math.floor(delta / 86400000);
+    const jam = Math.floor((delta % 86400000) / 3600000);
+    if (hari > 0) return `${hari} days ${jam} hours left`;
+    return `${jam} hours left`;
+  } catch { return "Unknown"; }
+}
+
+async function verifyLicense() {
+  console.log(`${WHT}═══════════════════════════════════════════════${RST}`);
+  console.log(`${YEL}         LICENSE VERIFICATION${RST}`);
+  console.log(`${WHT}═══════════════════════════════════════════════${RST}\n`);
+
+  const picked = SHORTLINK_POOL[Math.floor(Math.random() * SHORTLINK_POOL.length)];
+  console.log(`${YEL}  ⚠  This script requires license verification.${RST}\n`);
+  console.log(`${CYN}  Open the following shortlink in your browser:${RST}`);
+  console.log(`     ${GRN}${picked.url}${RST}\n`);
+  console.log(`${WHT}───────────────────────────────────────────────${RST}\n`);
+
+  for (let i = 1; i <= 3; i++) {
+    const code = (await ask(`${YEL}  Enter code [${i}/3]: ${GRN}`)).trim();
+    if (code === OWNER_KEY && getMachineId() === OWNER_MACHINE) {
+      saveLicense("owner");
+      console.log(`${YEL}  👑 OWNER MODE — Permanent access.${RST}`);
+      await sleep(1500);
+      return true;
+    }
+    if (code.toUpperCase() === picked.code.toUpperCase()) {
+      saveLicense("user");
+      console.log(`${GRN}  ✅ Verification successful! Active for ${LICENSE_DAYS} days.${RST}`);
+      await sleep(1500);
+      return true;
+    }
+    console.log(`${RED}Invalid code! Attempts remaining: ${3 - i}${RST}`);
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MENU (paused dashboard)
+// ═══════════════════════════════════════════════════════════════
+async function showMenu(cfg) {
+  dashboard.pause();
+  const W = Math.min(Math.max(process.stdout.columns || 80, 64), 110);
+  const INNER = W - 2;
+  const pad = (s, n) => { const v = vlen_(s); return v < n ? s + " ".repeat(n - v) : s; };
+  const row = c => `${N_CYAN}║${RST}${pad(" " + c, INNER)}${N_CYAN}║${RST}`;
+
+  const lines = [];
+  lines.push(`${N_CYAN}╔${"═".repeat(INNER)}╗${RST}`);
+  lines.push(row(`${N_PINK}${BOLD}KUYANGIN DONG${RST}  ${N_GRAY}— SELECT MODE${RST}`));
+  lines.push(`${N_CYAN}╠${"═".repeat(INNER)}╣${RST}`);
+
+  const ua = cfg.userAgent ? `${N_GREEN}✓ SET${RST}` : `${N_RED}✗ NONE${RST}`;
+  const br = cfg.access_token ? `${N_GREEN}✓ ${cfg.access_token.slice(0, 20)}…${RST}` : `${N_RED}✗ NONE${RST}`;
+  lines.push(row(`${N_GRAY}Creator${RST} : ${N_GREEN}iyannn${RST}   ${N_GRAY}Version${RST} : ${N_GREEN}Ceban${RST}`));
+  lines.push(row(`${N_GRAY}Site${RST}    : ${N_CYAN}${HOST}${RST}`));
+  lines.push(row(`${N_GRAY}UA${RST}      : ${ua}`));
+  lines.push(row(`${N_GRAY}Bearer${RST}  : ${br}`));
+  lines.push(`${N_CYAN}╠${"═".repeat(INNER)}╣${RST}`);
+  lines.push(row(`${N_YELLOW}[1]${RST} ${N_WHITE}${BOLD}Start Bot${RST}`));
+  lines.push(row(`${N_YELLOW}[2]${RST} ${N_WHITE}Set Bearer${RST}`));
+  lines.push(row(`${N_YELLOW}[3]${RST} ${N_WHITE}Set Access Token${RST}`));
+  lines.push(row(`${N_YELLOW}[4]${RST} ${N_WHITE}Set User-Agent${RST}`));
+  lines.push(row(`${N_RED}[0]${RST} ${N_RED}Exit${RST}`));
+  lines.push(`${N_CYAN}╚${"═".repeat(INNER)}╝${RST}`);
+  console.log(lines.join("\n"));
+  console.log(`  ${N_YELLOW}▸${RST} ${N_WHITE}Option${RST} : `);
+  process.stdout.write(`\x1b[1A`); // move up to same line
+  const choice = (await ask(`  ${N_YELLOW}▸${RST} ${N_WHITE}Option${RST} : `)).trim();
+  return choice;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INTERACTIVE SETUP (unchanged)
+// ═══════════════════════════════════════════════════════════════
+async function interactiveSetup(cfg) {
+  cfg.hamster = true; cfg.game = true; cfg.merge = true;
+  cfg.selected_games = Object.keys(GAME_NAMES).map(Number);
+  saveConfig(cfg);
+  return cfg;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN
+// ═══════════════════════════════════════════════════════════════
+async function main() {
+  const lic = checkLicense();
+  if (!lic) {
+    const ok = await verifyLicense();
+    if (!ok) { console.log(`${RED}License verification failed.${RST}`); process.exit(1); }
+  }
+
+  const licFresh = checkLicense();
+  dashboard.set({
+    license: {
+      type: licFresh?.type || "?",
+      expires: licFresh?.type === "owner" ? "Permanent" : sisaWaktu(licFresh?.expired_at),
+    },
+  });
+
+  process.on("SIGINT", () => {
+    if (!STOP) {
+      STOP = true;
+      log("Stopped. Returning to menu...", "wr");
+    } else {
+      process.stdout.write("\x1b[?25h");
+      process.stdout.write(`\n${RED}Program exited.${RST}\n`);
+      process.exit(0);
+    }
+  });
+
+  let cfg = loadConfig();
+
+  while (true) {
+    STOP = false;
+    cfg = loadConfig();
+    dashboard.set({
+      ua: !!cfg.userAgent,
+      bearer: !!cfg.access_token,
+      license: {
+        type: licFresh?.type || "?",
+        expires: licFresh?.type === "owner" ? "Permanent" : sisaWaktu(licFresh?.expired_at),
+      },
+    });
+
+    const choice = await showMenu(cfg);
+    if (!choice) continue;
+
+    if (choice === "0") {
+      process.stdout.write("\x1b[?25h");
+      clear();
+      console.log(`${RED}[!] Stopped.${RST}`);
+      process.exit(0);
+    }
+
+    if (choice === "1") {
+      if (!cfg.userAgent) { log("User-Agent required (menu 4)", "er"); await sleep(1500); continue; }
+      if (!cfg.access_token) { log("No token. Set Bearer first (option 2).", "wr"); await sleep(1500); continue; }
+
+      if (!accessToken) { accessToken = cfg.access_token; refreshToken = cfg.refresh_token || ""; csrfToken = cfg.csrf_token || ""; }
+      userAgent = cfg.userAgent || "";
+      cfg = await interactiveSetup(cfg);
+
+      dashboard.startSession();
+      dashboard.set({
+        profile: { name: "-", power: 0, miners: 0 },
+        task: { current: "idle", progress: 0, total: 0, elapsed: 0, status: "idle" },
+      });
+      dashboard.resume();
+      log("Launching bot...", "i");
+
+      try {
+        const prof = await getProfile();
+        if (!prof) {
+          log("Login failed. Token expired?", "er");
+          await sleep(2000);
+        } else {
+          dashboard.setProfile({
+            name: prof.name || prof.email || "User",
+            power: prof.max_total_power || 0,
+            miners: prof.user_miners_amount || 0,
+          });
+          log(`Welcome ${prof.name || prof.email || "User"} | Miners: ${prof.user_miners_amount || "?"} | Power: ${prof.max_total_power || "?"}`, "ok");
+          if (cfg.hamster) await hamster();
+          if (cfg.game) await playGame(cfg);
+          if (cfg.merge) await merge();
+        }
+      } catch (e) {
+        log("Error: " + e.message, "er");
+        await sleep(2000);
+      } finally {
+        dashboard.pause();
+      }
+      continue;
+    }
+
+    if (choice === "2") {
+      dashboard.pause();
+      clear();
+      console.log(`${N_WHITE}${BOLD}🔑 Bearer Setup${RST}`);
+      console.log(`${N_GRAY}Current:${RST} ${cfg.access_token ? N_GREEN + cfg.access_token.slice(0, 30) + "..." : N_RED + "not set"}${RST}`);
+      const c = (await ask(`\n  ${N_YELLOW}▸${RST} ${N_WHITE}Bearer${RST} : `)).trim();
+      if (c) { cfg.access_token = c; saveConfig(cfg); accessToken = c; log("Bearer saved.", "ok"); }
+      else log("Cancelled.", "wr");
+      await sleep(800);
+      continue;
+    }
+
+    if (choice === "3") {
+      dashboard.pause();
+      clear();
+      console.log(`${N_WHITE}${BOLD}🔑 Access Token Setup${RST}`);
+      console.log(`${N_GRAY}Current:${RST} ${cfg.access_token ? N_GREEN + cfg.access_token.slice(0, 30) + "..." : N_RED + "not set"}${RST}`);
+      const at = (await ask(`\n  ${N_YELLOW}▸${RST} ${N_WHITE}Access Token${RST} : `)).trim();
+      if (at) {
+        cfg.access_token = at; accessToken = at;
+        const rt = (await ask(`  ${N_YELLOW}▸${RST} ${N_WHITE}Refresh Token${RST} : `)).trim();
+        if (rt) { cfg.refresh_token = rt; refreshToken = rt; }
+        const cs = (await ask(`  ${N_YELLOW}▸${RST} ${N_WHITE}CSRF Token${RST} : `)).trim();
+        if (cs) { cfg.csrf_token = cs; csrfToken = cs; }
+        saveConfig(cfg);
+        log("Tokens saved.", "ok");
+      } else log("Cancelled.", "wr");
+      await sleep(800);
+      continue;
+    }
+
+    if (choice === "4") {
+      dashboard.pause();
+      clear();
+      console.log(`${N_WHITE}${BOLD}🛠  User-Agent Setup${RST}`);
+      console.log(`${N_GRAY}Current:${RST} ${cfg.userAgent ? N_GREEN + cfg.userAgent : N_RED + "not set"}${RST}`);
+      const ua = (await ask(`\n  ${N_YELLOW}▸${RST} ${N_WHITE}User Agent${RST} : `)).trim();
+      if (ua) { cfg.userAgent = ua; userAgent = ua; saveConfig(cfg); log("User-Agent updated.", "ok"); }
+      else log("Cancelled.", "wr");
+      await sleep(800);
+      continue;
+    }
+
+    log("Invalid choice.", "er");
+    await sleep(1000);
+  }
+}
+
+main().catch(e => {
+  process.stdout.write("\x1b[?25h");
+  console.log(`${RED}Fatal: ${e.message}${RST}`);
+  process.exit(1);
+});
