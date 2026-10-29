@@ -209,66 +209,61 @@
           "runner": "python3"
         },
         "9": {
-          "label": "GramAD 🟢",
-          "file": "GramAD.py",
-          "runner": "python3"
-        },
-        "10": {
-          "label": "LiteBitsFaucet 🟢",
+          "label": "LitebitsFaucet 🟢",
           "file": "Litebits.py",
           "runner": "python3"
         },
-        "11": {
+        "10": {
           "label": "DogeMinerVip 🟢",
           "file": "Dogevip.py",
           "runner": "python3"
         },
-        "12": {
+        "11": {
           "label": "TReward 🟢",
           "file": "tr.py",
           "runner": "python3"
         },
-        "13": {
+        "12": {
           "label": "AdTubesBot 🟡",
           "file": "AdTubesBot.py",
           "runner": "python3"
         },
-        "14": {
+        "13": {
           "label": "Adclickers 🟢",
           "file": "Adclickers.php",
           "runner": "php"
         },
-        "15": {
+        "14": {
           "label": "FarmBuddies 🟢",
           "file": "FarmBuddiesBot.py",
           "runner": "python3"
         },
-        "16": {
+        "15": {
           "label": "Btc Faucet 🟡",
           "file": "btcFaucet.py",
           "runner": "python3"
         },
-        "17": {
+        "16": {
           "label": "VipFaucet 🟢",
           "file": "VipFaucet.py",
           "runner": "python3"
         },
-        "18": {
+        "17": {
           "label": "VirtualMine 🟢",
           "file": "VirtualMine.py",
           "runner": "python3"
         },
-        "19": {
+        "18": {
           "label": "EmojifyGame 🟢",
           "file": "EmojifyGame.py",
           "runner": "python3"
         },
-        "20": {
+        "19": {
           "label": "Coming Soon 🔜",
           "file": "",
           "runner": ""
         },
-        "21": {
+        "20": {
           "label": "Coming Soon 🔜",
           "file": "",
           "runner": ""
