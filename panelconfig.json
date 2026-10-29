@@ -29,8 +29,8 @@
           "runner": "python3"
         },
         "6": {
-          "label": "RollerCoin 🟢🔴",
-          "file": "RollerCoin.js",
+          "label": "🟢🔴",
+          "file": "RollerCoin",
           "runner": "node"
         }
       }
