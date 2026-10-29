@@ -27,6 +27,11 @@
           "label": "CryptoFuture 🟢",
           "file": "Cryptofuture.py",
           "runner": "python3"
+        },
+        "6": {
+          "label": "RollerCoin 🟢",
+          "file": "RollerCoin.js",
+          "runner": "node"
         }
       }
     },
@@ -154,11 +159,6 @@
           "runner": "Node"
         },
         "25": {
-          "label": "RollerCoin 🟢",
-          "file": "RollerCoin.js",
-          "runner": "node"
-        },
-        "26": {
           "label": "Coming Soon 🔜",
           "file": "",
           "runner": ""
