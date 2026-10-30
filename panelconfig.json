@@ -259,9 +259,9 @@
           "runner": "python3"
         },
         "19": {
-          "label": "Coming Soon 🔜",
-          "file": "",
-          "runner": ""
+          "label": "NotMiner 🟢",
+          "file": "NotxMiner.py",
+          "runner": "python3"
         },
         "20": {
           "label": "Coming Soon 🔜",
