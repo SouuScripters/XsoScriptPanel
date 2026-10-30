@@ -39,7 +39,7 @@
       "name": "Apikey ",
       "items": {
         "1": {
-          "label": "LightQuest 🔴",
+          "label": "LightQuest 🟢",
           "file": "light.php",
           "runner": "php"
         },
