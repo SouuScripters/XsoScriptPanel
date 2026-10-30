@@ -159,9 +159,9 @@
           "runner": "php"
         },
         "25": {
-          "label": "Coming Soon 🔜",
-          "file": "",
-          "runner": ""
+          "label": "ShibPay 🟢",
+          "file": "ShibPay.php",
+          "runner": "php"
         }
       }
     },
