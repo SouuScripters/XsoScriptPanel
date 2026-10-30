@@ -154,9 +154,9 @@
           "runner": "php"
         },
         "24": {
-          "label": "Coming Soon 🔜",
-          "file": "",
-          "runner": ""
+          "label": "ClaimFreeTrx 🟢",
+          "file": "ClaimFreeTrx.php",
+          "runner": "php"
         },
         "25": {
           "label": "Coming Soon 🔜",
