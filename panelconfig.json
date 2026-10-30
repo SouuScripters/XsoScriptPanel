@@ -154,9 +154,9 @@
           "runner": "php"
         },
         "24": {
-          "label": "CryptoAdpay 🔴",
-          "file": "cryptoAdpay.js",
-          "runner": "Node"
+          "label": "Coming Soon 🔜",
+          "file": "",
+          "runner": ""
         },
         "25": {
           "label": "Coming Soon 🔜",
