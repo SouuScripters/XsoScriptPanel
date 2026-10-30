@@ -273,54 +273,83 @@ function wkwk($url,$payload=null,$headers=[],$method="POST",$no_proxy=false){
     }
     return ["body"=>'{"error":"CONNECTION_FAILED"}',"code"=>0];
 }
-function http_nocookie($url,$method='GET',$data=[],$headers=[],$json_body=false){
-    $ch=curl_init();
-    $o=[CURLOPT_URL=>$url,CURLOPT_RETURNTRANSFER=>true,CURLOPT_SSL_VERIFYPEER=>false,CURLOPT_SSL_VERIFYHOST=>false,CURLOPT_TIMEOUT=>60,CURLOPT_CONNECTTIMEOUT=>30];
-    if (strtoupper($method)==='POST'){$o[CURLOPT_POST]=true;$o[CURLOPT_POSTFIELDS]=$json_body?$data:http_build_query($data);}
-    if (!empty($headers)) $o[CURLOPT_HTTPHEADER]=$headers;
-    curl_setopt_array($ch,$o); $res=curl_exec($ch); curl_close($ch);
-    return $res;
+
+// ═══════════════ CAPTCHA (FIXED) ═══════════════
+function solve_captcha($method, $sitekey, $action = "") {
+    global $CONFIG;
+    $apikey = $CONFIG['apikey'];
+
+    slog("Solving $method (action=".($action ?: 'none').")...", 'in');
+
+    $body = [
+        "apikey"  => $apikey,
+        "methods" => $method,
+        "domain"  => "https://lightningquest.net",
+        "sitekey" => $sitekey,
+        "json"    => 1,
+    ];
+    if ($action !== "") {
+        $body["action"] = $action;
+        $body["cdata"] = "";
+    }
+
+    $req = wkwk(WARYONO_IN, $body, ["Content-Type: application/json"], "POST", true);
+    $j = json_decode($req["body"], true);
+    $tid = $j["request"] ?? null;
+
+    if (!$tid) {
+        $raw = substr(trim($req["body"] ?? ''), 0, 100);
+        slog("Captcha submit failed: $raw", 'er');
+        return null;
+    }
+
+    slog("Captcha task: $tid", 'in');
+    $st = microtime(true);
+    $lp = 0;
+    $tok = null;
+    $maxWait = 60; // 60s max
+
+    while (true) {
+        $el = microtime(true) - $st;
+        if ($el > $maxWait) { slog("Captcha poll timeout (".(int)$el."s)", 'wr'); break; }
+
+        if (($el - $lp) >= 3) {
+            $lp = $el;
+            $pu = WARYONO_OUT . "?apikey=" . urlencode($apikey) . "&action=get&id=" . urlencode($tid) . "&json=1";
+            $pr = wkwk($pu, null, [], "GET", true);
+            $raw = trim($pr["body"] ?? '');
+
+            if (strpos($raw, "CAPCHA_NOT_READY") !== false) continue;
+
+            $pj = json_decode($raw, true);
+            if (is_array($pj) && !empty($pj["request"])) {
+                $tok = $pj["request"];
+                $el = round(microtime(true) - $st, 1);
+                slog("Captcha solved in {$el}s", 'ok');
+                break;
+            }
+
+            if ($raw && strpos($raw, "CAPCHA_NOT_READY") === false) {
+                slog("Captcha poll: " . substr($raw, 0, 80), 'er');
+                return null;
+            }
+        }
+        usleep(500000);
+    }
+
+    if ($tok) return $tok;
+    slog("Captcha failed ({$method})", 'er');
+    return null;
 }
 
-// ═══════════════ CAPTCHA ═══════════════
-function solve_captcha($method,$sitekey,$action=""){
-    global $CONFIG; $apikey=$CONFIG['apikey'];
-    echo "\n".NEON_CYAN.str_repeat("=",48).RESET."\n";
-    echo NEON_MAGENTA.BOLD."    CAPTCHA SOLVER (WARYONO)".RESET."\n";
-    echo NEON_CYAN.str_repeat("=",48).RESET."\n\n";
-    echo NEON_WHITE."Method  : ".NEON_YELLOW.strtoupper($method).RESET."\n";
-    $body=["apikey"=>$apikey,"methods"=>$method,"domain"=>"https://lightningquest.net","sitekey"=>$sitekey,"json"=>1];
-    if ($action!==""){$body["action"]=$action;$body["cdata"]="";}
-    $req=wkwk(WARYONO_IN,$body,["Content-Type: application/json"],"POST",true);
-    $j=json_decode($req["body"],true); $tid=$j["request"]??null;
-    if (!$tid){echo NEON_WHITE."Status  : ".NEON_RED."FAILED ✗".RESET."\n\n";return null;}
-    echo NEON_WHITE."Task ID : ".NEON_MAGENTA.$tid.RESET."\n";
-    echo NEON_WHITE."Status  : ".NEON_YELLOW; flush();
-    $st=microtime(true); $lp=0; $tok=null; $mw=120;
-    while (true) {
-        $el=microtime(true)-$st; if ($el>$mw) break;
-        echo "\r".NEON_WHITE."Status  : ".NEON_YELLOW."polling ".str_pad(round($el,1)."s",20).RESET; flush();
-        if (($el-$lp)>=2) {
-            $lp=$el;
-            $pu=WARYONO_OUT."?apikey=".urlencode($apikey)."&action=get&id=".urlencode($tid)."&json=1";
-            $pr=wkwk($pu,null,[],"GET",true);
-            if (strpos($pr["body"],"CAPCHA_NOT_READY")!==false){usleep(200000);continue;}
-            $pj=json_decode($pr["body"],true);
-            if (!empty($pj["request"])){$tok=$pj["request"];break;}
+function solve_captcha_retry($method, $sitekey, $max = 2, $action = "") {
+    for ($a = 1; $a <= $max; $a++) {
+        if ($a > 1) {
+            slog("Captcha retry $a/$max", 'wr');
+            sleep(2);
         }
-        usleep(200000);
-    }
-    $el=round(microtime(true)-$st,1);
-    if ($tok){echo "\r".NEON_WHITE."Status  : ".NEON_GREEN."SOLVED ✓".RESET.str_repeat(" ",20)."\n";echo NEON_WHITE."Time    : ".NEON_CYAN.$el."s".RESET."\n\n";return $tok;}
-    echo "\r".NEON_WHITE."Status  : ".NEON_RED."TIMEOUT ✗".RESET.str_repeat(" ",20)."\n\n";return null;
-}
-function solve_captcha_retry($method,$sitekey,$max=3,$action=""){
-    for ($a=1;$a<=$max;$a++){
-        echo NEON_YELLOW."[!] Bypass attempt : ".$a."/".$max.RESET."\n";
-        sleep(rand(2,4));
-        $t=solve_captcha($method,$sitekey,$action);
+        $t = solve_captcha($method, $sitekey, $action);
         if ($t) return $t;
-        if ($a<$max) sleep(2+$a);
     }
     return null;
 }
@@ -443,10 +472,13 @@ function faucet_claim_single(){
     if (!empty($ch['captchaProvider'])) $prov=$ch['captchaProvider'];
     $ctok="";
     if ($cr){
-        slog("Solving ".$prov."...",'in');
         $sk=($prov==="hcaptcha")?SITEKEY_HCAPTCHA:SITEKEY_TURNSTILE;
-        $ctok=solve_captcha_retry($prov,$sk,3,($prov==="turnstile"?"faucet-cadence-v1":""));
-        if (!$ctok) return ['status'=>'error','wait'=>10];
+        // action dikirim ke BOTH hcaptcha & turnstile
+        $ctok=solve_captcha_retry($prov,$sk,2,"faucet-cadence-v1");
+        if (!$ctok) {
+            slog("Faucet captcha failed — skip, retry next cycle", 'er');
+            return ['status'=>'error','wait'=>60];
+        }
     }
     sleep(rand(1,3));
     $claim=api_post("/api/claim/faucet",["captchaToken"=>$ctok,"claimToken"=>$ct]);
@@ -466,7 +498,7 @@ function daily_claim_single(){
         return ['status'=>'cooldown','wait'=>$w];
     }
     slog("Daily bonus...",'in');
-    $cap=solve_captcha_retry("turnstile",SITEKEY_TURNSTILE,3);
+    $cap=solve_captcha_retry("turnstile",SITEKEY_TURNSTILE,2);
     if (!$cap) return ['status'=>'error','wait'=>10];
     $c=api_post("/api/claim/daily",["captchaToken"=>$cap]);
     if (!empty($c['ok'])){
@@ -476,7 +508,7 @@ function daily_claim_single(){
     return ['status'=>'error','wait'=>10];
 }
 
-// ═══════════════ MINIGAMES (no PTC) ═══════════════
+// ═══════════════ MINIGAMES ═══════════════
 function run_minigames_once(){
     global $DB;
     $mg=api_get("/api/minigames"); $games=$mg['games']??[];
@@ -760,7 +792,7 @@ function menu_set_apikey($configFile){
     $CONFIG['apikey']=$k; saveConfig($configFile); good("Saved"); sleep(2);
 }
 
-// ═══════════════ AUTO MODES (DASHBOARD) ═══════════════
+// ═══════════════ AUTO MODES ═══════════════
 function refresh_account(){
     global $DB,$CONFIG;
     $me=api_get("/api/me");
@@ -824,7 +856,7 @@ function mode_autofarm($configFile){
             slog("Faucet +".fmt_coin($fr['coins'])."c +".$fr['xp']."xp | bal ".$fr['balance'],'ok');
             refresh_account();
         } elseif ($fr['status']==='cooldown'){ $fw=$fr['wait']; slog("Faucet cooldown ".(int)($fw/60)."m",'wr'); }
-        else fail("Faucet failed");
+        else { fail("Faucet failed"); $fw=60; }
         $DB->set('task',['running'=>false]);
 
         // MINIGAMES
@@ -874,7 +906,7 @@ function mode_faucet($configFile){
             slog("Faucet +".fmt_coin($fr['coins'])."c | bal ".$fr['balance'],'ok');
             refresh_account();
         } elseif ($fr['status']==='cooldown'){ $fw=$fr['wait']; slog("Faucet cooldown ".(int)($fw/60)."m",'wr'); }
-        else { fail("Faucet failed"); sleep(15); continue; }
+        else { fail("Faucet failed"); $fw=60; }
         $DB->set('faucet',['status'=>'cooldown','label'=>'COOLDOWN']);
         $DB->timer($fw+2,"Next faucet");
         $DB->set('faucet',['status'=>'online','label'=>'ONLINE']);
