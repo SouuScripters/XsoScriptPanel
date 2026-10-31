@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NOTX Miner Auto-Clicker v2.1 — RollerCoin UI + Bugfix
+NOTX Miner Auto-Clicker v2.2 — RollerCoin UI (Single Session)
 """
 
-import asyncio, time, os, sys, hashlib, glob, re, requests
+import asyncio, time, os, sys, hashlib, re, requests
 from telethon import TelegramClient, events
 
 # ================= KONFIG =================
 API_ID = 28752231
 API_HASH = 'ec1c1f2c30e2f1855c3edee7e348480b'
 BOT_USERNAME = '@NOTX_MINER_BOT'
-SESSION_FILE = 'notx_session'
+SESSION_FILE = 'notx_session' # Telethon bakal baca notx_session.session
 
 WATCH_AD_WAIT       = 5
 COOLDOWN_BETWEEN    = 2
-AUTO_LOOP_INTERVAL  = 4        # ← dipercepat
+AUTO_LOOP_INTERVAL  = 4
 RENDER_INTERVAL     = 1.0
-DEDUP_WINDOW        = 3        # detik
+DEDUP_WINDOW        = 3
 
 # Auto-reff (spread manual, bukan bot)
 REF_LINK = 'https://t.me/NOTX_MINER_BOT?start=6894031790'
@@ -38,12 +38,11 @@ def clear():
 
 
 def parse_balance(text):
-    """Parse balance dari berbagai format bot."""
     if not text: return None
     patterns = [
-        r'Balance[^\d\n]*\n\s*([\d.]+)\s*NOT',   # Balance\n9.88 NOT
-        r'Balance[^\d]*([\d.]+)\s*NOT',          # Balance: 9.88 NOT
-        r'Balance[^\d]*([\d.]+)',                # Balance 9.88
+        r'Balance[^\d\n]*\n\s*([\d.]+)\s*NOT',
+        r'Balance[^\d]*([\d.]+)\s*NOT',
+        r'Balance[^\d]*([\d.]+)',
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
@@ -94,7 +93,7 @@ class Dashboard:
             'color': colors.get(tag, C.WHITE),
             'msg': str(msg)
         })
-        if len(self.s['logs']) > 5: self.s['logs'].pop(0)  # 5 line, bukan 8
+        if len(self.s['logs']) > 5: self.s['logs'].pop(0)
 
     def set(self, k, v):
         if isinstance(v, dict) and k in self.s and isinstance(self.s[k], dict):
@@ -122,62 +121,58 @@ class Dashboard:
         return f"{int(sec) // 3600:02d}:{(int(sec) % 3600) // 60:02d}:{int(sec) % 60:02d}"
 
     def render(self):
+        clear()
         inner = self.W - 2
         acc = self.s['account']
         ads = self.s['ads']
         task = self.s['task']
         run = int(time.time() - self.s['start_time'])
 
-        lines = []
-        lines.append(f"\n{C.CYAN}╔{'═' * inner}╗{C.RST}")
-        lines.append(self._row(f"{C.BOLD}{C.WHITE}NOTX MINER AUTO-CLICKER{C.RST}"))
-        lines.append(self._row(f"{C.GRAY}──── RollerCoin UI v2.1 ────{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(f"{C.CYAN}╔{'═' * inner}╗{C.RST}")
+        print(self._row(f"{C.BOLD}{C.WHITE}NOTX MINER AUTO-CLICKER{C.RST}"))
+        print(self._row(f"{C.GRAY}──── RollerCoin UI v2.2 ────{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
         status = self.s['status']
         sc = C.GREEN if status == 'running' else (C.YELLOW if status == 'cooldown' else C.RED)
-        lines.append(self._row(f"{C.BLUE}▸ BOT{C.RST}"))
-        lines.append(self._row(f"  Session : {C.YELLOW}{self.session_name}{C.RST}   Status: {sc}{status.upper()}{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(self._row(f"{C.BLUE}▸ BOT{C.RST}"))
+        print(self._row(f"  Session : {C.YELLOW}{self.session_name}{C.RST}   Status: {sc}{status.upper()}{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
-        lines.append(self._row(f"{C.GREEN}▸ ACCOUNT{C.RST}"))
-        lines.append(self._row(f"  Name    : {C.CYAN}{acc['name']}{C.RST}"))
-        lines.append(self._row(f"  Balance : {C.GREEN}{acc['balance']} NOT{C.RST}   Power: {C.YELLOW}{acc['power']}{C.RST}   Friends: {C.CYAN}{acc['friends']}{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(self._row(f"{C.GREEN}▸ ACCOUNT{C.RST}"))
+        print(self._row(f"  Name    : {C.CYAN}{acc['name']}{C.RST}"))
+        print(self._row(f"  Balance : {C.GREEN}{acc['balance']} NOT{C.RST}   Power: {C.YELLOW}{acc['power']}{C.RST}   Friends: {C.CYAN}{acc['friends']}{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
-        lines.append(self._row(f"{C.MAGENTA}▸ ADS{C.RST}"))
-        lines.append(self._row(f"  Total   : {C.GREEN}{ads['total']}{C.RST}   Earned: {C.YELLOW}+{ads['earned']:.4f} NOT{C.RST}   Last: +{ads['last_reward']:.2f}{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(self._row(f"{C.MAGENTA}▸ ADS{C.RST}"))
+        print(self._row(f"  Total   : {C.GREEN}{ads['total']}{C.RST}   Earned: {C.YELLOW}+{ads['earned']:.4f} NOT{C.RST}   Last: +{ads['last_reward']:.2f}{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
         pct = min(1, task['elapsed'] / task['total']) if task['total'] > 0 else 0
         barw = max(15, inner - 20)
         color = C.MAGENTA if task['running'] else C.GRAY
         icon = f"{C.GREEN}▶{C.RST}" if task['running'] else f"{C.GRAY}○{C.RST}"
-        lines.append(self._row(f"{C.YELLOW}▸ CURRENT TASK{C.RST}"))
-        lines.append(self._row(f"  {icon} {task['current'][:inner - 6]}"))
-        lines.append(self._row(f"  [{self._bar(pct, barw, color)}] {C.YELLOW}{int(pct * 100):>3}%{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(self._row(f"{C.YELLOW}▸ CURRENT TASK{C.RST}"))
+        print(self._row(f"  {icon} {task['current'][:inner - 6]}"))
+        print(self._row(f"  [{self._bar(pct, barw, color)}] {C.YELLOW}{int(pct * 100):>3}%{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
-        lines.append(self._row(f"{C.MAGENTA}▸ SESSION{C.RST}"))
-        lines.append(self._row(f"  Runtime : {C.CYAN}{self._dur(run)}{C.RST}"))
-        lines.append(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
+        print(self._row(f"{C.MAGENTA}▸ SESSION{C.RST}"))
+        print(self._row(f"  Runtime : {C.CYAN}{self._dur(run)}{C.RST}"))
+        print(f"{C.CYAN}╠{'═' * inner}╣{C.RST}")
 
-        lines.append(self._row(f"{C.MAGENTA}▸ LOG{C.RST}"))
+        print(self._row(f"{C.MAGENTA}▸ LOG{C.RST}"))
         if not self.s['logs']:
-            lines.append(self._row(f"{C.GRAY}  ─ no activity ─{C.RST}"))
+            print(self._row(f"{C.GRAY}  ─ no activity ─{C.RST}"))
         else:
             maxm = inner - 18
             for l in self.s['logs']:
                 m = l['msg']
                 if len(m) > maxm: m = m[:maxm - 1] + '…'
-                lines.append(self._row(f"  {C.GRAY}[{l['ts']}]{C.RST} {l['color']}{l['icon']}{C.RST} {m}"))
+                print(self._row(f"  {C.GRAY}[{l['ts']}]{C.RST} {l['color']}{l['icon']}{C.RST} {m}"))
 
-        lines.append(f"{C.CYAN}╚{'═' * inner}╝{C.RST}")
-        lines.append(f"\n   {C.GREEN}● {status.upper()}{C.RST} {C.GRAY}•{C.RST} {C.CYAN}{time.strftime('%H:%M:%S')}{C.RST}\n")
-
-        # FIX: full clear biar ga overlap
-        output = "\033[2J\033[H" + "\n".join(lines)
-        sys.stdout.write(output)
+        print(f"{C.CYAN}╚{'═' * inner}╝{C.RST}")
+        print(f"\n   {C.GREEN}● {status.upper()}{C.RST} {C.GRAY}•{C.RST} {C.CYAN}{time.strftime('%H:%M:%S')}{C.RST}\n")
         sys.stdout.flush()
 
     async def _render_loop(self):
@@ -215,8 +210,8 @@ class Dashboard:
 # ═══════════════ GLOBALS ═══════════════
 last_action_time = 0
 last_msg_key = None
-refer_clicked = False           # ← reff 1x per session
-recent_texts = []               # dedup buffer
+refer_clicked = False
+recent_texts = []
 
 def bisa_aksi():
     global last_action_time
@@ -227,7 +222,6 @@ def tandai_aksi():
     last_action_time = time.time()
 
 def is_duplicate(msg):
-    """Dedup by text + 3s window. Fix '1 ad = 2 hits'."""
     global recent_texts
     text = (msg.text or "")[:120]
     if not text: return False
@@ -247,7 +241,6 @@ def hit_url(url):
     except: return None
 
 def update_account_from_text(DB, text):
-    """Update balance/power/friends dari text apapun."""
     bal = parse_balance(text)
     pow_ = parse_power(text)
     fri = parse_friends(text)
@@ -295,11 +288,8 @@ async def proses(client, DB, msg, sumber="NEW"):
     if is_duplicate(msg): return
 
     text = msg.text or ""
-
-    # Update account info dari setiap message
     update_account_from_text(DB, text)
 
-    # 1. Cooldown
     if "Cooldown" in text or "Next ad in" in text:
         DB.set('status', 'cooldown')
         DB.log("Cooldown → Menu", 'wr')
@@ -307,7 +297,6 @@ async def proses(client, DB, msg, sumber="NEW"):
         tandai_aksi()
         return
 
-    # 2. Reward claimed
     if "Reward claimed" in text or "Ad watched" in text:
         ads = DB.s['ads']
         ads['total'] += 1
@@ -319,11 +308,10 @@ async def proses(client, DB, msg, sumber="NEW"):
             tandai_aksi()
             await DB.set_task("Watching ad...", WATCH_AD_WAIT)
             await asyncio.sleep(WATCH_AD_WAIT)
-            await DB.task_done()   # ← FIX reset
+            await DB.task_done()
             await klik_menu_terbaru(client)
             return
 
-    # 3. Profit credited
     if "Profit credited" in text or "Mined" in text:
         DB.log("Profit masuk → dashboard", 'ok')
         if msg.buttons and await klik_tombol(msg, "Open dashboard"):
@@ -332,7 +320,6 @@ async def proses(client, DB, msg, sumber="NEW"):
             await klik_menu_terbaru(client)
         return
 
-    # 4. Auto-click Invite — ONCE per session
     if not refer_clicked:
         for kw in ('Invite', 'Refer', 'Referral'):
             if msg.buttons and await klik_tombol(msg, kw):
@@ -342,28 +329,24 @@ async def proses(client, DB, msg, sumber="NEW"):
                 await asyncio.sleep(1)
                 return
 
-    # 5. Watch Ad
     if msg.buttons and await klik_tombol(msg, "Watch Ad", klik_url=True):
         tandai_aksi()
         await DB.set_task("Watching ad...", WATCH_AD_WAIT)
         await asyncio.sleep(WATCH_AD_WAIT)
-        await DB.task_done()   # ← FIX reset
+        await DB.task_done()
         await klik_menu_terbaru(client)
         return
 
-    # 6. Verify
     if msg.buttons and await klik_tombol(msg, "Verify"):
         DB.log("Verify", 'in')
         tandai_aksi()
         await asyncio.sleep(3)
         return
 
-    # 7. Menu
     if msg.buttons and await klik_tombol(msg, "Menu"):
         tandai_aksi()
         return
 
-    # 8. Open dashboard
     if msg.buttons and await klik_tombol(msg, "Open dashboard"):
         tandai_aksi()
         await asyncio.sleep(2)
@@ -453,22 +436,9 @@ async def run_session(session_name):
         await DB.stop_render()
 
 
-def find_sessions():
-    files = glob.glob('*.session')
-    return [f.replace('.session','') for f in files] if files else [SESSION_FILE]
-
-
 async def main():
-    sessions = find_sessions()
-    if len(sessions) > 1:
-        print(f"{C.YELLOW}[!] {len(sessions)} sessions: {sessions}{C.RST}")
-        await asyncio.sleep(2)
-        for s in sessions:
-            print(f"{C.CYAN}[+] Running: {s}{C.RST}")
-            await asyncio.sleep(1)
-            await run_session(s)
-    else:
-        await run_session(sessions[0])
+    # HANYA JALANKAN 1 SESSION
+    await run_session(SESSION_FILE)
 
 
 if __name__ == '__main__':
